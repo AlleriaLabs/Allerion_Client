@@ -277,6 +277,48 @@ fun Legend(color: Color, label: String, value: String) {
 }
 
 @Composable
+fun PowerPanel(pw: JSONObject) {
+    val watts = if (pw.isNull("watts")) null else pw.getDouble("watts")
+    val today = pw.optDouble("today_kwh", 0.0)
+    val price = pw.optDouble("price", 0.0)
+    val cur = pw.optString("currency", "")
+    val hist = pw.optJSONArray("history") ?: JSONArray()
+    var maxK = 0.001
+    for (i in 0 until hist.length()) maxK = maxOf(maxK, hist.getJSONObject(i).getDouble("kwh"))
+    Panel {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                Label("Power")
+                Text(if (watts == null) "N/A" else "%.0f W".format(watts), fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = Txt)
+                Text(pw.optString("source", "").takeIf { it != "null" && it.isNotEmpty() } ?: "No sensor", fontSize = 12.sp, color = Dim)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Label("Today")
+                Text("%.2f kWh".format(today), fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Txt)
+                if (price > 0) Text("$cur%.2f".format(today * price), fontSize = 13.sp, color = Mut)
+                Text("Month %.1f kWh".format(pw.optDouble("month_kwh", 0.0)), fontSize = 12.sp, color = Dim)
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(Modifier.fillMaxWidth().height(84.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
+            for (i in 0 until hist.length()) {
+                val o = hist.getJSONObject(i)
+                val last = i == hist.length() - 1
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+                    Text("%.2f".format(o.getDouble("kwh")), fontSize = 9.sp, color = Dim, maxLines = 1)
+                    Spacer(Modifier.height(2.dp))
+                    Box(Modifier.fillMaxWidth().height(maxOf(3f, (o.getDouble("kwh") / maxK * 46).toFloat()).dp)
+                        .clip(RoundedCornerShape(4.dp)).background(if (last) Red else DeepRed))
+                    Spacer(Modifier.height(3.dp))
+                    Text(o.getString("day").substring(8), fontSize = 10.sp, color = Mut)
+                }
+            }
+        }
+        if (watts == null) Text("No power reading found on this server. See the setup notes.", fontSize = 12.sp, color = Dim)
+    }
+}
+
+@Composable
 fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
     val r by rememberStats(sv, 2000)
     val j = r.json
@@ -327,6 +369,7 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                 }
             }
         }
+        j.optJSONObject("power")?.let { PowerPanel(it) }
         Panel {
             Label("Disks")
             val d = j.getJSONArray("disks")
