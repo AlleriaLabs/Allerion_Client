@@ -7,7 +7,27 @@ android {
     compileSdk = 34
     defaultConfig {
         applicationId = "com.example.servermonitor"
-        minSdk = 26; targetSdk = 34; versionCode = 1; versionName = "1.0"
+        minSdk = 26; targetSdk = 34
+        versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
+        versionName = "1.0." + (System.getenv("VERSION_CODE") ?: "1")
+    }
+    signingConfigs {
+        create("release") {
+            val ks = System.getenv("KEYSTORE_FILE")
+            if (ks != null) {
+                storeFile = file(ks)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            signingConfig = if (System.getenv("KEYSTORE_FILE") != null) signingConfigs.getByName("release")
+                            else signingConfigs.getByName("debug")
+        }
     }
     buildFeatures { compose = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
