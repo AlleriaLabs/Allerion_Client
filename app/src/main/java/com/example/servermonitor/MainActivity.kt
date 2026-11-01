@@ -276,8 +276,128 @@ fun Legend(color: Color, label: String, value: String) {
     }
 }
 
+fun httpJson(base: String, token: String, path: String, body: JSONObject? = null): JSONObject {
+    val c = URL(base + path).openConnection() as HttpURLConnection
+    c.connectTimeout = 4000; c.readTimeout = 15000
+    if (token.isNotEmpty()) c.setRequestProperty("X-Token", token)
+    if (body != null) {
+        c.requestMethod = "POST"; c.doOutput = true
+        c.setRequestProperty("Content-Type", "application/json")
+        c.outputStream.use { it.write(body.toString().toByteArray()) }
+    }
+    if (c.responseCode == 401) throw Exception("Wrong token")
+    val st = if (c.responseCode in 200..299) c.inputStream else c.errorStream
+    return JSONObject(st.bufferedReader().readText())
+}
+
+val PLUGS = listOf(
+    "cpu" to "No plug (CPU estimate)",
+    "tuya" to "Meegoo / Tuya / Smart Life plug",
+    "shelly1" to "Shelly (older models)",
+    "shelly2" to "Shelly Plus / Pro",
+    "tasmota" to "Tasmota plug")
+
 @Composable
-fun PowerPanel(pw: JSONObject) {
+fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
+    Text(text, color = if (selected) Txt else Mut, fontSize = 14.sp,
+        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (selected) Red else Track)
+            .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp))
+}
+
+@Composable
+fun PowerSetup(sv: Server, onClose: () -> Unit) {
+    BackHandler { onClose() }
+    val scope = rememberCoroutineScope()
+    var source by remember { mutableStateOf("cpu") }
+    var host by remember { mutableStateOf("") }
+    var tid by remember { mutableStateOf("") }
+    var tkey by remember { mutableStateOf("") }
+    var tver by remember { mutableStateOf("3.3") }
+    var tdp by remember { mutableStateOf("19") }
+    var tscale by remember { mutableStateOf("0.1") }
+    var base by remember { mutableStateOf("0") }
+    var price by remember { mutableStateOf("0") }
+    var cur by remember { mutableStateOf("") }
+    var hasKey by remember { mutableStateOf(false) }
+    var msg by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+
+    LaunchedEffect(sv) {
+        try {
+            val j = withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/power/config") }
+            source = j.optString("source", "cpu"); host = j.optString("host", "")
+            tid = j.optString("tuya_id", ""); tver = j.optString("tuya_version", "3.3")
+            tdp = j.optString("tuya_dp", "19"); tscale = j.optDouble("tuya_scale", 0.1).toString()
+            base = j.optDouble("base_watts", 0.0).toString(); price = j.optDouble("price", 0.0).toString()
+            cur = j.optString("currency", ""); hasKey = j.optBoolean("has_key", false)
+        } catch (e: CancellationException) { throw e
+        } catch (e: Exception) { msg = "Could not load settings: " + (e.message ?: "") }
+    }
+    fun body(): JSONObject = JSONObject().put("source", source).put("host", host.trim()).put("tuya_id", tid.trim())
+        .put("tuya_key", tkey.trim()).put("tuya_version", tver).put("tuya_dp", tdp.trim())
+        .put("tuya_scale", tscale.toDoubleOrNull() ?: 0.1).put("base_watts", base.toDoubleOrNull() ?: 0.0)
+        .put("price", price.toDoubleOrNull() ?: 0.0).put("currency", cur.trim())
+    fun call(path: String, done: (JSONObject) -> String) {
+        busy = true; msg = null
+        scope.launch {
+            msg = try { done(withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, path, body()) }) }
+                  catch (e: CancellationException) { throw e }
+                  catch (e: Exception) { e.message ?: "Failed" }
+            busy = false
+        }
+    }
+
+    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(onClose) { Text("‹ Back", color = Red, fontSize = 16.sp) }
+        Text("Power source", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Txt)
+        Text("Choose how ${sv.name} measures its power use.", color = Mut)
+        PLUGS.forEach { (id, label) ->
+            Panel(onClick = { source = id }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = source == id, onClick = { source = id },
+                        colors = RadioButtonDefaults.colors(selectedColor = Red, unselectedColor = Dim))
+                    Text(label, color = Txt, fontSize = 16.sp)
+                }
+            }
+        }
+        if (source != "cpu") OutlinedTextField(host, { host = it }, label = { Text("Plug IP address") },
+            singleLine = true, modifier = Modifier.fillMaxWidth())
+        if (source == "tuya") {
+            OutlinedTextField(tid, { tid = it }, label = { Text("Device ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(tkey, { tkey = it }, label = { Text(if (hasKey) "Local key (saved, leave empty to keep)" else "Local key") },
+                singleLine = true, modifier = Modifier.fillMaxWidth())
+            Text("Protocol version", color = Mut, fontSize = 13.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("3.3", "3.4", "3.5").forEach { v -> Chip(v, tver == v) { tver = v } }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(tdp, { tdp = it }, label = { Text("Power data point") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(tscale, { tscale = it }, label = { Text("Scale") }, singleLine = true, modifier = Modifier.weight(1f))
+            }
+            Text("Most Meegoo plugs report watts on data point 19 in tenths of a watt (scale 0.1). " +
+                "Press Test to see what your plug sends. Find the Device ID and Local Key with: python -m tinytuya wizard", color = Dim, fontSize = 12.sp)
+        }
+        if (source == "cpu") OutlinedTextField(base, { base = it }, label = { Text("Base watts (board, drives, fans)") },
+            singleLine = true, modifier = Modifier.fillMaxWidth())
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedTextField(price, { price = it }, label = { Text("Price per kWh") }, singleLine = true, modifier = Modifier.weight(1f))
+            OutlinedTextField(cur, { cur = it }, label = { Text("Currency") }, singleLine = true, modifier = Modifier.weight(1f))
+        }
+        msg?.let { Text(it, color = if (it.startsWith("Reading") || it.startsWith("Saved") || it.startsWith("Using")) Green else Amber, fontSize = 13.sp) }
+        OutlinedButton({ call("/api/power/test") { j ->
+            if (j.optBoolean("ok")) (if (j.isNull("watts")) j.optString("note") else "Reading: ${j.getDouble("watts")} W\nData: ${j.optString("raw")}")
+            else "Failed: " + j.optString("error") } },
+            Modifier.fillMaxWidth().height(50.dp), enabled = !busy, shape = RoundedCornerShape(14.dp)) {
+            Text(if (busy) "Working…" else "Test connection", color = Txt) }
+        Button({ call("/api/power/config") { j -> if (j.optBoolean("ok")) "Saved" else "Failed" }; },
+            Modifier.fillMaxWidth().height(52.dp), enabled = !busy, shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) { Text("Save") }
+    }
+}
+
+@Composable
+fun PowerPanel(pw: JSONObject, onSetup: () -> Unit) {
     val watts = if (pw.isNull("watts")) null else pw.getDouble("watts")
     val today = pw.optDouble("today_kwh", 0.0)
     val price = pw.optDouble("price", 0.0)
@@ -291,6 +411,7 @@ fun PowerPanel(pw: JSONObject) {
                 Label("Power")
                 Text(if (watts == null) "N/A" else "%.0f W".format(watts), fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = Txt)
                 Text(pw.optString("source", "").takeIf { it != "null" && it.isNotEmpty() } ?: "No sensor", fontSize = 12.sp, color = Dim)
+                TextButton(onSetup, contentPadding = PaddingValues(0.dp)) { Text("Choose power source ›", color = Red, fontSize = 13.sp) }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Label("Today")
@@ -314,7 +435,9 @@ fun PowerPanel(pw: JSONObject) {
                 }
             }
         }
-        if (watts == null) Text("No power reading found on this server. See the setup notes.", fontSize = 12.sp, color = Dim)
+        val perr = pw.optString("plug_error", "")
+        if (perr.isNotEmpty() && perr != "null") Text("Plug: $perr", fontSize = 12.sp, color = Amber)
+        else if (watts == null) Text("No power reading found. Tap Choose power source to pick your plug.", fontSize = 12.sp, color = Dim)
     }
 }
 
@@ -322,6 +445,8 @@ fun PowerPanel(pw: JSONObject) {
 fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
     val r by rememberStats(sv, 2000)
     val j = r.json
+    var setup by remember { mutableStateOf(false) }
+    if (setup) { PowerSetup(sv) { setup = false }; return }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -369,7 +494,7 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                 }
             }
         }
-        j.optJSONObject("power")?.let { PowerPanel(it) }
+        j.optJSONObject("power")?.let { PowerPanel(it) { setup = true } }
         Panel {
             Label("Disks")
             val d = j.getJSONArray("disks")
