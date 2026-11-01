@@ -187,7 +187,7 @@ fun Status(online: Boolean) {
 @Composable
 fun Banner() {
     Box(Modifier.fillMaxWidth()) {
-        Image(painterResource(R.drawable.banner), "Alleria Home Server Monitoring",
+        Image(painterResource(R.drawable.banner), "AlSent",
             Modifier.fillMaxWidth(), contentScale = ContentScale.FillWidth)
         Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent, Bg))))
     }
