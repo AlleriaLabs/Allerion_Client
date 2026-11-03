@@ -326,6 +326,9 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
     var tver by remember { mutableStateOf("3.3") }
     var tdp by remember { mutableStateOf("19") }
     var tvdp by remember { mutableStateOf("20") }
+    var tuser by remember { mutableStateOf("") }
+    var tpass by remember { mutableStateOf("") }
+    var hasPass by remember { mutableStateOf(false) }
     var tscale by remember { mutableStateOf("0.1") }
     var base by remember { mutableStateOf("0") }
     var price by remember { mutableStateOf("0") }
@@ -338,7 +341,7 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
         try {
             val j = withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/power/config") }
             source = j.optString("source", "cpu"); host = j.optString("host", "")
-            tid = j.optString("tuya_id", ""); tver = j.optString("tuya_version", "3.3")
+            tid = j.optString("tuya_id", ""); tuser = j.optString("tapo_user", ""); hasPass = j.optBoolean("has_pass", false); tver = j.optString("tuya_version", "3.3")
             tdp = j.optString("tuya_dp", "19"); tvdp = j.optString("tuya_voltage_dp", "20"); tscale = j.optDouble("tuya_scale", 0.1).toString()
             base = j.optDouble("base_watts", 0.0).toString(); price = j.optDouble("price", 0.0).toString()
             cur = j.optString("currency", ""); hasKey = j.optBoolean("has_key", false)
@@ -346,7 +349,7 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
         } catch (e: Exception) { msg = "Could not load settings: " + (e.message ?: "") }
     }
     fun body(): JSONObject = JSONObject().put("source", source).put("host", host.trim()).put("tuya_id", tid.trim())
-        .put("tuya_key", tkey.trim()).put("tuya_version", tver).put("tuya_dp", tdp.trim()).put("tuya_voltage_dp", tvdp.trim())
+        .put("tuya_key", tkey.trim()).put("tuya_version", tver).put("tuya_dp", tdp.trim()).put("tuya_voltage_dp", tvdp.trim()).put("tapo_user", tuser.trim()).put("tapo_pass", tpass)
         .put("tuya_scale", tscale.toDoubleOrNull() ?: 0.1).put("base_watts", base.toDoubleOrNull() ?: 0.0)
         .put("price", price.toDoubleOrNull() ?: 0.0).put("currency", cur.trim())
     fun call(path: String, done: (JSONObject) -> String) {
@@ -378,6 +381,13 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
         }
         if (source != "cpu") OutlinedTextField(host, { host = it }, label = { Text("Plug IP address") },
             singleLine = true, modifier = Modifier.fillMaxWidth())
+        if (source == "tapo") {
+            OutlinedTextField(tuser, { tuser = it }, label = { Text("TP-Link account email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(tpass, { tpass = it }, label = { Text(if (hasPass) "Password (saved, leave empty to keep)" else "TP-Link account password") },
+                singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+            Text("Use the same email and password as the Tapo app. Give the plug a fixed IP in your router. If the test fails, in the Tapo app open " +
+                "Me > Tapo Lab > Third-Party Compatibility and turn it on.", color = Dim, fontSize = 12.sp)
+        }
         if (source == "tuya") {
             OutlinedTextField(tid, { tid = it }, label = { Text("Device ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(tkey, { tkey = it }, label = { Text(if (hasKey) "Local key (saved, leave empty to keep)" else "Local key") },
