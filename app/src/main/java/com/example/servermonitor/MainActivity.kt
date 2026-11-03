@@ -26,6 +26,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -127,15 +129,18 @@ fun App(p: SharedPreferences) {
     }
 }
 
+val Surf = Color(0xFF1B1B1B)
+val Surf2 = Color(0xFF262626)
+
+fun JSONObject.str(k: String): String = if (!has(k) || isNull(k)) "" else optString(k)
+fun JSONObject.dbl(k: String): Double? = if (!has(k) || isNull(k)) null else optDouble(k).takeIf { !it.isNaN() }
+
 @Composable
 fun Panel(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(24.dp)
     Column(
-        Modifier.then(modifier).fillMaxWidth().clip(shape)
-            .background(Brush.verticalGradient(listOf(Color(0xFF292929), Color(0xFF1B1B1B), Color(0xFF181818))))
-            .border(1.dp, Line.copy(alpha = 0.88f), shape)
-            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(17.dp),
+        Modifier.then(modifier).fillMaxWidth().clip(shape).background(Surf).border(1.dp, Line, shape)
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it }.padding(18.dp),
         content = content)
 }
 
@@ -152,33 +157,34 @@ fun Bar(frac: Float, h: Dp = 8.dp) {
 }
 
 @Composable
-fun Ring(title: String, pct: Double?, center: String) {
-    val sweep by animateFloatAsState(((pct ?: 0.0) / 100 * 360).toFloat().coerceIn(0f, 360f), tween(700), label = "ring")
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+fun Gauge(pct: Double?, dia: Dp = 58.dp, stroke: Dp = 7.dp) {
+    val sweep by animateFloatAsState(((pct ?: 0.0) / 100 * 360).toFloat().coerceIn(0f, 360f), tween(700), label = "gauge")
+    Canvas(Modifier.size(dia)) {
+        val w = stroke.toPx()
+        val sz = Size(size.width - w, size.height - w)
+        drawArc(Track, 0f, 360f, false, Offset(w / 2, w / 2), sz, style = Stroke(w))
+        if (sweep > 0f) drawArc(Red, -90f, sweep, false, Offset(w / 2, w / 2), sz, style = Stroke(w, cap = StrokeCap.Round))
+    }
+}
+
+@Composable
+fun StatTile(title: String, value: String, sub: String, pct: Double?, modifier: Modifier = Modifier) {
+    Panel(modifier) {
         Label(title)
-        Spacer(Modifier.height(10.dp))
-        Box(Modifier.size(100.dp), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.fillMaxSize()) {
-                val w = 10.dp.toPx(); val g = 16.dp.toPx(); val inset = g / 2
-                val sz = Size(size.width - g, size.height - g)
-                drawArc(Track, 0f, 360f, false, Offset(inset, inset), sz, style = Stroke(w))
-                if (sweep > 0f) {
-                    drawArc(Red.copy(alpha = 0.22f), -90f, sweep, false, Offset(inset, inset), sz, style = Stroke(g, cap = StrokeCap.Round))
-                    drawArc(Red, -90f, sweep, false, Offset(inset, inset), sz, style = Stroke(w, cap = StrokeCap.Round))
-                }
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(value, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
+                Text(sub, fontSize = 12.sp, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            val multi = center.contains('\n')
-            Text(center, color = if (multi) Mut else Txt, fontSize = if (multi) 11.sp else 18.sp,
-                fontWeight = if (multi) FontWeight.Normal else FontWeight.SemiBold,
-                lineHeight = if (multi) 14.sp else 22.sp, textAlign = TextAlign.Center)
+            Gauge(pct)
         }
     }
 }
 
 @Composable
 fun Status(online: Boolean) {
-    Row(Modifier.border(1.dp, (if (online) Green else Red).copy(alpha = 0.28f), RoundedCornerShape(50))
-        .clip(RoundedCornerShape(50)).background(Color(0xFF222222)).padding(horizontal = 11.dp, vertical = 7.dp),
+    Row(Modifier.clip(RoundedCornerShape(50)).background(Surf2).padding(horizontal = 11.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(if (online) Green else Red))
         Spacer(Modifier.width(6.dp))
@@ -187,27 +193,24 @@ fun Status(online: Boolean) {
 }
 
 @Composable
-fun Banner() {
-    Box(Modifier.fillMaxWidth()) {
-        Image(painterResource(R.drawable.banner), "AlSent",
-            Modifier.fillMaxWidth(), contentScale = ContentScale.FillWidth)
-        Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent, Bg))))
+fun BrandBar() {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Image(painterResource(R.drawable.logo_mark), "AlSent", Modifier.size(34.dp))
+        Spacer(Modifier.width(10.dp))
+        Text("AlSent", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 0.5.sp)
     }
 }
 
 @Composable
 fun Home(servers: List<Server>, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit, onAdd: () -> Unit) {
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState())) {
-        Banner()
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("YOUR INFRASTRUCTURE", fontSize = 11.sp, color = Red, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
-                Text("Your servers", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt)
-                Text("A live view of your home lab", fontSize = 13.sp, color = Dim)
-            }
-            if (servers.isEmpty()) Text("No servers yet. Add the address of the monitor running on your server.", color = Mut)
+        BrandBar()
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Your servers", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Txt)
+            Text(if (servers.isEmpty()) "No servers yet. Add the monitor running on your server." else "${servers.size} added",
+                color = Mut, fontSize = 13.sp)
             servers.forEachIndexed { i, sv -> ServerCard(sv, { onOpen(i) }, { onEdit(i) }) }
-            Button(onAdd, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp),
+            Button(onAdd, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) { Text("Add server", fontSize = 16.sp) }
         }
     }
@@ -230,7 +233,7 @@ fun ServerCard(sv: Server, onOpen: () -> Unit, onEdit: () -> Unit) {
     Panel(onClick = onOpen) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(sv.name, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sv.name, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sv.url.removePrefix("http://"), fontSize = 12.sp, color = Dim)
             }
             Status(j != null && r.error == null)
@@ -242,7 +245,7 @@ fun ServerCard(sv: Server, onOpen: () -> Unit, onEdit: () -> Unit) {
             val c = j.getDouble("cpu"); val m = j.getDouble("ram")
             Mini("CPU", "%.0f%%".format(c), (c / 100).toFloat(), Modifier.weight(1f))
             Mini("Memory", "%.0f%%".format(m), (m / 100).toFloat(), Modifier.weight(1f))
-            val t = if (j.isNull("temp")) null else j.getDouble("temp")
+            val t = j.dbl("temp")
             Mini("Temp", if (t == null) "N/A" else "%.0f °C".format(t), ((t ?: 0.0) / 100).toFloat(), Modifier.weight(1f))
         }
     }
@@ -322,6 +325,7 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
     var tkey by remember { mutableStateOf("") }
     var tver by remember { mutableStateOf("3.3") }
     var tdp by remember { mutableStateOf("19") }
+    var tvdp by remember { mutableStateOf("20") }
     var tscale by remember { mutableStateOf("0.1") }
     var base by remember { mutableStateOf("0") }
     var price by remember { mutableStateOf("0") }
@@ -335,14 +339,14 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
             val j = withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/power/config") }
             source = j.optString("source", "cpu"); host = j.optString("host", "")
             tid = j.optString("tuya_id", ""); tver = j.optString("tuya_version", "3.3")
-            tdp = j.optString("tuya_dp", "19"); tscale = j.optDouble("tuya_scale", 0.1).toString()
+            tdp = j.optString("tuya_dp", "19"); tvdp = j.optString("tuya_voltage_dp", "20"); tscale = j.optDouble("tuya_scale", 0.1).toString()
             base = j.optDouble("base_watts", 0.0).toString(); price = j.optDouble("price", 0.0).toString()
             cur = j.optString("currency", ""); hasKey = j.optBoolean("has_key", false)
         } catch (e: CancellationException) { throw e
         } catch (e: Exception) { msg = "Could not load settings: " + (e.message ?: "") }
     }
     fun body(): JSONObject = JSONObject().put("source", source).put("host", host.trim()).put("tuya_id", tid.trim())
-        .put("tuya_key", tkey.trim()).put("tuya_version", tver).put("tuya_dp", tdp.trim())
+        .put("tuya_key", tkey.trim()).put("tuya_version", tver).put("tuya_dp", tdp.trim()).put("tuya_voltage_dp", tvdp.trim())
         .put("tuya_scale", tscale.toDoubleOrNull() ?: 0.1).put("base_watts", base.toDoubleOrNull() ?: 0.0)
         .put("price", price.toDoubleOrNull() ?: 0.0).put("currency", cur.trim())
     fun call(path: String, done: (JSONObject) -> String) {
@@ -386,6 +390,7 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
                 OutlinedTextField(tdp, { tdp = it }, label = { Text("Power data point") }, singleLine = true, modifier = Modifier.weight(1f))
                 OutlinedTextField(tscale, { tscale = it }, label = { Text("Scale") }, singleLine = true, modifier = Modifier.weight(1f))
             }
+            OutlinedTextField(tvdp, { tvdp = it }, label = { Text("Voltage data point (usually 20)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Text("Most Meegoo plugs report watts on data point 19 in tenths of a watt (scale 0.1). " +
                 "Press Test to see what your plug sends. Find the Device ID and Local Key with: python -m tinytuya wizard", color = Dim, fontSize = 12.sp)
         }
@@ -397,7 +402,7 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
         }
         msg?.let { Text(it, color = if (it.startsWith("Reading") || it.startsWith("Saved") || it.startsWith("Using")) Green else Amber, fontSize = 13.sp) }
         OutlinedButton({ call("/api/power/test") { j ->
-            if (j.optBoolean("ok")) (if (j.isNull("watts")) j.optString("note") else "Reading: ${j.getDouble("watts")} W\nData: ${j.optString("raw")}")
+            if (j.optBoolean("ok")) (if (j.isNull("watts")) j.optString("note") else "Reading: ${j.getDouble("watts")} W" + (if (j.isNull("voltage")) "" else ", ${j.getDouble("voltage")} V") + "\nData: ${j.optString("raw")}")
             else "Failed: " + j.optString("error") } },
             Modifier.fillMaxWidth().height(50.dp), enabled = !busy, shape = RoundedCornerShape(14.dp)) {
             Text(if (busy) "Working…" else "Test connection", color = Txt) }
@@ -408,80 +413,266 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
 }
 
 @Composable
-fun PowerMetric(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier.clip(RoundedCornerShape(16.dp))
-        .background(Brush.verticalGradient(listOf(Color(0xFF292929), Color(0xFF202020))))
-        .border(1.dp, Line.copy(alpha = 0.7f), RoundedCornerShape(16.dp)).padding(13.dp)) {
-        Text(label.uppercase(), fontSize = 10.sp, color = Dim, fontWeight = FontWeight.Bold,
-            letterSpacing = 0.8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(7.dp))
-        Text(value, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1,
-            overflow = TextOverflow.Ellipsis)
+fun InfoChip(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier.clip(RoundedCornerShape(16.dp)).background(Surf2).padding(13.dp)) {
+        Text(label.uppercase(), fontSize = 10.sp, color = Dim, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+        Spacer(Modifier.height(5.dp))
+        Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
-fun PowerPanel(pw: JSONObject, onSetup: () -> Unit) {
-    val watts = if (pw.isNull("watts")) null else pw.getDouble("watts")
+fun ToggleMetric(labelA: String, valueA: String, labelB: String, valueB: String, modifier: Modifier = Modifier) {
+    var alt by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(22.dp)
+    Column(modifier.clip(shape).background(Surf).border(1.dp, if (alt) Red.copy(alpha = 0.7f) else Line, shape)
+        .clickable { alt = !alt }.padding(16.dp)) {
+        Label(if (alt) labelB else labelA)
+        Spacer(Modifier.height(8.dp))
+        Text(if (alt) valueB else valueA, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1,
+            overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(4.dp))
+        Text("Tap to switch", fontSize = 10.sp, color = Dim)
+    }
+}
+
+@Composable
+fun LineChart(values: List<Double>, days: Int) {
+    val top = maxOf(0.05, (values.maxOrNull() ?: 0.0) * 1.15)
+    Canvas(Modifier.fillMaxWidth().height(150.dp)) {
+        val w = size.width; val h = size.height
+        for (i in 0..3) drawLine(Line, Offset(0f, h * i / 3f), Offset(w, h * i / 3f), 1.dp.toPx())
+        if (values.isEmpty()) return@Canvas
+        fun px(i: Int) = if (days <= 1) 0f else w * i / (days - 1f)
+        fun py(v: Double) = h - (v / top * h).toFloat().coerceIn(0f, h)
+        val line = Path(); val area = Path()
+        values.forEachIndexed { i, v ->
+            val x = px(i); val y = py(v)
+            if (i == 0) { line.moveTo(x, y); area.moveTo(x, h); area.lineTo(x, y) } else { line.lineTo(x, y); area.lineTo(x, y) }
+        }
+        area.lineTo(px(values.size - 1), h); area.close()
+        drawPath(area, Brush.verticalGradient(listOf(Red.copy(alpha = 0.35f), Color.Transparent)))
+        drawPath(line, Red, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        val c = Offset(px(values.size - 1), py(values.last()))
+        drawCircle(Txt, 6.dp.toPx(), c); drawCircle(Red, 3.5.dp.toPx(), c)
+    }
+}
+
+@Composable
+fun PowerTab(pw: JSONObject?, onSetup: () -> Unit) {
+    if (pw == null) { Text("This server does not report power yet. Update the server program.", color = Amber); return }
+    val watts = pw.dbl("watts")
+    val volts = pw.dbl("voltage")
     val today = pw.optDouble("today_kwh", 0.0)
     val month = pw.optDouble("month_kwh", 0.0)
     val price = pw.optDouble("price", 0.0)
-    val cur = pw.optString("currency", "")
-    val avgDaily = pw.optDouble("avg_daily_kwh", month / java.time.LocalDate.now().dayOfMonth.coerceAtLeast(1))
-    val yearKwh = if (pw.has("year_kwh") && !pw.isNull("year_kwh")) pw.optDouble("year_kwh") else null
-    val yearCost = if (yearKwh != null && price > 0) yearKwh * price else null
-    val hist = pw.optJSONArray("history") ?: JSONArray()
-    var maxK = 0.001
-    for (i in 0 until hist.length()) maxK = maxOf(maxK, hist.getJSONObject(i).optDouble("kwh", 0.0))
+    val cur = pw.str("currency")
+    val year = pw.dbl("year_kwh")
+    fun cost(k: Double) = if (price > 0) cur + "%.2f".format(k * price) else "Set price"
     Panel {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Label("Power Source")
-                Text(pw.optString("source", "").takeIf { it != "null" && it.isNotEmpty() } ?: "No sensor",
-                    fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Txt)
-                TextButton(onSetup, contentPadding = PaddingValues(0.dp)) {
-                    Text("Configure power source ›", color = Red, fontSize = 13.sp)
-                }
+                Label("Power source")
+                Text(pw.str("source").ifEmpty { "No sensor" }, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Txt)
             }
             Status(watts != null)
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PowerMetric("Current Power", if (watts == null) "N/A" else "%.0f W".format(watts), Modifier.weight(1f))
-            PowerMetric("Energy Today", "%.2f kWh".format(today), Modifier.weight(1f))
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PowerMetric("Average Daily Usage", "%.2f kWh".format(avgDaily), Modifier.weight(1f))
-            PowerMetric("This Year Cost", yearCost?.let { "$cur%.2f".format(it) } ?: "Needs year history",
-                Modifier.weight(1f))
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(if (watts == null) "N/A" else "%.0f".format(watts), fontSize = 54.sp, fontWeight = FontWeight.Bold, color = Txt)
+            Text(" W", fontSize = 20.sp, color = Mut, modifier = Modifier.padding(bottom = 11.dp))
         }
         Spacer(Modifier.height(10.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Label("Recent Daily Usage")
-            Text("This month: %.2f kWh".format(month), fontSize = 12.sp, color = Mut)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            InfoChip("Voltage", if (volts == null) "N/A" else "%.1f V".format(volts), Modifier.weight(1f))
+            InfoChip("Today", "%.2f kWh".format(today), Modifier.weight(1f))
         }
-        Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth().height(84.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
-            for (i in 0 until hist.length()) {
-                val o = hist.getJSONObject(i)
-                val last = i == hist.length() - 1
-                val kwh = o.optDouble("kwh", 0.0)
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
-                    Text("%.2f".format(kwh), fontSize = 9.sp, color = Dim, maxLines = 1)
-                    Spacer(Modifier.height(2.dp))
-                    Box(Modifier.fillMaxWidth().height(maxOf(3f, (kwh / maxK * 46).toFloat()).dp)
-                        .clip(RoundedCornerShape(4.dp)).background(if (last) Red else DeepRed))
-                    Spacer(Modifier.height(3.dp))
-                    Text(o.optString("day", "").takeLast(2), fontSize = 10.sp, color = Mut)
+        TextButton(onSetup, contentPadding = PaddingValues(0.dp)) { Text("Configure power source ›", color = Red, fontSize = 13.sp) }
+        val perr = pw.str("plug_error")
+        if (perr.isNotEmpty()) Text("Plug: $perr", fontSize = 12.sp, color = Amber)
+        else if (watts == null) Text("No power reading found. Tap Configure to pick your plug.", fontSize = 12.sp, color = Dim)
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        ToggleMetric("Current Month Usage", "%.2f kWh".format(month), "Current Month Cost", cost(month), Modifier.weight(1f))
+        ToggleMetric("Current Year Usage", year?.let { "%.2f kWh".format(it) } ?: "Update server",
+            "Current Year Cost", year?.let { cost(it) } ?: "Update server", Modifier.weight(1f))
+    }
+    val mh = pw.optJSONArray("month_history") ?: pw.optJSONArray("history") ?: JSONArray()
+    val vals = List(mh.length()) { mh.getJSONObject(it).optDouble("kwh", 0.0) }
+    val days = pw.optInt("days_in_month", vals.size).coerceAtLeast(vals.size).coerceAtLeast(1)
+    val monthName = try {
+        java.time.LocalDate.parse(mh.getJSONObject(0).getString("day")).month
+            .getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
+    } catch (e: Exception) { "This month" }
+    Panel {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Label("Daily usage · $monthName")
+            Text("Peak %.2f kWh".format(vals.maxOrNull() ?: 0.0), fontSize = 12.sp, color = Mut)
+        }
+        Spacer(Modifier.height(12.dp))
+        LineChart(vals, days)
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            listOf(1, days / 3, 2 * days / 3, days).filter { it >= 1 }.distinct().forEach { Text("$it", fontSize = 10.sp, color = Dim) }
+        }
+        val since = pw.str("since")
+        if (since.isNotEmpty()) { Spacer(Modifier.height(8.dp)); Text("Energy tracked since $since", fontSize = 11.sp, color = Dim) }
+    }
+}
+
+@Composable
+fun Speed3(label: String, value: String, unit: String, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(label, fontSize = 12.sp, color = Mut)
+        Text(value, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
+        Text(unit, fontSize = 11.sp, color = Dim)
+    }
+}
+
+@Composable
+fun InternetPanel(j: JSONObject, sv: Server) {
+    val scope = rememberCoroutineScope()
+    val sp = j.optJSONObject("speed") ?: JSONObject()
+    fun num(k: String): String = sp.dbl(k)?.let { "%.0f".format(it) } ?: "–"
+    val ping = sp.dbl("ping_ms") ?: j.dbl("ping_ms")
+    val running = sp.optBoolean("running", false)
+    Panel(onClick = {
+        scope.launch {
+            try { withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/speedtest", JSONObject()) } }
+            catch (e: CancellationException) { throw e } catch (e: Exception) { }
+        }
+    }) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Label("Internet · Speedtest by Ookla")
+            Text(if (running) "Testing…" else "Tap to test", fontSize = 12.sp, color = if (running) Red else Dim)
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(Modifier.fillMaxWidth()) {
+            Speed3("Download", num("down_mbps"), "Mbps", Modifier.weight(1f))
+            Speed3("Upload", num("up_mbps"), "Mbps", Modifier.weight(1f))
+            Speed3("Ping", ping?.let { "%.0f".format(it) } ?: "–", "ms", Modifier.weight(1f))
+        }
+        val srv = sp.str("server")
+        if (srv.isNotEmpty()) { Spacer(Modifier.height(8.dp)); Text(srv, fontSize = 12.sp, color = Dim) }
+        val err = sp.str("error")
+        if (err.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Text(err, fontSize = 12.sp, color = Amber) }
+    }
+}
+
+@Composable
+fun TempTile(temp: Double?, modifier: Modifier) =
+    StatTile("Temperature", if (temp == null) "N/A" else "%.0f °C".format(temp), if (temp == null) "No sensor" else "CPU", temp, modifier)
+
+@Composable
+fun OverviewTab(j: JSONObject, sv: Server, onPower: () -> Unit) {
+    val cpu = j.getDouble("cpu"); val ram = j.getDouble("ram")
+    val temp = j.dbl("temp"); val gpu = j.dbl("gpu")
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        StatTile("CPU", "%.0f%%".format(cpu), "${j.optInt("cores")} cores", cpu, Modifier.weight(1f))
+        StatTile("Memory", "%.0f%%".format(ram), "${j.optDouble("ram_used_gb")} / ${j.optDouble("ram_total_gb")} GB", ram, Modifier.weight(1f))
+    }
+    if (gpu != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        TempTile(temp, Modifier.weight(1f))
+        StatTile("GPU", "%.0f%%".format(gpu), "Usage", gpu, Modifier.weight(1f))
+    } else TempTile(temp, Modifier.fillMaxWidth())
+    val pw = j.optJSONObject("power")
+    Panel(onClick = onPower) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Label("Power")
+                val w = pw?.dbl("watts")
+                Text(if (w == null) "N/A" else "%.0f W".format(w), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Txt)
+                Text("Today %.2f kWh".format(pw?.optDouble("today_kwh", 0.0) ?: 0.0) +
+                    (pw?.dbl("voltage")?.let { "  ·  %.0f V".format(it) } ?: ""), fontSize = 12.sp, color = Mut)
+            }
+            Text("›", fontSize = 28.sp, color = Red)
+        }
+    }
+    InternetPanel(j, sv)
+}
+
+@Composable
+fun DiskPie(d: JSONArray) {
+    val cols = listOf(Red, Color(0xFFF5F5F1), Color(0xFFB20710), Color(0xFF8C8C8C), Color(0xFFFF6B6B), Color(0xFF5E5E5E))
+    val names = List(d.length()) { d.getJSONObject(it).optString("mount", "?") }
+    val used = List(d.length()) { d.getJSONObject(it).optDouble("used_gb", 0.0) }
+    val tot = List(d.length()) { d.getJSONObject(it).optDouble("total_gb", 0.0) }
+    val sumTotal = maxOf(tot.sum(), 0.001); val sumUsed = used.sum(); val free = maxOf(sumTotal - sumUsed, 0.0)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(132.dp), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.fillMaxSize()) {
+                var start = -90f
+                (used + free).forEachIndexed { i, v ->
+                    val sweep = (v / sumTotal * 360).toFloat()
+                    if (sweep > 0.3f) {
+                        drawArc(color = if (i < used.size) cols[i % cols.size] else Track, startAngle = start, sweepAngle = sweep,
+                            useCenter = true, topLeft = Offset.Zero, size = size)
+                        drawArc(color = Surf, startAngle = start, sweepAngle = sweep, useCenter = true, topLeft = Offset.Zero,
+                            size = size, style = Stroke(2.dp.toPx()))
+                    }
+                    start += sweep
                 }
+                drawCircle(Surf, radius = size.minDimension * 0.27f, center = center)
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("%.0f%%".format(sumUsed / sumTotal * 100), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Txt)
+                Text("used", fontSize = 11.sp, color = Dim)
             }
         }
-        val perr = pw.optString("plug_error", "")
-        if (perr.isNotEmpty() && perr != "null") Text("Plug: $perr", fontSize = 12.sp, color = Amber)
-        else if (watts == null) Text("No power reading found. Tap Configure power source to select your plug.",
-            fontSize = 12.sp, color = Dim)
-        if (yearCost == null) Text("Year cost will appear when the server provides year-to-date energy history.",
-            fontSize = 11.sp, color = Dim)
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            names.forEachIndexed { i, n ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(10.dp).clip(CircleShape).background(cols[i % cols.size]))
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(n, color = Txt, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("%.1f / %.1f GB".format(used[i], tot[i]), fontSize = 12.sp, color = Mut)
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(10.dp).clip(CircleShape).background(Track))
+                Spacer(Modifier.width(8.dp))
+                Text("Free %.1f GB".format(free), fontSize = 12.sp, color = Mut)
+            }
+        }
+    }
+}
+
+@Composable
+fun SystemTab(j: JSONObject) {
+    Panel {
+        Label("Storage")
+        Spacer(Modifier.height(14.dp))
+        DiskPie(j.optJSONArray("disks") ?: JSONArray())
+    }
+    Panel {
+        Label("Network")
+        Spacer(Modifier.height(8.dp))
+        Legend(Red, "Download", rate(j.getDouble("net_down_bps") / 8))
+        Legend(Txt, "Upload", rate(j.getDouble("net_up_bps") / 8))
+        Legend(Dim, "IPv4", j.str("ip").ifEmpty { "-" })
+    }
+    val procs = j.optJSONArray("procs") ?: JSONArray()
+    Panel {
+        Label("Applications")
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Text("Name", color = Dim, modifier = Modifier.weight(2f), fontSize = 12.sp)
+            Text("CPU", color = Dim, modifier = Modifier.weight(0.8f), textAlign = TextAlign.End, fontSize = 12.sp)
+            Text("Memory", color = Dim, modifier = Modifier.weight(1.1f), textAlign = TextAlign.End, fontSize = 12.sp)
+        }
+        for (i in 0 until procs.length()) {
+            val o = procs.getJSONObject(i)
+            val mem = o.getInt("mem_mb")
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                .background(if (i % 2 == 0) Surf2 else Color.Transparent).padding(horizontal = 6.dp, vertical = 7.dp)) {
+                Text(o.getString("name"), color = Txt, modifier = Modifier.weight(2f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("%.1f%%".format(o.getDouble("cpu")), color = Mut, modifier = Modifier.weight(0.8f), textAlign = TextAlign.End)
+                Text(if (mem >= 1000) "%.1f GB".format(mem / 1000.0) else "$mem MB", color = Mut, modifier = Modifier.weight(1.1f), textAlign = TextAlign.End)
+            }
+        }
     }
 }
 
@@ -490,95 +681,35 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
     val r by rememberStats(sv, 2000)
     val j = r.json
     var setup by remember { mutableStateOf(false) }
+    var tab by remember { mutableStateOf(0) }
     if (setup) { PowerSetup(sv) { setup = false }; return }
-    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF1A1A1A), Bg, Bg)))
-        .systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onBack) { Text("‹ Servers", color = Red, fontSize = 16.sp) }
-            TextButton(onEdit) { Text("Edit", color = Red) }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
+        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onBack) { Text("‹", color = Red, fontSize = 30.sp) }
             Column(Modifier.weight(1f)) {
-                Text("SERVER OVERVIEW", fontSize = 10.sp, color = Red, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
-                Text(sv.name, fontSize = 29.sp, fontWeight = FontWeight.Bold, color = Txt)
+                Text(sv.name, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val up = j?.optLong("uptime_s") ?: 0L
-                Text(if (j == null) "Connecting…" else "Up ${up / 86400}d ${up % 86400 / 3600}h  ·  ${j.optString("host")}", color = Mut, fontSize = 13.sp)
+                Text(if (j == null) "Connecting…" else "Up ${up / 86400}d ${up % 86400 / 3600}h  ·  ${j.str("host")}", color = Mut, fontSize = 12.sp)
             }
             Status(j != null && r.error == null)
+            TextButton(onEdit) { Text("Edit", color = Red) }
         }
-        r.error?.let { Text(it, color = Amber) }
-        if (j == null) return@Column
-
-        val cpu = j.getDouble("cpu")
-        val gpu = if (j.isNull("gpu")) null else j.optDouble("gpu")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Panel(Modifier.weight(1f)) { Ring("CPU", cpu, "%.1f%%".format(cpu)) }
-            Panel(Modifier.weight(1f)) { Ring("GPU", gpu, if (gpu == null) "N/A" else "%.1f%%".format(gpu)) }
-        }
-        val swapTotal = j.optDouble("swap_total_gb", 0.0)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Panel(Modifier.weight(1f)) { Ring("Memory", j.getDouble("ram"), "Used\n${j.getDouble("ram_used_gb")} GB\n${j.getDouble("ram_total_gb")} GB\nTotal") }
-            Panel(Modifier.weight(1f)) { Ring("Swap", if (swapTotal > 0) j.optDouble("swap") else null,
-                if (swapTotal > 0) "Used\n${j.optDouble("swap_used_gb")} GB\n$swapTotal GB\nTotal" else "None") }
-        }
-        val temp = if (j.isNull("temp")) null else j.getDouble("temp")
-        val sp = j.getJSONObject("speed")
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Panel(Modifier.weight(1f)) { Ring("Temperature", temp, if (temp == null) "N/A" else "%.0f °C".format(temp)) }
-            Panel(Modifier.weight(1f)) {
-                Label("Internet")
-                Spacer(Modifier.height(10.dp))
-                Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(if (sp.isNull("down_mbps")) "…" else "%.0f".format(sp.getDouble("down_mbps")), fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = Txt)
-                        Text("Mbps down", fontSize = 12.sp, color = Mut)
-                        Spacer(Modifier.height(6.dp))
-                        Text(if (j.isNull("ping_ms")) "Offline" else "${j.getDouble("ping_ms")} ms", fontSize = 13.sp,
-                            color = if (j.isNull("ping_ms")) Amber else Mut)
-                    }
-                }
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(50)).background(Surf).padding(4.dp)) {
+            listOf("Overview", "Power", "System").forEachIndexed { i, t ->
+                val sel = tab == i
+                Text(t, Modifier.weight(1f).clip(RoundedCornerShape(50)).background(if (sel) Red else Color.Transparent)
+                    .clickable { tab = i }.padding(vertical = 10.dp),
+                    color = if (sel) Txt else Mut, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
             }
         }
-        j.optJSONObject("power")?.let { PowerPanel(it) { setup = true } }
-        Panel {
-            Label("Disks")
-            val d = j.getJSONArray("disks")
-            for (i in 0 until d.length()) {
-                val o = d.getJSONObject(i)
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
-                    Text(o.getString("mount"), color = Txt, modifier = Modifier.weight(1f))
-                    Text("${o.getDouble("used_gb")} / ${o.getDouble("total_gb")} GB", color = Mut)
-                }
-                Bar((o.getDouble("pct") / 100).toFloat())
-            }
-        }
-        Panel {
-            Label("Network")
-            Spacer(Modifier.height(8.dp))
-            Legend(Red, "Download", rate(j.getDouble("net_down_bps") / 8))
-            Legend(Txt, "Upload", rate(j.getDouble("net_up_bps") / 8))
-            Legend(Dim, "IPv4", if (j.isNull("ip")) "-" else j.optString("ip"))
-        }
-        val procs = j.optJSONArray("procs") ?: JSONArray()
-        Panel {
-            Label("Applications")
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Text("Name", color = Dim, modifier = Modifier.weight(2f), fontSize = 12.sp)
-                Text("CPU", color = Dim, modifier = Modifier.weight(0.8f), textAlign = TextAlign.End, fontSize = 12.sp)
-                Text("Memory", color = Dim, modifier = Modifier.weight(1.1f), textAlign = TextAlign.End, fontSize = 12.sp)
-            }
-            for (i in 0 until procs.length()) {
-                val o = procs.getJSONObject(i)
-                val mem = o.getInt("mem_mb")
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
-                    .background(if (i % 2 == 0) Color(0xFF2A2A2A) else Color.Transparent).padding(horizontal = 6.dp, vertical = 7.dp)) {
-                    Text(o.getString("name"), color = Txt, modifier = Modifier.weight(2f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("%.1f%%".format(o.getDouble("cpu")), color = Mut, modifier = Modifier.weight(0.8f), textAlign = TextAlign.End)
-                    Text(if (mem >= 1000) "%.1f GB".format(mem / 1000.0) else "$mem MB", color = Mut, modifier = Modifier.weight(1.1f), textAlign = TextAlign.End)
-                }
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            r.error?.let { Text(it, color = Amber, fontSize = 13.sp) }
+            if (j == null) return@Column
+            when (tab) {
+                0 -> OverviewTab(j, sv) { tab = 1 }
+                1 -> PowerTab(j.optJSONObject("power")) { setup = true }
+                else -> SystemTab(j)
             }
         }
     }
