@@ -398,47 +398,77 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
 }
 
 @Composable
+fun PowerMetric(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xFF202020)).padding(12.dp)) {
+        Text(label, fontSize = 12.sp, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(5.dp))
+        Text(value, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1,
+            overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
 fun PowerPanel(pw: JSONObject, onSetup: () -> Unit) {
     val watts = if (pw.isNull("watts")) null else pw.getDouble("watts")
     val today = pw.optDouble("today_kwh", 0.0)
+    val month = pw.optDouble("month_kwh", 0.0)
     val price = pw.optDouble("price", 0.0)
     val cur = pw.optString("currency", "")
+    val avgDaily = pw.optDouble("avg_daily_kwh", month / java.time.LocalDate.now().dayOfMonth.coerceAtLeast(1))
+    val yearKwh = if (pw.has("year_kwh") && !pw.isNull("year_kwh")) pw.optDouble("year_kwh") else null
+    val yearCost = if (yearKwh != null && price > 0) yearKwh * price else null
     val hist = pw.optJSONArray("history") ?: JSONArray()
     var maxK = 0.001
-    for (i in 0 until hist.length()) maxK = maxOf(maxK, hist.getJSONObject(i).getDouble("kwh"))
+    for (i in 0 until hist.length()) maxK = maxOf(maxK, hist.getJSONObject(i).optDouble("kwh", 0.0))
     Panel {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Label("Power")
-                Text(if (watts == null) "N/A" else "%.0f W".format(watts), fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = Txt)
-                Text(pw.optString("source", "").takeIf { it != "null" && it.isNotEmpty() } ?: "No sensor", fontSize = 12.sp, color = Dim)
-                TextButton(onSetup, contentPadding = PaddingValues(0.dp)) { Text("Choose power source ›", color = Red, fontSize = 13.sp) }
+                Label("Power Source")
+                Text(pw.optString("source", "").takeIf { it != "null" && it.isNotEmpty() } ?: "No sensor",
+                    fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Txt)
+                TextButton(onSetup, contentPadding = PaddingValues(0.dp)) {
+                    Text("Configure power source ›", color = Red, fontSize = 13.sp)
+                }
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Label("Today")
-                Text("%.2f kWh".format(today), fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Txt)
-                if (price > 0) Text("$cur%.2f".format(today * price), fontSize = 13.sp, color = Mut)
-                Text("Month %.1f kWh".format(pw.optDouble("month_kwh", 0.0)), fontSize = 12.sp, color = Dim)
-            }
+            Status(watts != null)
         }
-        Spacer(Modifier.height(14.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PowerMetric("Current Power", if (watts == null) "N/A" else "%.0f W".format(watts), Modifier.weight(1f))
+            PowerMetric("Energy Today", "%.2f kWh".format(today), Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PowerMetric("Average Daily Usage", "%.2f kWh".format(avgDaily), Modifier.weight(1f))
+            PowerMetric("This Year Cost", yearCost?.let { "$cur%.2f".format(it) } ?: "Needs year history",
+                Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Label("Recent Daily Usage")
+            Text("This month: %.2f kWh".format(month), fontSize = 12.sp, color = Mut)
+        }
+        Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth().height(84.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
             for (i in 0 until hist.length()) {
                 val o = hist.getJSONObject(i)
                 val last = i == hist.length() - 1
+                val kwh = o.optDouble("kwh", 0.0)
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
-                    Text("%.2f".format(o.getDouble("kwh")), fontSize = 9.sp, color = Dim, maxLines = 1)
+                    Text("%.2f".format(kwh), fontSize = 9.sp, color = Dim, maxLines = 1)
                     Spacer(Modifier.height(2.dp))
-                    Box(Modifier.fillMaxWidth().height(maxOf(3f, (o.getDouble("kwh") / maxK * 46).toFloat()).dp)
+                    Box(Modifier.fillMaxWidth().height(maxOf(3f, (kwh / maxK * 46).toFloat()).dp)
                         .clip(RoundedCornerShape(4.dp)).background(if (last) Red else DeepRed))
                     Spacer(Modifier.height(3.dp))
-                    Text(o.getString("day").substring(8), fontSize = 10.sp, color = Mut)
+                    Text(o.optString("day", "").takeLast(2), fontSize = 10.sp, color = Mut)
                 }
             }
         }
         val perr = pw.optString("plug_error", "")
         if (perr.isNotEmpty() && perr != "null") Text("Plug: $perr", fontSize = 12.sp, color = Amber)
-        else if (watts == null) Text("No power reading found. Tap Choose power source to pick your plug.", fontSize = 12.sp, color = Dim)
+        else if (watts == null) Text("No power reading found. Tap Configure power source to select your plug.",
+            fontSize = 12.sp, color = Dim)
+        if (yearCost == null) Text("Year cost will appear when the server provides year-to-date energy history.",
+            fontSize = 11.sp, color = Dim)
     }
 }
 
