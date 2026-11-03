@@ -293,6 +293,7 @@ fun httpJson(base: String, token: String, path: String, body: JSONObject? = null
 val PLUGS = listOf(
     "cpu" to "No plug (CPU estimate)",
     "tuya" to "Meegoo / Tuya / Smart Life plug",
+    "tapo" to "TP-Link Tapo P110M",
     "shelly1" to "Shelly (older models)",
     "shelly2" to "Shelly Plus / Pro",
     "tasmota" to "Tasmota plug")
