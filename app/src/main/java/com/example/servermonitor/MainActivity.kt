@@ -42,14 +42,14 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-val Bg = Color(0xFF111114)
-val Line = Color(0xFF34343A)
+val Bg = Color(0xFF141414)
+val Line = Color(0xFF383838)
 val Red = Color(0xFFE50914)
 val DeepRed = Color(0xFF8E0612)
 val Txt = Color(0xFFFFFFFF)
-val Mut = Color(0xFFB8B8C0)
-val Track = Color(0xFF38383F)
-val Dim = Color(0xFF85858E)
+val Mut = Color(0xFFB3B3B3)
+val Track = Color(0xFF303030)
+val Dim = Color(0xFF6D6D6E)
 val Amber = Color(0xFFF5A524)
 val Green = Color(0xFF46D369)
 
@@ -101,12 +101,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val prefs = getSharedPreferences("cfg", MODE_PRIVATE)
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(
-                primary = Red, onPrimary = Txt, secondary = Color(0xFFFF5A62),
-                background = Bg, onBackground = Txt, surface = Color(0xFF1B1B20),
-                onSurface = Txt, surfaceVariant = Color(0xFF292930),
-                onSurfaceVariant = Mut, outline = Line, error = Color(0xFFFF6B6B)
-            )) {
+            MaterialTheme(colorScheme = darkColorScheme(primary = Red, background = Bg, surface = Bg, onSurface = Txt)) {
                 Surface(Modifier.fillMaxSize(), color = Bg) { App(prefs) }
             }
         }
@@ -137,15 +132,16 @@ fun Panel(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content:
     val shape = RoundedCornerShape(22.dp)
     Column(
         Modifier.then(modifier).fillMaxWidth().clip(shape)
-            .background(Brush.verticalGradient(listOf(Color(0xFF27272D), Color(0xFF1A1A1F))))
-            .border(1.dp, Line.copy(alpha = 0.9f), shape)
+            .background(Brush.verticalGradient(listOf(Color(0xFF292929), Color(0xFF1B1B1B), Color(0xFF181818))))
+            .border(1.dp, Line.copy(alpha = 0.88f), shape)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(16.dp),
+            .padding(17.dp),
         content = content)
 }
 
 @Composable
-fun Label(text: String) = Text(text, fontSize = 14.sp, color = Mut, fontWeight = FontWeight.Medium)
+fun Label(text: String) = Text(text.uppercase(), fontSize = 11.sp, color = Dim, fontWeight = FontWeight.Bold,
+    letterSpacing = 1.1.sp)
 
 @Composable
 fun Bar(frac: Float, h: Dp = 8.dp) {
@@ -181,7 +177,8 @@ fun Ring(title: String, pct: Double?, center: String) {
 
 @Composable
 fun Status(online: Boolean) {
-    Row(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF262626)).padding(horizontal = 10.dp, vertical = 5.dp),
+    Row(Modifier.border(1.dp, (if (online) Green else Red).copy(alpha = 0.28f), RoundedCornerShape(50))
+        .clip(RoundedCornerShape(50)).background(Color(0xFF222222)).padding(horizontal = 11.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(if (online) Green else Red))
         Spacer(Modifier.width(6.dp))
@@ -203,10 +200,14 @@ fun Home(servers: List<Server>, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit, on
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState())) {
         Banner()
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Your servers", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Txt)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("YOUR INFRASTRUCTURE", fontSize = 11.sp, color = Red, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
+                Text("Your servers", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt)
+                Text("A live view of your home lab", fontSize = 13.sp, color = Dim)
+            }
             if (servers.isEmpty()) Text("No servers yet. Add the address of the monitor running on your server.", color = Mut)
             servers.forEachIndexed { i, sv -> ServerCard(sv, { onOpen(i) }, { onEdit(i) }) }
-            Button(onAdd, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp),
+            Button(onAdd, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) { Text("Add server", fontSize = 16.sp) }
         }
     }
@@ -229,7 +230,7 @@ fun ServerCard(sv: Server, onOpen: () -> Unit, onEdit: () -> Unit) {
     Panel(onClick = onOpen) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(sv.name, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sv.name, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sv.url.removePrefix("http://"), fontSize = 12.sp, color = Dim)
             }
             Status(j != null && r.error == null)
@@ -254,7 +255,8 @@ fun EditServer(sv: Server?, onSave: (Server) -> Unit, onDelete: () -> Unit, onCa
     var tok by remember { mutableStateOf(sv?.token ?: "") }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text(if (sv == null) "Add server" else "Edit server", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Txt)
+        Text("SERVER CONNECTION", fontSize = 11.sp, color = Red, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
+        Text(if (sv == null) "Add server" else "Edit server", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt)
         Text("The address is shown when the monitor starts, for example 192.168.1.50:8080", color = Mut)
         OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(addr, { addr = it }, label = { Text("Server address") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -263,9 +265,9 @@ fun EditServer(sv: Server?, onSave: (Server) -> Unit, onDelete: () -> Unit, onCa
             var clean = addr.trim().trimEnd('/')
             if (!clean.startsWith("http")) clean = "http://$clean"
             onSave(Server(name.trim().ifEmpty { "My server" }, clean, tok.trim()))
-        }, Modifier.fillMaxWidth().height(52.dp), enabled = addr.isNotBlank(), shape = RoundedCornerShape(16.dp),
+        }, Modifier.fillMaxWidth().height(52.dp), enabled = addr.isNotBlank(), shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) { Text("Save") }
-        if (sv != null) OutlinedButton(onDelete, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
+        if (sv != null) OutlinedButton(onDelete, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) {
             Text("Remove server", color = Red) }
         TextButton(onCancel, Modifier.fillMaxWidth()) { Text("Cancel", color = Mut) }
     }
@@ -356,17 +358,13 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         TextButton(onClose) { Text("‹ Back", color = Red, fontSize = 16.sp) }
+        Text("ENERGY CONFIGURATION", fontSize = 11.sp, color = Red, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
         Text("Power source", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt)
         Text("Choose how ${sv.name} measures its power use.", color = Mut)
         PLUGS.forEach { (id, label) ->
-            Panel(
-                modifier = Modifier.border(
-                    if (source == id) 1.5.dp else 1.dp,
-                    if (source == id) Red.copy(alpha = 0.75f) else Line,
-                    RoundedCornerShape(22.dp)
-                ),
-                onClick = { source = id }
-            ) {
+            Panel(modifier = Modifier.border(if (source == id) 1.5.dp else 1.dp,
+                if (source == id) Red.copy(alpha = 0.8f) else Line, RoundedCornerShape(22.dp)),
+                onClick = { source = id }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = source == id, onClick = { source = id },
                         colors = RadioButtonDefaults.colors(selectedColor = Red, unselectedColor = Dim))
@@ -401,11 +399,24 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
         OutlinedButton({ call("/api/power/test") { j ->
             if (j.optBoolean("ok")) (if (j.isNull("watts")) j.optString("note") else "Reading: ${j.getDouble("watts")} W\nData: ${j.optString("raw")}")
             else "Failed: " + j.optString("error") } },
-            Modifier.fillMaxWidth().height(50.dp), enabled = !busy, shape = RoundedCornerShape(16.dp)) {
+            Modifier.fillMaxWidth().height(50.dp), enabled = !busy, shape = RoundedCornerShape(14.dp)) {
             Text(if (busy) "Working…" else "Test connection", color = Txt) }
         Button({ call("/api/power/config") { j -> if (j.optBoolean("ok")) "Saved" else "Failed" }; },
-            Modifier.fillMaxWidth().height(52.dp), enabled = !busy, shape = RoundedCornerShape(16.dp),
+            Modifier.fillMaxWidth().height(52.dp), enabled = !busy, shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) { Text("Save") }
+    }
+}
+
+@Composable
+fun PowerMetric(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier.clip(RoundedCornerShape(16.dp))
+        .background(Brush.verticalGradient(listOf(Color(0xFF292929), Color(0xFF202020))))
+        .border(1.dp, Line.copy(alpha = 0.7f), RoundedCornerShape(16.dp)).padding(13.dp)) {
+        Text(label.uppercase(), fontSize = 10.sp, color = Dim, fontWeight = FontWeight.Bold,
+            letterSpacing = 0.8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(7.dp))
+        Text(value, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1,
+            overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -413,44 +424,64 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
 fun PowerPanel(pw: JSONObject, onSetup: () -> Unit) {
     val watts = if (pw.isNull("watts")) null else pw.getDouble("watts")
     val today = pw.optDouble("today_kwh", 0.0)
+    val month = pw.optDouble("month_kwh", 0.0)
     val price = pw.optDouble("price", 0.0)
     val cur = pw.optString("currency", "")
+    val avgDaily = pw.optDouble("avg_daily_kwh", month / java.time.LocalDate.now().dayOfMonth.coerceAtLeast(1))
+    val yearKwh = if (pw.has("year_kwh") && !pw.isNull("year_kwh")) pw.optDouble("year_kwh") else null
+    val yearCost = if (yearKwh != null && price > 0) yearKwh * price else null
     val hist = pw.optJSONArray("history") ?: JSONArray()
     var maxK = 0.001
-    for (i in 0 until hist.length()) maxK = maxOf(maxK, hist.getJSONObject(i).getDouble("kwh"))
+    for (i in 0 until hist.length()) maxK = maxOf(maxK, hist.getJSONObject(i).optDouble("kwh", 0.0))
     Panel {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Label("Power")
-                Text(if (watts == null) "N/A" else "%.0f W".format(watts), fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = Txt)
-                Text(pw.optString("source", "").takeIf { it != "null" && it.isNotEmpty() } ?: "No sensor", fontSize = 12.sp, color = Dim)
-                TextButton(onSetup, contentPadding = PaddingValues(0.dp)) { Text("Choose power source ›", color = Red, fontSize = 13.sp) }
+                Label("Power Source")
+                Text(pw.optString("source", "").takeIf { it != "null" && it.isNotEmpty() } ?: "No sensor",
+                    fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Txt)
+                TextButton(onSetup, contentPadding = PaddingValues(0.dp)) {
+                    Text("Configure power source ›", color = Red, fontSize = 13.sp)
+                }
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Label("Today")
-                Text("%.2f kWh".format(today), fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Txt)
-                if (price > 0) Text("$cur%.2f".format(today * price), fontSize = 13.sp, color = Mut)
-                Text("Month %.1f kWh".format(pw.optDouble("month_kwh", 0.0)), fontSize = 12.sp, color = Dim)
-            }
+            Status(watts != null)
         }
-        Spacer(Modifier.height(14.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PowerMetric("Current Power", if (watts == null) "N/A" else "%.0f W".format(watts), Modifier.weight(1f))
+            PowerMetric("Energy Today", "%.2f kWh".format(today), Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PowerMetric("Average Daily Usage", "%.2f kWh".format(avgDaily), Modifier.weight(1f))
+            PowerMetric("This Year Cost", yearCost?.let { "$cur%.2f".format(it) } ?: "Needs year history",
+                Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Label("Recent Daily Usage")
+            Text("This month: %.2f kWh".format(month), fontSize = 12.sp, color = Mut)
+        }
+        Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth().height(84.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
             for (i in 0 until hist.length()) {
                 val o = hist.getJSONObject(i)
                 val last = i == hist.length() - 1
+                val kwh = o.optDouble("kwh", 0.0)
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
-                    Text("%.2f".format(o.getDouble("kwh")), fontSize = 9.sp, color = Dim, maxLines = 1)
+                    Text("%.2f".format(kwh), fontSize = 9.sp, color = Dim, maxLines = 1)
                     Spacer(Modifier.height(2.dp))
-                    Box(Modifier.fillMaxWidth().height(maxOf(3f, (o.getDouble("kwh") / maxK * 46).toFloat()).dp)
+                    Box(Modifier.fillMaxWidth().height(maxOf(3f, (kwh / maxK * 46).toFloat()).dp)
                         .clip(RoundedCornerShape(4.dp)).background(if (last) Red else DeepRed))
                     Spacer(Modifier.height(3.dp))
-                    Text(o.getString("day").substring(8), fontSize = 10.sp, color = Mut)
+                    Text(o.optString("day", "").takeLast(2), fontSize = 10.sp, color = Mut)
                 }
             }
         }
         val perr = pw.optString("plug_error", "")
         if (perr.isNotEmpty() && perr != "null") Text("Plug: $perr", fontSize = 12.sp, color = Amber)
-        else if (watts == null) Text("No power reading found. Tap Choose power source to pick your plug.", fontSize = 12.sp, color = Dim)
+        else if (watts == null) Text("No power reading found. Tap Configure power source to select your plug.",
+            fontSize = 12.sp, color = Dim)
+        if (yearCost == null) Text("Year cost will appear when the server provides year-to-date energy history.",
+            fontSize = 11.sp, color = Dim)
     }
 }
 
@@ -460,15 +491,17 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
     val j = r.json
     var setup by remember { mutableStateOf(false) }
     if (setup) { PowerSetup(sv) { setup = false }; return }
-    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF1A1A1A), Bg, Bg)))
+        .systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onBack) { Text("‹ Servers", color = Red, fontSize = 16.sp) }
             TextButton(onEdit) { Text("Edit", color = Red) }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(sv.name, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt)
+                Text("SERVER OVERVIEW", fontSize = 10.sp, color = Red, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
+                Text(sv.name, fontSize = 29.sp, fontWeight = FontWeight.Bold, color = Txt)
                 val up = j?.optLong("uptime_s") ?: 0L
                 Text(if (j == null) "Connecting…" else "Up ${up / 86400}d ${up % 86400 / 3600}h  ·  ${j.optString("host")}", color = Mut, fontSize = 13.sp)
             }
@@ -509,7 +542,7 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
         }
         j.optJSONObject("power")?.let { PowerPanel(it) { setup = true } }
         Panel {
-            Text("Storage", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Txt)
+            Label("Disks")
             val d = j.getJSONArray("disks")
             for (i in 0 until d.length()) {
                 val o = d.getJSONObject(i)
@@ -522,7 +555,7 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
             }
         }
         Panel {
-            Text("Network", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Txt)
+            Label("Network")
             Spacer(Modifier.height(8.dp))
             Legend(Red, "Download", rate(j.getDouble("net_down_bps") / 8))
             Legend(Txt, "Upload", rate(j.getDouble("net_up_bps") / 8))
@@ -530,7 +563,7 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
         }
         val procs = j.optJSONArray("procs") ?: JSONArray()
         Panel {
-            Text("Running applications", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Txt)
+            Label("Applications")
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Text("Name", color = Dim, modifier = Modifier.weight(2f), fontSize = 12.sp)
