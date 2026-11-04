@@ -437,10 +437,14 @@ fun ToggleMetric(labelA: String, valueA: String, labelB: String, valueB: String,
     val shape = RoundedCornerShape(22.dp)
     Column(modifier.clip(shape).background(Surf).border(1.dp, if (alt) Red.copy(alpha = 0.7f) else Line, shape)
         .clickable { alt = !alt }.padding(16.dp)) {
-        Label(if (alt) labelB else labelA)
+        // label always reserves two lines and the value a fixed-height box, so both states are the same size
+        Text((if (alt) labelB else labelA).uppercase(), fontSize = 11.sp, color = Dim, fontWeight = FontWeight.Bold,
+            letterSpacing = 1.1.sp, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(8.dp))
-        Text(if (alt) valueB else valueA, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1,
-            overflow = TextOverflow.Ellipsis)
+        Box(Modifier.fillMaxWidth().height(32.dp), contentAlignment = Alignment.CenterStart) {
+            Text(if (alt) valueB else valueA, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1,
+                overflow = TextOverflow.Ellipsis)
+        }
         Spacer(Modifier.height(4.dp))
         Text("Tap to switch", fontSize = 10.sp, color = Dim)
     }
@@ -570,34 +574,37 @@ fun InternetPanel(j: JSONObject, sv: Server) {
 }
 
 @Composable
-fun TempTile(temp: Double?, modifier: Modifier) =
-    StatTile("Temperature", if (temp == null) "N/A" else "%.0f °C".format(temp), if (temp == null) "No sensor" else "CPU", temp, modifier)
+fun PowerTile(pw: JSONObject?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val w = pw?.dbl("watts")
+    Panel(modifier, onClick = onClick) {
+        Label("Power")
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(if (w == null) "N/A" else "%.0f W".format(w), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
+                Text("%.2f kWh today".format(pw?.optDouble("today_kwh", 0.0) ?: 0.0), fontSize = 12.sp, color = Mut,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text("›", fontSize = 28.sp, color = Red)
+        }
+    }
+}
 
 @Composable
 fun OverviewTab(j: JSONObject, sv: Server, onPower: () -> Unit) {
     val cpu = j.getDouble("cpu"); val ram = j.getDouble("ram")
     val temp = j.dbl("temp"); val gpu = j.dbl("gpu")
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        StatTile("CPU", "%.0f%%".format(cpu), "${j.optInt("cores")} cores", cpu, Modifier.weight(1f))
-        StatTile("Memory", "%.0f%%".format(ram), "${j.optDouble("ram_used_gb")} / ${j.optDouble("ram_total_gb")} GB", ram, Modifier.weight(1f))
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        StatTile("CPU", "%.0f%%".format(cpu), "${j.optInt("cores")} cores", cpu, Modifier.weight(1f).fillMaxHeight())
+        StatTile("Memory", "%.0f%%".format(ram), "${j.optDouble("ram_used_gb")} / ${j.optDouble("ram_total_gb")} GB", ram,
+            Modifier.weight(1f).fillMaxHeight())
     }
-    if (gpu != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        TempTile(temp, Modifier.weight(1f))
-        StatTile("GPU", "%.0f%%".format(gpu), "Usage", gpu, Modifier.weight(1f))
-    } else TempTile(temp, Modifier.fillMaxWidth())
-    val pw = j.optJSONObject("power")
-    Panel(onClick = onPower) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Label("Power")
-                val w = pw?.dbl("watts")
-                Text(if (w == null) "N/A" else "%.0f W".format(w), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Txt)
-                Text("Today %.2f kWh".format(pw?.optDouble("today_kwh", 0.0) ?: 0.0) +
-                    (pw?.dbl("voltage")?.let { "  ·  %.0f V".format(it) } ?: ""), fontSize = 12.sp, color = Mut)
-            }
-            Text("›", fontSize = 28.sp, color = Red)
-        }
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        StatTile("Temperature", if (temp == null) "N/A" else "%.0f °C".format(temp), if (temp == null) "No sensor" else "CPU", temp,
+            Modifier.weight(1f).fillMaxHeight())
+        PowerTile(j.optJSONObject("power"), onPower, Modifier.weight(1f).fillMaxHeight())
     }
+    if (gpu != null) StatTile("GPU", "%.0f%%".format(gpu), "Usage", gpu, Modifier.fillMaxWidth())
     InternetPanel(j, sv)
 }
 
