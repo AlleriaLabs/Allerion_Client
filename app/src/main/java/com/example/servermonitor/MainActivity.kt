@@ -44,16 +44,16 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-val Bg = Color(0xFF141414)
-val Line = Color(0xFF383838)
+val Bg = Color(0xFF101113)
+val Line = Color(0xFF303136)
 val Red = Color(0xFFE50914)
-val DeepRed = Color(0xFF8E0612)
-val Txt = Color(0xFFFFFFFF)
-val Mut = Color(0xFFB3B3B3)
-val Track = Color(0xFF303030)
-val Dim = Color(0xFF6D6D6E)
-val Amber = Color(0xFFF5A524)
-val Green = Color(0xFF46D369)
+val DeepRed = Color(0xFF9B0710)
+val Txt = Color(0xFFF5F5F5)
+val Mut = Color(0xFF929398)
+val Track = Color(0xFF2A2B30)
+val Dim = Color(0xFF6F7076)
+val Amber = Color(0xFFFFB547)
+val Green = Color(0xFF35C98A)
 
 data class Server(val name: String, val url: String, val token: String)
 data class StatsResult(val json: JSONObject? = null, val error: String? = null)
@@ -88,7 +88,7 @@ fun rate(bytes: Double): String = when {
 }
 
 @Composable
-fun rememberStats(sv: Server, every: Long): State<StatsResult> = produceState(StatsResult(), sv) {
+fun rememberStats(sv: Server, every: Long, refreshKey: Int = 0): State<StatsResult> = produceState(StatsResult(), sv, every, refreshKey) {
     while (true) {
         value = try {
             StatsResult(withContext(Dispatchers.IO) { fetch(sv.url, sv.token) }, null)
@@ -102,9 +102,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val prefs = getSharedPreferences("cfg", MODE_PRIVATE)
+        AppSettings.refreshMs = prefs.getLong("refresh_ms", 2000L)
+        val reduce = android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
         setContent {
+            CompositionLocalProvider(LocalReduceMotion provides reduce) {
             MaterialTheme(colorScheme = darkColorScheme(primary = Red, background = Bg, surface = Bg, onSurface = Txt)) {
                 Surface(Modifier.fillMaxSize(), color = Bg) { App(prefs) }
+            }
             }
         }
     }
@@ -129,8 +133,8 @@ fun App(p: SharedPreferences) {
     }
 }
 
-val Surf = Color(0xFF1B1B1B)
-val Surf2 = Color(0xFF262626)
+val Surf = Color(0xFF191A1D)
+val Surf2 = Color(0xFF222327)
 
 fun JSONObject.str(k: String): String = if (!has(k) || isNull(k)) "" else optString(k)
 fun JSONObject.dbl(k: String): Double? = if (!has(k) || isNull(k)) null else optDouble(k).takeIf { !it.isNaN() }
@@ -186,8 +190,8 @@ fun StatTile(title: String, value: String, sub: String, pct: Double?, modifier: 
 fun Status(online: Boolean) {
     Row(Modifier.clip(RoundedCornerShape(50)).background(Surf2).padding(horizontal = 11.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(if (online) Green else Red))
-        Spacer(Modifier.width(6.dp))
+        PulseDot(if (online) Green else Err, online)
+        Spacer(Modifier.width(4.dp))
         Text(if (online) "Online" else "Offline", fontSize = 12.sp, color = Txt)
     }
 }
@@ -195,9 +199,9 @@ fun Status(online: Boolean) {
 @Composable
 fun BrandBar() {
     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-        Image(painterResource(R.drawable.logo_mark), "Allerion", Modifier.size(34.dp))
+        Image(painterResource(R.drawable.logo_mark), "AlSent", Modifier.size(34.dp))
         Spacer(Modifier.width(10.dp))
-        Text("Allerion", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 0.5.sp)
+        Text("AlSent", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 0.5.sp)
     }
 }
 
@@ -473,7 +477,7 @@ fun LineChart(values: List<Double>, days: Int) {
 }
 
 @Composable
-fun PowerTab(pw: JSONObject?, onSetup: () -> Unit) {
+fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
     if (pw == null) { Text("This server does not report power yet. Update the server program.", color = Amber); return }
     val watts = pw.dbl("watts")
     val volts = pw.dbl("voltage")
@@ -511,27 +515,7 @@ fun PowerTab(pw: JSONObject?, onSetup: () -> Unit) {
         ToggleMetric("Current Year Usage", year?.let { "%.2f kWh".format(it) } ?: "Update server",
             "Current Year Cost", year?.let { cost(it) } ?: "Update server", Modifier.weight(1f))
     }
-    val mh = pw.optJSONArray("month_history") ?: pw.optJSONArray("history") ?: JSONArray()
-    val vals = List(mh.length()) { mh.getJSONObject(it).optDouble("kwh", 0.0) }
-    val days = pw.optInt("days_in_month", vals.size).coerceAtLeast(vals.size).coerceAtLeast(1)
-    val monthName = try {
-        java.time.LocalDate.parse(mh.getJSONObject(0).getString("day")).month
-            .getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
-    } catch (e: Exception) { "This month" }
-    Panel {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Label("Daily usage · $monthName")
-            Text("Peak %.2f kWh".format(vals.maxOrNull() ?: 0.0), fontSize = 12.sp, color = Mut)
-        }
-        Spacer(Modifier.height(12.dp))
-        LineChart(vals, days)
-        Spacer(Modifier.height(6.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            listOf(1, days / 3, 2 * days / 3, days).filter { it >= 1 }.distinct().forEach { Text("$it", fontSize = 10.sp, color = Dim) }
-        }
-        val since = pw.str("since")
-        if (since.isNotEmpty()) { Spacer(Modifier.height(8.dp)); Text("Energy tracked since $since", fontSize = 11.sp, color = Dim) }
-    }
+    EnergyPanel(sv, pw)
 }
 
 @Composable
@@ -571,41 +555,6 @@ fun InternetPanel(j: JSONObject, sv: Server) {
         val err = sp.str("error")
         if (err.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Text(err, fontSize = 12.sp, color = Amber) }
     }
-}
-
-@Composable
-fun PowerTile(pw: JSONObject?, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val w = pw?.dbl("watts")
-    Panel(modifier, onClick = onClick) {
-        Label("Power")
-        Spacer(Modifier.height(12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(if (w == null) "N/A" else "%.0f W".format(w), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
-                Text("%.2f kWh today".format(pw?.optDouble("today_kwh", 0.0) ?: 0.0), fontSize = 12.sp, color = Mut,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            Text("›", fontSize = 28.sp, color = Red)
-        }
-    }
-}
-
-@Composable
-fun OverviewTab(j: JSONObject, sv: Server, onPower: () -> Unit) {
-    val cpu = j.getDouble("cpu"); val ram = j.getDouble("ram")
-    val temp = j.dbl("temp"); val gpu = j.dbl("gpu")
-    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        StatTile("CPU", "%.0f%%".format(cpu), "${j.optInt("cores")} cores", cpu, Modifier.weight(1f).fillMaxHeight())
-        StatTile("Memory", "%.0f%%".format(ram), "${j.optDouble("ram_used_gb")} / ${j.optDouble("ram_total_gb")} GB", ram,
-            Modifier.weight(1f).fillMaxHeight())
-    }
-    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        StatTile("Temperature", if (temp == null) "N/A" else "%.0f °C".format(temp), if (temp == null) "No sensor" else "CPU", temp,
-            Modifier.weight(1f).fillMaxHeight())
-        PowerTile(j.optJSONObject("power"), onPower, Modifier.weight(1f).fillMaxHeight())
-    }
-    if (gpu != null) StatTile("GPU", "%.0f%%".format(gpu), "Usage", gpu, Modifier.fillMaxWidth())
-    InternetPanel(j, sv)
 }
 
 @Composable
@@ -688,45 +637,6 @@ fun SystemTab(j: JSONObject) {
                 Text(o.getString("name"), color = Txt, modifier = Modifier.weight(2f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("%.1f%%".format(o.getDouble("cpu")), color = Mut, modifier = Modifier.weight(0.8f), textAlign = TextAlign.End)
                 Text(if (mem >= 1000) "%.1f GB".format(mem / 1000.0) else "$mem MB", color = Mut, modifier = Modifier.weight(1.1f), textAlign = TextAlign.End)
-            }
-        }
-    }
-}
-
-@Composable
-fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
-    val r by rememberStats(sv, 2000)
-    val j = r.json
-    var setup by remember { mutableStateOf(false) }
-    var tab by remember { mutableStateOf(0) }
-    if (setup) { PowerSetup(sv) { setup = false }; return }
-    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onBack) { Text("‹", color = Red, fontSize = 30.sp) }
-            Column(Modifier.weight(1f)) {
-                Text(sv.name, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                val up = j?.optLong("uptime_s") ?: 0L
-                Text(if (j == null) "Connecting…" else "Up ${up / 86400}d ${up % 86400 / 3600}h  ·  ${j.str("host")}", color = Mut, fontSize = 12.sp)
-            }
-            Status(j != null && r.error == null)
-            TextButton(onEdit) { Text("Edit", color = Red) }
-        }
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(50)).background(Surf).padding(4.dp)) {
-            listOf("Overview", "Power", "System").forEachIndexed { i, t ->
-                val sel = tab == i
-                Text(t, Modifier.weight(1f).clip(RoundedCornerShape(50)).background(if (sel) Red else Color.Transparent)
-                    .clickable { tab = i }.padding(vertical = 10.dp),
-                    color = if (sel) Txt else Mut, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-            }
-        }
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            r.error?.let { Text(it, color = Amber, fontSize = 13.sp) }
-            if (j == null) return@Column
-            when (tab) {
-                0 -> OverviewTab(j, sv) { tab = 1 }
-                1 -> PowerTab(j.optJSONObject("power")) { setup = true }
-                else -> SystemTab(j)
             }
         }
     }

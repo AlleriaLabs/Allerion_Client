@@ -1,0 +1,294 @@
+package com.example.servermonitor
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.*
+import org.json.JSONObject
+
+val Err = Color(0xFFFF4D5A)
+val Blue = Color(0xFF648BFF)
+val GreenLight = Color(0xFF9BE5C4)
+
+val LocalReduceMotion = compositionLocalOf { false }
+
+object AppSettings { var refreshMs by mutableLongStateOf(2000L) }
+
+// ---------------------------------------------------------------- icons (one consistent 24-grid, round stroke set)
+enum class Ic { Dash, Cpu, Memory, Storage, Thermo, Activity, Download, Upload, Zap, Plug, Heart, Server, Globe, Clock, Bell, Gear, Refresh, Chart, ChevronL }
+
+@Composable
+fun Icon24(kind: Ic, tint: Color, sz: Dp = 20.dp, modifier: Modifier = Modifier, desc: String? = null) {
+    val m = if (desc != null) modifier.semantics { contentDescription = desc } else modifier
+    Canvas(m.size(sz)) {
+        val u = this.size.width / 24f
+        val sw = Stroke(1.8f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        fun p(x: Float, y: Float) = Offset(x * u, y * u)
+        fun line(a: Float, b: Float, c: Float, d: Float) = drawLine(tint, p(a, b), p(c, d), 1.8f * u, StrokeCap.Round)
+        fun rr(x: Float, y: Float, w: Float, h: Float, r: Float = 2.5f) =
+            drawRoundRect(tint, p(x, y), Size(w * u, h * u), CornerRadius(r * u), style = sw)
+        fun poly(vararg v: Float, close: Boolean = false) {
+            val pa = Path(); pa.moveTo(v[0] * u, v[1] * u)
+            var i = 2; while (i < v.size) { pa.lineTo(v[i] * u, v[i + 1] * u); i += 2 }
+            if (close) pa.close(); drawPath(pa, tint, style = sw)
+        }
+        fun dot(x: Float, y: Float) = drawCircle(tint, 1.1f * u, p(x, y))
+        when (kind) {
+            Ic.Dash -> { rr(3f, 3f, 7f, 9f); rr(14f, 3f, 7f, 5f); rr(14f, 12f, 7f, 9f); rr(3f, 16f, 7f, 5f) }
+            Ic.Cpu -> { rr(6f, 6f, 12f, 12f); rr(9.5f, 9.5f, 5f, 5f, 1f)
+                for (x in listOf(9f, 15f)) { line(x, 2f, x, 6f); line(x, 18f, x, 22f) }
+                for (y in listOf(9f, 15f)) { line(2f, y, 6f, y); line(18f, y, 22f, y) } }
+            Ic.Memory -> { rr(2f, 7f, 20f, 10f); for (x in listOf(7f, 12f, 17f)) line(x, 11f, x, 13f)
+                for (x in listOf(6f, 10f, 14f, 18f)) line(x, 17f, x, 20f) }
+            Ic.Storage -> { rr(3f, 5f, 18f, 14f, 3f); line(3f, 14f, 21f, 14f); dot(7.5f, 16.7f) }
+            Ic.Thermo -> { rr(10f, 3f, 4f, 13f, 2f); drawCircle(tint, 3.6f * u, p(12f, 17.4f), style = sw); line(12f, 9f, 12f, 16f) }
+            Ic.Activity -> poly(2f, 12f, 6f, 12f, 9f, 4f, 15f, 20f, 18f, 12f, 22f, 12f)
+            Ic.Download -> { line(12f, 3f, 12f, 15f); poly(7f, 10f, 12f, 15f, 17f, 10f); line(4f, 20f, 20f, 20f) }
+            Ic.Upload -> { line(12f, 16f, 12f, 4f); poly(7f, 9f, 12f, 4f, 17f, 9f); line(4f, 20f, 20f, 20f) }
+            Ic.Zap -> poly(13f, 2f, 4f, 14f, 11f, 14f, 10f, 22f, 20f, 10f, 13f, 10f, close = true)
+            Ic.Plug -> { line(9f, 3f, 9f, 8f); line(15f, 3f, 15f, 8f); rr(6f, 8f, 12f, 6f, 2f); line(12f, 14f, 12f, 21f) }
+            Ic.Heart -> { val h = Path(); h.moveTo(12f * u, 20f * u)
+                h.cubicTo(5f * u, 15f * u, 3f * u, 11f * u, 3f * u, 8.2f * u); h.cubicTo(3f * u, 5.5f * u, 5f * u, 4f * u, 7.2f * u, 4f * u)
+                h.cubicTo(9.2f * u, 4f * u, 11f * u, 5.2f * u, 12f * u, 7f * u); h.cubicTo(13f * u, 5.2f * u, 14.8f * u, 4f * u, 16.8f * u, 4f * u)
+                h.cubicTo(19f * u, 4f * u, 21f * u, 5.5f * u, 21f * u, 8.2f * u); h.cubicTo(21f * u, 11f * u, 19f * u, 15f * u, 12f * u, 20f * u)
+                h.close(); drawPath(h, tint, style = sw) }
+            Ic.Server -> { rr(3f, 4f, 18f, 7f); rr(3f, 13f, 18f, 7f); dot(7f, 7.5f); dot(7f, 16.5f) }
+            Ic.Globe -> { drawCircle(tint, 9f * u, p(12f, 12f), style = sw); line(3f, 12f, 21f, 12f)
+                drawOval(tint, p(8f, 3f), Size(8f * u, 18f * u), style = sw) }
+            Ic.Clock -> { drawCircle(tint, 9f * u, p(12f, 12f), style = sw); poly(12f, 7f, 12f, 12f, 15.5f, 14f) }
+            Ic.Bell -> { val b = Path(); b.moveTo(4f * u, 18f * u); b.lineTo(6f * u, 16f * u); b.lineTo(6f * u, 10f * u)
+                b.arcTo(Rect(6f * u, 4f * u, 18f * u, 16f * u), 180f, 180f, false); b.lineTo(18f * u, 16f * u); b.lineTo(20f * u, 18f * u); b.close()
+                drawPath(b, tint, style = sw); line(10f, 21f, 14f, 21f) }
+            Ic.Gear -> { drawCircle(tint, 2.6f * u, p(12f, 12f), style = sw); drawCircle(tint, 6.2f * u, p(12f, 12f), style = sw)
+                for (i in 0 until 8) { val a = Math.toRadians(i * 45.0); val c = Math.cos(a).toFloat(); val s = Math.sin(a).toFloat()
+                    line(12f + 7.6f * c, 12f + 7.6f * s, 12f + 10f * c, 12f + 10f * s) } }
+            Ic.Refresh -> { drawArc(tint, -50f, 290f, false, p(4f, 4f), Size(16f * u, 16f * u), style = sw); poly(7f, 2.5f, 7f, 6.5f, 11f, 6.5f) }
+            Ic.Chart -> { poly(3f, 3f, 3f, 21f, 21f, 21f); poly(7f, 15f, 11f, 10f, 14f, 13f, 20f, 6f) }
+            Ic.ChevronL -> poly(15f, 5f, 8f, 12f, 15f, 19f)
+        }
+    }
+}
+
+// ---------------------------------------------------------------- motion helpers
+@Composable
+fun Modifier.tap(onClick: () -> Unit): Modifier {
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val sc by animateFloatAsState(if (pressed) 0.97f else 1f, tween(110), label = "press")
+    return this.scale(sc).clickable(interactionSource = src, indication = null, onClick = onClick)
+}
+
+@Composable
+fun Modifier.staggerIn(index: Int): Modifier {
+    val rm = LocalReduceMotion.current
+    var go by remember { mutableStateOf(rm) }
+    LaunchedEffect(Unit) { if (!go) { delay(index * 70L); go = true } }
+    val a by animateFloatAsState(if (go) 1f else 0f, if (rm) snap() else tween(420, easing = FastOutSlowInEasing), label = "in")
+    return this.graphicsLayer { alpha = a; translationY = (1f - a) * 24.dp.toPx() }
+}
+
+@Composable
+fun animNum(v: Double?, fmt: String = "%.0f"): String {
+    val rm = LocalReduceMotion.current
+    val a by animateFloatAsState((v ?: 0.0).toFloat(), if (rm) snap() else tween(500), label = "num")
+    return if (v == null) "N/A" else fmt.format(a)
+}
+
+@Composable
+fun PulseDot(color: Color, pulse: Boolean, dia: Dp = 8.dp) {
+    val rm = LocalReduceMotion.current
+    val c by animateColorAsState(color, tween(400), label = "status")
+    val p by rememberInfiniteTransition(label = "pulse").animateFloat(0f, 1f, infiniteRepeatable(tween(1700, easing = LinearEasing)), label = "p")
+    Box(Modifier.size(dia * 2.2f), contentAlignment = Alignment.Center) {
+        if (pulse && !rm) Canvas(Modifier.fillMaxSize()) { drawCircle(c.copy(alpha = 0.35f * (1f - p)), dia.toPx() / 2 * (1f + 1.1f * p)) }
+        Box(Modifier.size(dia).clip(CircleShape).background(c))
+    }
+}
+
+@Composable
+fun IconBtn(ic: Ic, desc: String, rotate: Float = 0f, onClick: () -> Unit) {
+    Box(Modifier.size(42.dp).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        Icon24(ic, Mut, 21.dp, Modifier.graphicsLayer { rotationZ = rotate }, desc)
+    }
+}
+
+@Composable
+fun BottomBar(tab: Int, onTab: (Int) -> Unit) {
+    val items = listOf(Ic.Dash to "Overview", Ic.Zap to "Power", Ic.Server to "System", Ic.Gear to "Settings")
+    Column(Modifier.fillMaxWidth().background(Surf)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Line))
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val seg = maxWidth / items.size
+            val x by animateDpAsState(seg * tab, tween(280, easing = FastOutSlowInEasing), label = "indicator")
+            Box(Modifier.offset(x = x + seg / 2 - 14.dp).width(28.dp).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Red))
+            Row(Modifier.fillMaxWidth()) {
+                items.forEachIndexed { i, (ic, label) ->
+                    val c by animateColorAsState(if (tab == i) Txt else Dim, tween(220), label = "nav")
+                    Column(Modifier.weight(1f).tap { onTab(i) }.padding(top = 11.dp, bottom = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon24(ic, c, 22.dp, desc = label)
+                        Spacer(Modifier.height(3.dp))
+                        Text(label, fontSize = 11.sp, color = c, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- real history models + fetchers
+class History(val t: List<Long>, val s: Map<String, List<Double?>>, val intervalS: Int)
+
+fun parseHistory(j: JSONObject): History {
+    val ta = j.getJSONArray("t")
+    val m = HashMap<String, List<Double?>>()
+    for (k in listOf("cpu", "ram", "temp", "down", "up", "power", "gpu", "disk")) {
+        val a = j.optJSONArray(k) ?: continue
+        m[k] = List(a.length()) { if (a.isNull(it)) null else a.getDouble(it) }
+    }
+    return History(List(ta.length()) { ta.getLong(it) }, m, j.optInt("interval", 10))
+}
+
+@Composable
+fun rememberHistory(sv: Server, range: String, every: Long): State<History?> = produceState<History?>(null, sv, range) {
+    while (true) {
+        try { value = parseHistory(withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/history?range=$range") }) }
+        catch (e: CancellationException) { throw e } catch (e: Exception) { }
+        delay(every)
+    }
+}
+
+@Composable
+fun rememberEnergy(sv: Server): State<Map<String, Double>?> = produceState<Map<String, Double>?>(null, sv) {
+    while (true) {
+        try {
+            val a = withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/energy") }.getJSONArray("days")
+            value = (0 until a.length()).associate { a.getJSONObject(it).getString("day") to a.getJSONObject(it).getDouble("kwh") }
+        } catch (e: CancellationException) { throw e } catch (e: Exception) { }
+        delay(60_000)
+    }
+}
+
+fun fmtT(t: Long, range: String): String =
+    java.text.SimpleDateFormat(if (range == "7d") "d MMM" else "HH:mm", java.util.Locale.getDefault()).format(java.util.Date(t * 1000))
+
+// ---------------------------------------------------------------- full-bleed history graph
+class GSeries(val values: List<Double?>, val color: Color, val dashed: Boolean = false)
+
+fun morphAt(a: List<List<Double?>>, b: List<List<Double?>>, t: Float): List<List<Double?>> = b.mapIndexed { i, tb ->
+    val ta = a.getOrNull(i)
+    if (ta == null || t >= 1f || ta.isEmpty()) tb
+    else { val shift = tb.size - ta.size
+        tb.mapIndexed { k, vb -> val va = ta.getOrNull(k - shift); if (va == null || vb == null) vb else va + (vb - va) * t } }
+}
+
+@Composable
+fun rememberMorph(target: List<List<Double?>>): List<List<Double?>> {
+    val rm = LocalReduceMotion.current
+    var from by remember { mutableStateOf(target) }
+    var to by remember { mutableStateOf(target) }
+    val p = remember { Animatable(1f) }
+    LaunchedEffect(target) {
+        if (target == to) return@LaunchedEffect
+        from = morphAt(from, to, p.value); to = target
+        if (rm) p.snapTo(1f) else { p.snapTo(0f); p.animateTo(1f, tween(450, easing = FastOutSlowInEasing)) }
+    }
+    return morphAt(from, to, p.value)
+}
+
+@Composable
+fun HistoryGraph(series: List<GSeries>, modifier: Modifier = Modifier, minSpan: Double = 10.0,
+                 lineAlpha: Float = 0.75f, fillAlpha: Float = 0.18f, stroke: Dp = 1.6.dp) {
+    val rm = LocalReduceMotion.current
+    val shown = rememberMorph(series.map { it.values })
+    val hasData = shown.any { l -> l.any { it != null } }
+    val intro = remember { Animatable(if (rm) 1f else 0f) }
+    LaunchedEffect(hasData) { if (hasData && intro.value < 1f) intro.animateTo(1f, tween(900, easing = FastOutSlowInEasing)) }
+    Canvas(modifier) {
+        val all = shown.flatMap { it }.filterNotNull()
+        if (all.isEmpty()) return@Canvas
+        val w = size.width; val h = size.height
+        var lo = all.min(); var hi = all.max()
+        if (hi - lo < minSpan) { val mid = (hi + lo) / 2; lo = mid - minSpan / 2; hi = mid + minSpan / 2 }
+        val pad = (hi - lo) * 0.14; lo -= pad; hi += pad
+        val n = shown.maxOf { it.size }
+        fun x(i: Int) = if (n <= 1) w else w * i / (n - 1f)
+        fun y(v: Double) = (h - (v - lo) / (hi - lo) * h).toFloat()
+        clipRect(right = w * intro.value) {
+            shown.forEachIndexed { si, vals ->
+                val color = series[si].color
+                val segs = mutableListOf<List<Offset>>(); var cur = mutableListOf<Offset>()
+                vals.forEachIndexed { i, v ->
+                    if (v == null) { if (cur.isNotEmpty()) { segs.add(cur); cur = mutableListOf() } } else cur.add(Offset(x(i), y(v)))
+                }
+                if (cur.isNotEmpty()) segs.add(cur)
+                segs.forEach { pts ->
+                    if (pts.size < 2) { drawCircle(color.copy(alpha = lineAlpha), 3.dp.toPx(), pts[0]); return@forEach }
+                    fun curve(pa: Path) { for (k in 1 until pts.size) { val a = pts[k - 1]; val b = pts[k]; val mx = (a.x + b.x) / 2
+                        pa.cubicTo(mx, a.y, mx, b.y, b.x, b.y) } }
+                    val line = Path().apply { moveTo(pts[0].x, pts[0].y); curve(this) }
+                    if (si == 0) {
+                        val area = Path().apply { moveTo(pts[0].x, h); lineTo(pts[0].x, pts[0].y); curve(this); lineTo(pts.last().x, h); close() }
+                        drawPath(area, Brush.verticalGradient(listOf(color.copy(alpha = fillAlpha), Color.Transparent)))
+                    }
+                    drawPath(line, color.copy(alpha = lineAlpha), style = Stroke(stroke.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round,
+                        pathEffect = if (series[si].dashed) PathEffect.dashPathEffect(floatArrayOf(14f, 10f)) else null))
+                }
+                val last = vals.lastIndex
+                if (si == 0 && last >= 0 && vals[last] != null) drawCircle(color, 3.2.dp.toPx(), Offset(x(last), y(vals[last]!!)))
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- metric tile: graph is the card background
+@Composable
+fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?, series: List<GSeries>, minSpan: Double,
+               modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(24.dp)
+    Box(modifier.tap(onClick).height(124.dp).clip(shape).background(Surf).border(1.dp, Line, shape)
+        .semantics(mergeDescendants = true) { contentDescription = "$name $value $unit" }) {
+        HistoryGraph(series, Modifier.matchParentSize(), minSpan)                                   // layer 2: full-card graph
+        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Surf.copy(alpha = 0.78f), 0.72f to Color.Transparent)))
+        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {  // layer 3: readable content
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon24(icon, Mut, 16.dp); Spacer(Modifier.width(7.dp))
+                Text(name, fontSize = 12.sp, color = Mut, fontWeight = FontWeight.Medium)
+            }
+            Column {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(value, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
+                    if (unit.isNotEmpty()) Text(" $unit", fontSize = 13.sp, color = Mut, modifier = Modifier.padding(bottom = 5.dp))
+                }
+                if (sub != null) Text(sub, fontSize = 11.sp, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
