@@ -195,9 +195,9 @@ fun Status(online: Boolean) {
 @Composable
 fun BrandBar() {
     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-        Image(painterResource(R.drawable.logo_mark), "AlSent", Modifier.size(34.dp))
+        Image(painterResource(R.drawable.logo_mark), "Allerion", Modifier.size(34.dp))
         Spacer(Modifier.width(10.dp))
-        Text("AlSent", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 0.5.sp)
+        Text("Allerion", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 0.5.sp)
     }
 }
 
