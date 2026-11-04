@@ -27,16 +27,16 @@ jobs:
         run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk ServerMonitor.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk Allerion.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ServerMonitor-apk
-          path: ServerMonitor.apk
+          name: Allerion-apk
+          path: Allerion.apk
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: Build ${{ github.run_number }}
-          files: ServerMonitor.apk
+          files: Allerion.apk
