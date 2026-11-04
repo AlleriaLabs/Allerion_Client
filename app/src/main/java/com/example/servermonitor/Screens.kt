@@ -60,7 +60,7 @@ fun AppHeader(sv: Server, j: JSONObject?, err: String?, online: Boolean, onBack:
         Column(Modifier.weight(1f)) {
             Text(sv.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val ts = j?.optLong("ts") ?: 0L
-            Text(when { j == null -> err ?: "Connecting…"; !online -> "Offline · last seen ${fmtClock(ts)}"; else -> "AlSent · updated ${fmtClock(ts)}" },
+            Text(when { j == null -> err ?: "Connecting…"; !online -> "Offline · last seen ${fmtClock(ts)}"; else -> "ALLERION · updated ${fmtClock(ts)}" },
                 fontSize = 11.sp, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Status(online)
@@ -304,19 +304,8 @@ fun SettingsScreen(sv: Server, onEdit: () -> Unit, onPower: () -> Unit) {
     val ctx = LocalContext.current
     ActionRow("Server connection", sv.name + " · " + sv.url.removePrefix("http://"), onEdit)
     ActionRow("Power source and electricity rate", "Choose your plug, price per kWh and currency", onPower)
-    Panel {
-        Label("Refresh interval"); Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(2, 5, 10, 30).forEach { s ->
-                Chip("${s}s", AppSettings.refreshMs == s * 1000L) {
-                    AppSettings.refreshMs = s * 1000L
-                    ctx.getSharedPreferences("cfg", Context.MODE_PRIVATE).edit().putLong("refresh_ms", s * 1000L).apply()
-                }
-            }
-        }
-        Spacer(Modifier.height(8.dp)); Text("How often live readings update. Graph history is recorded by the server regardless.", fontSize = 12.sp, color = Dim)
-    }
-    Panel { Label("About"); Spacer(Modifier.height(6.dp)); KV("App", "AlSent 1.0"); KV("History and energy totals", "Stored on your server") }
+    RefreshPanel()
+    AboutPanel()
 }
 
 @Composable

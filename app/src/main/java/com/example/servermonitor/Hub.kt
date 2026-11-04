@@ -1,0 +1,340 @@
+package com.example.servermonitor
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import kotlin.math.roundToInt
+
+const val TAGLINE = "Monitor. Understand. Control."
+
+@Composable
+fun LogoMark(size: androidx.compose.ui.unit.Dp) = Image(painterResource(R.drawable.logo_mark), "ALLERION logo", Modifier.size(size))
+
+@Composable
+fun Splash(onDone: () -> Unit) {
+    val rm = LocalReduceMotion.current
+    val a = remember { Animatable(if (rm) 1f else 0f) }
+    LaunchedEffect(Unit) { if (!rm) a.animateTo(1f, tween(650, easing = FastOutSlowInEasing)); delay(if (rm) 250L else 650L); onDone() }
+    Box(Modifier.fillMaxSize().background(Bg).pointerInput(Unit) {}, contentAlignment = Alignment.Center) {
+        Column(Modifier.graphicsLayer { alpha = a.value; scaleX = 0.92f + 0.08f * a.value; scaleY = 0.92f + 0.08f * a.value },
+            horizontalAlignment = Alignment.CenterHorizontally) {
+            LogoMark(96.dp)
+            Spacer(Modifier.height(22.dp))
+            Text("ALLERION", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 6.sp)
+            Spacer(Modifier.height(6.dp))
+            Text("ALLERIA LABS", fontSize = 10.sp, color = Dim, letterSpacing = 3.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(18.dp))
+            Text(TAGLINE, fontSize = 13.sp, color = Mut)
+        }
+    }
+}
+
+@Composable
+fun HubHeader(onSettings: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 10.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        LogoMark(38.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text("ALLERION", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 2.sp)
+            Text("ALLERIA LABS", fontSize = 9.sp, color = Dim, fontWeight = FontWeight.Medium, letterSpacing = 2.2.sp)
+        }
+        IconBtn(Ic.Gear, "Settings", onClick = onSettings)
+    }
+}
+
+@Composable
+fun SummaryStat(label: String, value: String, color: Color, modifier: Modifier) {
+    val shape = RoundedCornerShape(18.dp)
+    Column(modifier.clip(shape).background(Surf).border(1.dp, Line, shape).padding(horizontal = 12.dp, vertical = 12.dp)) {
+        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
+        Text(label, fontSize = 11.sp, color = Dim)
+    }
+}
+
+@Composable
+fun StatusLabel(code: Int) {
+    val (c, t) = when (code) { 1 -> Green to "Online"; 2 -> Err to "Offline"; else -> Amber to "Connecting" }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        PulseDot(c, code == 1, 7.dp)
+        Text(t, fontSize = 12.sp, color = c, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+fun StateMessage(text: String, warn: Boolean) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Surf2).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(if (warn) Amber else Dim)); Spacer(Modifier.width(10.dp))
+        Text(text, fontSize = 13.sp, color = Mut)
+    }
+}
+
+@Composable
+fun ActionIcon(ic: Ic, desc: String, tint: Color = Mut, onClick: () -> Unit) {
+    Box(Modifier.size(46.dp).tap(onClick).clip(RoundedCornerShape(14.dp)).background(Surf2), contentAlignment = Alignment.Center) { Icon24(ic, tint, 20.dp, desc = desc) }
+}
+
+class TileSpec(val icon: Ic, val name: String, val value: Double?, val unit: String, val sub: String?, val series: List<GSeries>,
+               val minSpan: Double, val text: String? = null)
+
+@Composable
+fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+    val hist by rememberHistory(sv, "1h", 15_000)          // only fetched while the card is open
+    val h = hist
+    fun hs(k: String): List<Double?> = h?.s?.get(k) ?: emptyList()
+    Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Line))
+        if (j == null) StateMessage(err ?: "Connecting to the monitoring service…", err != null)
+        else {
+            if (err != null) StateMessage("$err Showing the last readings received.", true)
+            val pw = j.optJSONObject("power"); val watts = pw?.dbl("watts"); val temp = j.dbl("temp"); val gpu = j.dbl("gpu"); val disk = diskPct(j)
+            val (dv, du) = netFmt(j.getDouble("net_down_bps")); val (uv, uu) = netFmt(j.getDouble("net_up_bps"))
+            var usedGb = 0.0; var totGb = 0.0
+            j.optJSONArray("disks")?.let { for (i in 0 until it.length()) { usedGb += it.getJSONObject(i).optDouble("used_gb", 0.0); totGb += it.getJSONObject(i).optDouble("total_gb", 0.0) } }
+            val specs = mutableListOf(
+                TileSpec(Ic.Cpu, "CPU", j.getDouble("cpu"), "%", "${j.optInt("cores")} cores", listOf(GSeries(hs("cpu"), Red)), 10.0),
+                TileSpec(Ic.Memory, "Memory", j.getDouble("ram"), "%", "${j.optDouble("ram_used_gb")} / ${j.optDouble("ram_total_gb")} GB", listOf(GSeries(hs("ram"), Blue)), 10.0))
+            if (temp != null) specs += TileSpec(Ic.Thermo, "Temperature", temp, "°C", null, listOf(GSeries(hs("temp"), Amber)), 4.0)
+            if (disk != null) specs += TileSpec(Ic.Storage, "Storage", disk, "%", "%.0f / %.0f GB".format(usedGb, totGb), listOf(GSeries(hs("disk"), Mut)), 2.0)
+            specs += TileSpec(Ic.Activity, "Network", null, du, "↑ $uv $uu", listOf(GSeries(hs("down"), Green), GSeries(hs("up"), GreenLight, true)), 200_000.0, dv)
+            if (gpu != null) specs += TileSpec(Ic.Chart, "GPU", gpu, "%", null, listOf(GSeries(hs("gpu"), Mut)), 10.0)
+            if (watts != null) specs += TileSpec(Ic.Zap, "Power", watts, "W", "%.2f kWh today".format(pw?.optDouble("today_kwh", 0.0) ?: 0.0), listOf(GSeries(hs("power"), Red)), 5.0)
+            specs.chunked(2).forEach { pair ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    pair.forEach { s -> key(s.name) { MetricTile(s.icon, s.name, s.text ?: animNum(s.value), s.unit, s.sub, s.series, s.minSpan, Modifier.weight(1f), onOpen) } }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+            val up = j.optLong("uptime_s")
+            Text("Updated ${fmtClock(j.optLong("ts"))}  ·  Up ${up / 86400}d ${up % 86400 / 3600}h", fontSize = 12.sp, color = Dim)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Button(onOpen, Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) {
+                Icon24(Ic.Dash, Txt, 18.dp); Spacer(Modifier.width(8.dp)); Text("Open dashboard", fontWeight = FontWeight.SemiBold)
+            }
+            ActionIcon(Ic.Pencil, "Edit server", onClick = onEdit)
+            ActionIcon(Ic.Trash, "Delete server", Err, onDelete)
+        }
+    }
+}
+
+@Composable
+fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () -> Unit, onOpen: () -> Unit, onEdit: () -> Unit,
+               onDelete: () -> Unit, onStatus: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val r by rememberStats(sv, if (expanded) 3_000L else 10_000L)       // collapsed cards only need status, so they poll slowly
+    val j = r.json
+    val code = when { j != null && r.error == null -> 1; r.error != null -> 2; else -> 0 }
+    LaunchedEffect(statusKey, code) { onStatus(code) }
+    val rot by animateFloatAsState(if (expanded) 180f else 0f, tween(260, easing = FastOutSlowInEasing), label = "chevron")
+    var confirm by remember { mutableStateOf(false) }
+    Panel(modifier) {
+        Row(Modifier.fillMaxWidth().tap(onToggle), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Surf2), contentAlignment = Alignment.Center) { Icon24(Ic.Server, Mut, 22.dp) }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(sv.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sv.url.removePrefix("http://").removePrefix("https://"), fontSize = 12.sp, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(Modifier.width(10.dp))
+            StatusLabel(code)
+            Spacer(Modifier.width(6.dp))
+            Icon24(Ic.ChevronD, Mut, 20.dp, Modifier.graphicsLayer { rotationZ = rot }, if (expanded) "Collapse" else "Expand")
+        }
+        AnimatedVisibility(visible = expanded, enter = expandVertically(tween(300, easing = FastOutSlowInEasing)) + fadeIn(tween(300)),
+            exit = shrinkVertically(tween(240, easing = FastOutSlowInEasing)) + fadeOut(tween(160))) {
+            ExpandedBody(sv, j, r.error, onOpen, onEdit) { confirm = true }
+        }
+    }
+    if (confirm) AlertDialog(onDismissRequest = { confirm = false },
+        confirmButton = { TextButton({ confirm = false; onDelete() }) { Text("Delete", color = Err) } },
+        dismissButton = { TextButton({ confirm = false }) { Text("Cancel", color = Mut) } },
+        title = { Text("Delete ${sv.name}?") },
+        text = { Text("This removes the server from ALLERION. The server itself and its recorded history are not affected.") },
+        containerColor = Surf2, titleContentColor = Txt, textContentColor = Mut)
+}
+
+@Composable
+fun AddFab(onClick: () -> Unit, modifier: Modifier) {
+    Row(modifier.tap(onClick).clip(RoundedCornerShape(50)).background(Red).padding(horizontal = 18.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon24(Ic.Plus, Txt, 18.dp, desc = "Add server"); Spacer(Modifier.width(8.dp))
+        Text("Add server", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Txt)
+    }
+}
+
+@Composable
+fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit,
+         onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit) {
+    val status = remember { mutableStateMapOf<String, Int>() }
+    fun keyOf(i: Int, sv: Server) = "$i|${sv.url}"
+    val codes = servers.mapIndexed { i, sv -> status[keyOf(i, sv)] ?: 0 }
+    val online = codes.count { it == 1 }; val offline = codes.count { it == 2 }
+    val availability = if (online + offline == 0) "–" else "${(online * 100f / (online + offline)).roundToInt()}%"
+    Box(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            HubHeader(onSettings)
+            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.padding(top = 8.dp, bottom = 2.dp).staggerIn(0)) {
+                    Text("Servers", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt)
+                    Text("Your connected infrastructure", fontSize = 13.sp, color = Mut)
+                }
+                if (servers.isEmpty()) {
+                    Panel(Modifier.staggerIn(1)) {
+                        Column(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(Surf2), contentAlignment = Alignment.Center) { Icon24(Ic.Server, Mut, 26.dp) }
+                            Spacer(Modifier.height(14.dp))
+                            Text("No servers yet", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Txt)
+                            Spacer(Modifier.height(4.dp))
+                            Text("Add the ALLERION monitoring service running on your home server to start watching it.", fontSize = 13.sp, color = Mut, textAlign = TextAlign.Center)
+                            Spacer(Modifier.height(18.dp))
+                            AddFab(onAdd, Modifier)
+                        }
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth().staggerIn(1), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SummaryStat("Servers", "${servers.size}", Txt, Modifier.weight(1f))
+                        SummaryStat("Online", "$online", Green, Modifier.weight(1f))
+                        SummaryStat("Offline", "$offline", if (offline > 0) Err else Txt, Modifier.weight(1f))
+                        SummaryStat("Availability", availability, Txt, Modifier.weight(1.25f))
+                    }
+                    servers.forEachIndexed { i, sv ->
+                        key(keyOf(i, sv)) {
+                            ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
+                                { status[keyOf(i, sv)] = it }, Modifier.staggerIn(i + 2))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(96.dp))
+            }
+        }
+        if (servers.isNotEmpty()) AddFab(onAdd, Modifier.align(Alignment.BottomEnd).padding(20.dp))
+    }
+}
+
+@Composable
+fun RefreshPanel() {
+    val ctx = LocalContext.current
+    Panel {
+        Label("Refresh interval"); Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(2, 5, 10, 30).forEach { s ->
+                Chip("${s}s", AppSettings.refreshMs == s * 1000L) {
+                    AppSettings.refreshMs = s * 1000L
+                    ctx.getSharedPreferences("cfg", android.content.Context.MODE_PRIVATE).edit().putLong("refresh_ms", s * 1000L).apply()
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp)); Text("How often live readings update. Graph history is recorded by the server regardless.", fontSize = 12.sp, color = Dim)
+    }
+}
+
+@Composable
+fun AboutPanel() {
+    Panel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            LogoMark(54.dp); Spacer(Modifier.width(14.dp))
+            Column {
+                Text("ALLERION", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 2.sp)
+                Text("by ALLERIA LABS", fontSize = 12.sp, color = Mut)
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(TAGLINE, fontSize = 13.sp, color = Mut)
+        Spacer(Modifier.height(8.dp))
+        KV("Category", "Home & Server Monitoring"); KV("Version", "1.0"); KV("History and energy totals", "Stored on your server")
+    }
+}
+
+@Composable
+fun HubSettings(onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBtn(Ic.ChevronL, "Back to servers", onClick = onBack)
+            Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt)
+        }
+        RefreshPanel()
+        AboutPanel()
+    }
+}
+
+@Composable
+fun EditServer(sv: Server?, onSave: (Server) -> Unit, onDelete: () -> Unit, onCancel: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var name by remember { mutableStateOf(sv?.name ?: "") }
+    var addr by remember { mutableStateOf(sv?.url?.removePrefix("http://") ?: "") }
+    var tok by remember { mutableStateOf(sv?.token ?: "") }
+    var testing by remember { mutableStateOf(false) }
+    var test by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
+    fun clean(): String { var c = addr.trim().trimEnd('/'); if (!c.startsWith("http")) c = "http://$c"; return c }
+    fun valid(): Boolean = try { java.net.URL(clean()).host.isNotEmpty() } catch (e: Exception) { false }
+    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBtn(Ic.ChevronL, "Back", onClick = onCancel)
+            Text(if (sv == null) "Add server" else "Edit server", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt)
+        }
+        Text("Use the address shown when the monitoring service starts, for example 192.168.1.50:8080.", color = Mut, fontSize = 13.sp)
+        Panel {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+                OutlinedTextField(addr, { addr = it; test = null }, label = { Text("Server address") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+                OutlinedTextField(tok, { tok = it; test = null }, label = { Text("Token") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+            }
+        }
+        test?.let { (ok, msg) -> StateMessage(msg, !ok) }
+        OutlinedButton({
+            if (!valid()) { test = false to "Invalid server address."; return@OutlinedButton }
+            testing = true; test = null
+            scope.launch {
+                test = try { val j = withContext(Dispatchers.IO) { fetch(clean(), tok.trim()) }; true to "Connected to ${j.str("host").ifEmpty { "server" }}." }
+                       catch (e: CancellationException) { throw e } catch (e: Exception) { false to friendlyError(e) }
+                testing = false
+            }
+        }, Modifier.fillMaxWidth().height(50.dp), enabled = addr.isNotBlank() && !testing, shape = RoundedCornerShape(14.dp)) {
+            Text(if (testing) "Testing…" else "Test connection", color = Txt)
+        }
+        Button({
+            if (!valid()) test = false to "Invalid server address."
+            else onSave(Server(name.trim().ifEmpty { "My server" }, clean(), tok.trim()))
+        }, Modifier.fillMaxWidth().height(52.dp), enabled = addr.isNotBlank(), shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) { Text("Save", fontWeight = FontWeight.SemiBold) }
+        if (sv != null) OutlinedButton(onDelete, Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) { Text("Remove server", color = Err) }
+        TextButton(onCancel, Modifier.fillMaxWidth()) { Text("Cancel", color = Mut) }
+    }
+}

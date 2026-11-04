@@ -31,10 +31,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
 import kotlinx.coroutines.*
 import org.json.JSONObject
 
-val Err = Color(0xFFFF4D5A)
+val Err = Color(0xFFF04452)
 val Blue = Color(0xFF648BFF)
 val GreenLight = Color(0xFF9BE5C4)
 
@@ -43,7 +45,7 @@ val LocalReduceMotion = compositionLocalOf { false }
 object AppSettings { var refreshMs by mutableLongStateOf(2000L) }
 
 // ---------------------------------------------------------------- icons (one consistent 24-grid, round stroke set)
-enum class Ic { Dash, Cpu, Memory, Storage, Thermo, Activity, Download, Upload, Zap, Plug, Heart, Server, Globe, Clock, Bell, Gear, Refresh, Chart, ChevronL }
+enum class Ic { Dash, Cpu, Memory, Storage, Thermo, Activity, Download, Upload, Zap, Plug, Heart, Server, Globe, Clock, Bell, Gear, Refresh, Chart, ChevronL, ChevronD, Plus, Pencil, Trash }
 
 @Composable
 fun Icon24(kind: Ic, tint: Color, sz: Dp = 20.dp, modifier: Modifier = Modifier, desc: String? = null) {
@@ -93,6 +95,10 @@ fun Icon24(kind: Ic, tint: Color, sz: Dp = 20.dp, modifier: Modifier = Modifier,
             Ic.Refresh -> { drawArc(tint, -50f, 290f, false, p(4f, 4f), Size(16f * u, 16f * u), style = sw); poly(7f, 2.5f, 7f, 6.5f, 11f, 6.5f) }
             Ic.Chart -> { poly(3f, 3f, 3f, 21f, 21f, 21f); poly(7f, 15f, 11f, 10f, 14f, 13f, 20f, 6f) }
             Ic.ChevronL -> poly(15f, 5f, 8f, 12f, 15f, 19f)
+            Ic.ChevronD -> poly(5f, 9f, 12f, 16f, 19f, 9f)
+            Ic.Plus -> { line(12f, 5f, 12f, 19f); line(5f, 12f, 19f, 12f) }
+            Ic.Pencil -> { poly(4f, 20f, 5f, 15f, 16f, 4f, 20f, 8f, 9f, 19f, close = true); line(13.5f, 6.5f, 17.5f, 10.5f) }
+            Ic.Trash -> { line(4f, 7f, 20f, 7f); poly(9f, 7f, 9f, 4f, 15f, 4f, 15f, 7f); poly(6f, 7f, 7f, 20f, 17f, 20f, 18f, 7f); line(10f, 11f, 10f, 16f); line(14f, 11f, 14f, 16f) }
         }
     }
 }
@@ -176,23 +182,45 @@ fun parseHistory(j: JSONObject): History {
     return History(List(ta.length()) { ta.getLong(it) }, m, j.optInt("interval", 10))
 }
 
+fun friendlyError(e: Exception): String = when {
+    e is java.net.SocketTimeoutException -> "Connection timed out. Check the address and your network."
+    e is java.net.UnknownHostException -> "Server address not found."
+    e is java.net.ConnectException || e is java.net.NoRouteToHostException -> "Server unreachable. Check that the monitoring service is running."
+    e is javax.net.ssl.SSLException -> "Secure connection failed. Check the address."
+    e is java.net.MalformedURLException || e is IllegalArgumentException -> "Invalid server address."
+    e is org.json.JSONException -> "Monitoring service unavailable at this address."
+    e.message == "Wrong token" -> "Authentication failed. Check the token."
+    e.message?.contains("starting up") == true -> "Monitoring service is starting up."
+    else -> "Cannot reach the server."
+}
+
 @Composable
-fun rememberHistory(sv: Server, range: String, every: Long): State<History?> = produceState<History?>(null, sv, range) {
-    while (true) {
-        try { value = parseHistory(withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/history?range=$range") }) }
-        catch (e: CancellationException) { throw e } catch (e: Exception) { }
-        delay(every)
+fun rememberHistory(sv: Server, range: String, every: Long): State<History?> {
+    val lc = LocalLifecycleOwner.current.lifecycle          // no polling while the app is in the background
+    return produceState<History?>(null, sv, range) {
+        while (true) {
+            if (lc.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                try { value = parseHistory(withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/history?range=$range") }) }
+                catch (e: CancellationException) { throw e } catch (e: Exception) { }
+            }
+            delay(every)
+        }
     }
 }
 
 @Composable
-fun rememberEnergy(sv: Server): State<Map<String, Double>?> = produceState<Map<String, Double>?>(null, sv) {
-    while (true) {
-        try {
-            val a = withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/energy") }.getJSONArray("days")
-            value = (0 until a.length()).associate { a.getJSONObject(it).getString("day") to a.getJSONObject(it).getDouble("kwh") }
-        } catch (e: CancellationException) { throw e } catch (e: Exception) { }
-        delay(60_000)
+fun rememberEnergy(sv: Server): State<Map<String, Double>?> {
+    val lc = LocalLifecycleOwner.current.lifecycle
+    return produceState<Map<String, Double>?>(null, sv) {
+        while (true) {
+            if (lc.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                try {
+                    val a = withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/energy") }.getJSONArray("days")
+                    value = (0 until a.length()).associate { a.getJSONObject(it).getString("day") to a.getJSONObject(it).getDouble("kwh") }
+                } catch (e: CancellationException) { throw e } catch (e: Exception) { }
+            }
+            delay(60_000)
+        }
     }
 }
 

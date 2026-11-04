@@ -39,6 +39,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.fadeOut
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import kotlin.math.roundToInt
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -51,7 +58,7 @@ val DeepRed = Color(0xFF9B0710)
 val Txt = Color(0xFFF5F5F5)
 val Mut = Color(0xFF929398)
 val Track = Color(0xFF2A2B30)
-val Dim = Color(0xFF6F7076)
+val Dim = Color(0xFF676970)
 val Amber = Color(0xFFFFB547)
 val Green = Color(0xFF35C98A)
 
@@ -88,13 +95,17 @@ fun rate(bytes: Double): String = when {
 }
 
 @Composable
-fun rememberStats(sv: Server, every: Long, refreshKey: Int = 0): State<StatsResult> = produceState(StatsResult(), sv, every, refreshKey) {
-    while (true) {
-        value = try {
-            StatsResult(withContext(Dispatchers.IO) { fetch(sv.url, sv.token) }, null)
-        } catch (e: CancellationException) { throw e
-        } catch (e: Exception) { StatsResult(value.json, e.message ?: "Cannot reach the server") }
-        delay(every)
+fun rememberStats(sv: Server, every: Long, refreshKey: Int = 0): State<StatsResult> {
+    val lc = LocalLifecycleOwner.current.lifecycle          // no polling while the app is in the background
+    return produceState(StatsResult(), sv, every, refreshKey) {
+        while (true) {
+            if (lc.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                value = try { StatsResult(withContext(Dispatchers.IO) { fetch(sv.url, sv.token) }, null) }
+                catch (e: CancellationException) { throw e }
+                catch (e: Exception) { StatsResult(value.json, friendlyError(e)) }
+            }
+            delay(every)
+        }
     }
 }
 
@@ -105,9 +116,10 @@ class MainActivity : ComponentActivity() {
         AppSettings.refreshMs = prefs.getLong("refresh_ms", 2000L)
         val reduce = android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
         setContent {
+            var showSplash by rememberSaveable { mutableStateOf(true) }
             CompositionLocalProvider(LocalReduceMotion provides reduce) {
-            MaterialTheme(colorScheme = darkColorScheme(primary = Red, background = Bg, surface = Bg, onSurface = Txt)) {
-                Surface(Modifier.fillMaxSize(), color = Bg) { App(prefs) }
+            MaterialTheme(colorScheme = darkColorScheme(primary = Red, background = Bg, surface = Bg, onSurface = Txt, outline = Color(0xFF3A3B41), onSurfaceVariant = Mut, surfaceVariant = Surf)) {
+                Surface(Modifier.fillMaxSize(), color = Bg) { Box { App(prefs); AnimatedVisibility(visible = showSplash, enter = EnterTransition.None, exit = fadeOut(tween(350))) { Splash { showSplash = false } } } }
             }
             }
         }
@@ -119,22 +131,26 @@ fun App(p: SharedPreferences) {
     var servers by remember { mutableStateOf(loadServers(p)) }
     var open by remember { mutableStateOf<Int?>(null) }
     var edit by remember { mutableStateOf<Int?>(null) } // -1 = new server
+    var expanded by remember { mutableStateOf<Int?>(null) }   // every server card starts collapsed
+    var hubSettings by remember { mutableStateOf(false) }
     fun commit(l: List<Server>) { servers = l; saveServers(p, l) }
     val e = edit
     val o = open
-    BackHandler(enabled = e != null || o != null) { if (e != null) edit = null else open = null }
+    BackHandler(enabled = e != null || o != null || hubSettings) { if (e != null) edit = null else if (o != null) open = null else hubSettings = false }
     when {
         e != null -> EditServer(servers.getOrNull(e),
             onSave = { sv -> commit(if (e < 0) servers + sv else servers.toMutableList().also { it[e] = sv }); edit = null },
-            onDelete = { commit(servers.filterIndexed { i, _ -> i != e }); edit = null; open = null },
+            onDelete = { commit(servers.filterIndexed { i, _ -> i != e }); edit = null; open = null; expanded = null },
             onCancel = { edit = null })
         o != null && o in servers.indices -> Dashboard(servers[o], { open = null }, { edit = o })
-        else -> Home(servers, { open = it }, { edit = it }, { edit = -1 })
+        hubSettings -> HubSettings { hubSettings = false }
+        else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
+            { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true })
     }
 }
 
-val Surf = Color(0xFF191A1D)
-val Surf2 = Color(0xFF222327)
+val Surf = Color(0xFF1B1C20)
+val Surf2 = Color(0xFF24252A)
 
 fun JSONObject.str(k: String): String = if (!has(k) || isNull(k)) "" else optString(k)
 fun JSONObject.dbl(k: String): Double? = if (!has(k) || isNull(k)) null else optDouble(k).takeIf { !it.isNaN() }
@@ -193,90 +209,6 @@ fun Status(online: Boolean) {
         PulseDot(if (online) Green else Err, online)
         Spacer(Modifier.width(4.dp))
         Text(if (online) "Online" else "Offline", fontSize = 12.sp, color = Txt)
-    }
-}
-
-@Composable
-fun BrandBar() {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-        Image(painterResource(R.drawable.logo_mark), "AlSent", Modifier.size(34.dp))
-        Spacer(Modifier.width(10.dp))
-        Text("AlSent", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 0.5.sp)
-    }
-}
-
-@Composable
-fun Home(servers: List<Server>, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit, onAdd: () -> Unit) {
-    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState())) {
-        BrandBar()
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Your servers", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Txt)
-            Text(if (servers.isEmpty()) "No servers yet. Add the monitor running on your server." else "${servers.size} added",
-                color = Mut, fontSize = 13.sp)
-            servers.forEachIndexed { i, sv -> ServerCard(sv, { onOpen(i) }, { onEdit(i) }) }
-            Button(onAdd, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) { Text("Add server", fontSize = 16.sp) }
-        }
-    }
-}
-
-@Composable
-fun Mini(label: String, text: String, frac: Float, modifier: Modifier) {
-    Column(modifier) {
-        Text(label, fontSize = 12.sp, color = Mut)
-        Text(text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Txt)
-        Spacer(Modifier.height(4.dp))
-        Bar(frac, 5.dp)
-    }
-}
-
-@Composable
-fun ServerCard(sv: Server, onOpen: () -> Unit, onEdit: () -> Unit) {
-    val r by rememberStats(sv, 3000)
-    val j = r.json
-    Panel(onClick = onOpen) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(sv.name, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(sv.url.removePrefix("http://"), fontSize = 12.sp, color = Dim)
-            }
-            Status(j != null && r.error == null)
-            TextButton(onEdit) { Text("Edit", color = Red) }
-        }
-        Spacer(Modifier.height(10.dp))
-        if (j == null) Text(r.error ?: "Connecting…", color = Amber, fontSize = 13.sp)
-        else Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            val c = j.getDouble("cpu"); val m = j.getDouble("ram")
-            Mini("CPU", "%.0f%%".format(c), (c / 100).toFloat(), Modifier.weight(1f))
-            Mini("Memory", "%.0f%%".format(m), (m / 100).toFloat(), Modifier.weight(1f))
-            val t = j.dbl("temp")
-            Mini("Temp", if (t == null) "N/A" else "%.0f °C".format(t), ((t ?: 0.0) / 100).toFloat(), Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-fun EditServer(sv: Server?, onSave: (Server) -> Unit, onDelete: () -> Unit, onCancel: () -> Unit) {
-    var name by remember { mutableStateOf(sv?.name ?: "") }
-    var addr by remember { mutableStateOf(sv?.url?.removePrefix("http://") ?: "") }
-    var tok by remember { mutableStateOf(sv?.token ?: "") }
-    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("SERVER CONNECTION", fontSize = 11.sp, color = Red, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
-        Text(if (sv == null) "Add server" else "Edit server", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt)
-        Text("The address is shown when the monitor starts, for example 192.168.1.50:8080", color = Mut)
-        OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(addr, { addr = it }, label = { Text("Server address") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(tok, { tok = it }, label = { Text("Token") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        Button({
-            var clean = addr.trim().trimEnd('/')
-            if (!clean.startsWith("http")) clean = "http://$clean"
-            onSave(Server(name.trim().ifEmpty { "My server" }, clean, tok.trim()))
-        }, Modifier.fillMaxWidth().height(52.dp), enabled = addr.isNotBlank(), shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) { Text("Save") }
-        if (sv != null) OutlinedButton(onDelete, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) {
-            Text("Remove server", color = Red) }
-        TextButton(onCancel, Modifier.fillMaxWidth()) { Text("Cancel", color = Mut) }
     }
 }
 
@@ -542,8 +474,10 @@ fun InternetPanel(j: JSONObject, sv: Server) {
     }) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Label("Internet · Speedtest by Ookla")
-            Text(if (running) "Testing…" else "Tap to test", fontSize = 12.sp, color = if (running) Red else Dim)
+            val phase = when (sp.str("phase")) { "ping" -> "Testing latency"; "download" -> "Testing download"; "upload" -> "Testing upload"; else -> "Testing" }
+            Text(if (running) phase + (sp.dbl("progress")?.let { " ${(it * 100).roundToInt()}%" } ?: "…") else "Tap to test", fontSize = 12.sp, color = if (running) Red else Dim)
         }
+        if (running) { Spacer(Modifier.height(10.dp)); Bar((sp.dbl("progress") ?: 0.0).toFloat(), 4.dp) }
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth()) {
             Speed3("Download", num("down_mbps"), "Mbps", Modifier.weight(1f))
@@ -553,7 +487,7 @@ fun InternetPanel(j: JSONObject, sv: Server) {
         val srv = sp.str("server")
         if (srv.isNotEmpty()) { Spacer(Modifier.height(8.dp)); Text(srv, fontSize = 12.sp, color = Dim) }
         val err = sp.str("error")
-        if (err.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Text(err, fontSize = 12.sp, color = Amber) }
+        if (err.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Text("Speed test failed. Check the server's internet connection and the speed test tool on the server.", fontSize = 12.sp, color = Amber) }
     }
 }
 
