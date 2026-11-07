@@ -77,23 +77,24 @@ object PdfReport {
             page = null
         }
         fun drawLine(line: String) {
-            val canvas = page!!.canvas
-            val words = line.split(Regex("(?<=,)|(?<= )"))
-            var current = ""
-            for (word in words) {
-                val candidate = current + word
-                if (current.isNotEmpty() && body.measureText(candidate) > maxWidth) {
-                    canvas.drawText(current, left, y, body)
-                    y += lineHeight
-                    current = word.trimStart()
-                    if (y > pageHeight - 42f) { finishPage(); startPage() }
-                } else current = candidate
-            }
-            if (current.isNotEmpty()) {
-                page!!.canvas.drawText(current.take(180), left, y, body)
+            var remaining = line
+            if (remaining.isEmpty()) {
+                if (y > pageHeight - 42f) { finishPage(); startPage() }
                 y += lineHeight
-            } else y += lineHeight
-            if (y > pageHeight - 42f) { finishPage(); startPage() }
+                return
+            }
+            while (remaining.isNotEmpty()) {
+                if (y > pageHeight - 42f) { finishPage(); startPage() }
+                var cut = remaining.length
+                while (cut > 1 && body.measureText(remaining.substring(0, cut)) > maxWidth) cut--
+                if (cut < remaining.length) {
+                    val space = remaining.lastIndexOf(' ', cut)
+                    if (space > 0) cut = space
+                }
+                page!!.canvas.drawText(remaining.substring(0, cut), left, y, body)
+                remaining = remaining.substring(cut).trimStart()
+                y += lineHeight
+            }
         }
 
         try {
