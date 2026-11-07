@@ -107,6 +107,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val prefs = getSharedPreferences("cfg", MODE_PRIVATE)
         AppSettings.refreshMs = prefs.getLong("refresh_ms", 2000L)
+        AlertScheduler.ensureScheduled(this)
         val reduce = android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
         setContent {
             var showSplash by rememberSaveable { mutableStateOf(true) }
