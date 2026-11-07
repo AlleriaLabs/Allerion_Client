@@ -13,7 +13,7 @@ permissions:
 jobs:
   verify:
     name: Verify debug build
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +28,7 @@ jobs:
         run: gradle assembleDebug --no-daemon --stacktrace
       - uses: actions/upload-artifact@v4
         with:
-          name: Allerion-debug-pr-${{ github.event.number }}
+          name: Allerion-debug-${{ github.run_number }}
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
@@ -45,26 +45,35 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - name: Validate signing configuration
+      - name: Check release signing secrets
+        id: signing
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          missing=0
           for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
             if [ -z "${!name}" ]; then
-              echo "::error::Missing GitHub Actions secret: $name. Configure the persistent release keystore before publishing."
-              exit 1
+              echo "::warning::Missing GitHub Actions secret: $name. Signed release publishing is skipped until the persistent signing key is configured."
+              missing=1
             fi
           done
+          if [ "$missing" -eq 0 ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Decode persistent release keystore
+        if: steps.signing.outputs.ready == 'true'
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/allerion-release.jks"
           test -s "$RUNNER_TEMP/allerion-release.jks"
       - name: Build signed release APK
+        if: steps.signing.outputs.ready == 'true'
         env:
           KEYSTORE_FILE: ${{ runner.temp }}/allerion-release.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -74,13 +83,16 @@ jobs:
           VERSION_NAME: 1.1.${{ github.run_number }}
         run: gradle assembleRelease --no-daemon --stacktrace
       - name: Rename APK
+        if: steps.signing.outputs.ready == 'true'
         run: cp app/build/outputs/apk/release/app-release.apk Allerion.apk
       - uses: actions/upload-artifact@v4
+        if: steps.signing.outputs.ready == 'true'
         with:
           name: Allerion-release-${{ github.run_number }}
           path: Allerion.apk
           if-no-files-found: error
       - name: Publish signed release
+        if: steps.signing.outputs.ready == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.1.${{ github.run_number }}
