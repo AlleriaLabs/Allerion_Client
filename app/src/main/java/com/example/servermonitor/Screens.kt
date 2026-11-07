@@ -304,6 +304,7 @@ fun SettingsScreen(sv: Server, onEdit: () -> Unit, onPower: () -> Unit) {
     val ctx = LocalContext.current
     ActionRow("Server connection", sv.name + " · " + sv.url.removePrefix("http://"), onEdit)
     ActionRow("Power source and electricity rate", "Choose your plug, price per kWh and currency", onPower)
+    ReportExportPanel(sv)
     RefreshPanel()
     AboutPanel()
 }
