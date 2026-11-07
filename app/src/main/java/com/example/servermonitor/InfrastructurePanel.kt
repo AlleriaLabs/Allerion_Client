@@ -34,6 +34,7 @@ private data class InfrastructureSnapshot(
     val services: JSONObject? = null,
     val devices: JSONObject? = null,
     val forecast: JSONObject? = null,
+    val energyBreakdown: JSONObject? = null,
     val error: String? = null
 )
 
@@ -54,7 +55,8 @@ fun InfrastructurePanel(sv: Server) {
                         containers = if (features.optBoolean("containers")) optional("/api/containers") else null,
                         services = if (features.optBoolean("services")) optional("/api/services") else null,
                         devices = if (features.optBoolean("network_inventory")) optional("/api/network/devices") else null,
-                        forecast = if (features.optBoolean("energy_forecast")) optional("/api/energy/forecast?days=30") else null
+                        forecast = if (features.optBoolean("energy_forecast")) optional("/api/energy/forecast?days=30") else null,
+                        energyBreakdown = if (features.optBoolean("energy_breakdown")) optional("/api/energy/breakdown") else null
                     )
                 } catch (error: Exception) {
                     InfrastructureSnapshot(error = friendlyError(error))
@@ -154,6 +156,21 @@ fun InfrastructurePanel(sv: Server) {
             Text("%.2f kWh".format(forecast.optDouble("forecast_kwh")), color = Txt, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text("Estimated next ${forecast.optInt("days")} days · based on ${forecast.optInt("observations")} recorded daily totals", color = Mut, fontSize = 11.sp)
             Text("This is a trend estimate, not a measured reading.", color = Dim, fontSize = 10.sp)
+        }
+    }
+
+    val energyDays = snapshot.energyBreakdown?.optJSONArray("days")
+    val latestEnergyDay = energyDays?.optJSONObject((energyDays.length() - 1).coerceAtLeast(0))
+    val energySources = latestEnergyDay?.optJSONArray("sources")
+    if (energySources != null && energySources.length() > 0) {
+        Panel {
+            Label("Energy source breakdown")
+            Text(latestEnergyDay.optString("day"), color = Dim, fontSize = 10.sp)
+            for (i in 0 until energySources.length()) {
+                val source = energySources.optJSONObject(i) ?: continue
+                DiagRow(source.optString("source"), "%.3f kWh".format(source.optDouble("kwh")), Mut)
+            }
+            Text("Older energy totals recorded before this backend update cannot be attributed retroactively.", color = Dim, fontSize = 10.sp)
         }
     }
 
