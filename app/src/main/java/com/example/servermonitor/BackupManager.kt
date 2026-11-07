@@ -25,7 +25,8 @@ object BackupManager {
             rows.put(JSONObject()
                 .put("name", server.name)
                 .put("url", server.url)
-                .put("token", server.token))
+                .put("token", server.token)
+                .put("group", server.group))
         }
         val plain = JSONObject()
             .put("format", "ALLERION_BACKUP")
@@ -78,7 +79,7 @@ object BackupManager {
             require((parsed.protocol == "http" || parsed.protocol == "https") && parsed.host.isNotBlank()) {
                 "A server address in the backup is invalid."
             }
-            Server(name, url, token)
+            Server(name, url, token, row.optString("group", "Ungrouped"))
         }
     }
 
