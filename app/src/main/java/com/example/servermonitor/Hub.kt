@@ -277,7 +277,9 @@ fun AboutPanel() {
         Spacer(Modifier.height(12.dp))
         Text(TAGLINE, fontSize = 13.sp, color = Mut)
         Spacer(Modifier.height(8.dp))
-        KV("Category", "Home & Server Monitoring"); KV("Version", "1.0"); KV("History and energy totals", "Stored on your server")
+        KV("Category", "Home & Server Monitoring")
+        KV("Version", BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ")")
+        KV("History and energy totals", "Stored on your server")
     }
 }
 
@@ -314,7 +316,9 @@ fun EditServer(sv: Server?, onSave: (Server) -> Unit, onDelete: () -> Unit, onCa
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
                 OutlinedTextField(addr, { addr = it; test = null }, label = { Text("Server address") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
-                OutlinedTextField(tok, { tok = it; test = null }, label = { Text("Token") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+                OutlinedTextField(tok, { tok = it; test = null }, label = { Text("Token") }, singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
             }
         }
         test?.let { (ok, msg) -> StateMessage(msg, !ok) }
