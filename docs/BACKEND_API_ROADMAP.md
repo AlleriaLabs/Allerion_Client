@@ -1,72 +1,51 @@
-# ALLERION / ServerMonitor API expansion contract
+# ALLERION / ServerMonitor API v2
 
-This document defines the backend additions needed before the Android client can expose advanced infrastructure features safely. Existing endpoints remain unchanged.
+The companion backend update is supplied as `ALLERION_ServerMonitor_v2.zip`. This document describes the implemented endpoints and the remaining limitations. Existing v1 endpoints remain compatible.
 
-## Common requirements
+## Authentication and capability discovery
 
-- All endpoints require the existing X-Token authentication header.
-- Return JSON with stable field names and explicit units.
-- Use Unix epoch milliseconds for event timestamps.
-- Return HTTP 404 for unsupported capabilities; clients must hide or mark unsupported panels rather than fabricate values.
-- Include an error object with stable error code on failures.
-- Add a capability document so clients can feature-detect without probing every endpoint.
+- All `/api/*` endpoints require the `X-Token` header.
+- Query-string token authentication is disabled to avoid leaking bearer credentials through URL logs and browser history.
+- `TOKEN` is required at startup unless the isolated-test-only `ALLOW_INSECURE_LOCAL=1` override is explicitly set.
+- `GET /api/capabilities` reports API version and which optional collectors are configured.
 
-## Capability discovery
+## Host and container inventory
 
-GET /api/capabilities
+- `GET /api/processes?limit=30` returns a bounded list with PID, process name, username, CPU percentage and resident memory bytes. Command-line arguments and environment variables are not exposed.
+- `GET /api/containers` returns Docker container ID, name, image, state and status.
+- `GET /api/containers/{id}/stats` returns point-in-time Docker CPU and memory usage.
+- Docker access uses a loopback-bound Docker socket proxy with POST disabled; port 2375 must never be exposed to the LAN or internet.
+- `GET /api/services` checks admin-configured URLs from `SERVICE_CHECKS`. The backend caches results briefly and returns status and latency.
 
-Example response:
+## LAN diagnostics
 
-    {
-      "api_version": 2,
-      "features": {
-        "containers": true,
-        "processes": true,
-        "services": true,
-        "network_inventory": true,
-        "network_diagnostics": true,
-        "energy_breakdown": true,
-        "webhooks": false
-      }
-    }
-
-## Docker and services
-
-- GET /api/containers — container ID, name, image, state, health, CPU %, memory bytes, restart count and started-at timestamp.
-- GET /api/containers/{id}/stats?range=1h|24h|7d — time-series CPU and memory metrics.
-- GET /api/services — configured service checks with name, URL/host, expected status, last status, response time and last checked timestamp.
-- GET /api/processes?limit=50&sort=cpu|memory — bounded process list with PID, name, CPU %, memory bytes and user. Never return command-line arguments or environment variables by default.
-
-## Network inventory and diagnostics
-
-- GET /api/network/devices — LAN device inventory with stable local ID, IP, MAC, hostname, vendor (when known), first-seen and last-seen timestamps.
-- GET /api/network/diagnostics?target={host} — DNS resolution, TCP connect duration, HTTP response duration, packet loss when measured by a supported probe, and test timestamp.
-- GET /api/network/topology — discovered device links only when the collector has evidence; do not infer physical topology from IP ranges.
-
-Network scans must be opt-in, limited to private address ranges, rate-limited and visible in the UI. Do not scan arbitrary public IP ranges.
+- `GET /api/network/devices` reads the passive ARP / neighbor cache when `ENABLE_LAN_DISCOVERY=1`.
+- `GET /api/network/topology` returns passive inventory nodes. It does not invent physical links from IP addresses.
+- `GET /api/network/diagnostics?target=192.168.1.10` tests TCP connect reachability on ports 443, 80, 22 and 8080. Only private IPv4 addresses are accepted.
+- The current diagnostic probe does not measure ICMP packet loss and does not actively scan the subnet.
 
 ## Energy intelligence
 
-- GET /api/energy?range=7d|30d|12m — daily/hourly kWh totals, tariff/currency, cost totals and coverage metadata.
-- GET /api/energy/breakdown?range=30d — measured or explicitly estimated usage by source/device.
-- GET /api/energy/forecast?days=30 — forecast values plus method, confidence/coverage and assumptions.
+- `GET /api/energy` preserves the existing daily kWh totals.
+- `GET /api/energy/breakdown` attributes new energy intervals to the active source (smart plug or CPU/RAPL estimate). Existing historical totals are retained but cannot be attributed retroactively.
+- `GET /api/energy/forecast?days=30` uses the arithmetic mean of at least three recorded daily totals. It is an estimate, not a measured prediction.
 
-Every energy value must identify whether it is measured, estimated from CPU/RAPL, or estimated from a configured base-watt value.
+## Notifications and integrations
 
-## Integrations
+- `GET /api/integrations` reports whether webhook and Telegram destinations are configured; it never returns credentials.
+- `POST /api/integrations/webhook/test` sends a test event to an HTTPS URL configured with `ALERT_WEBHOOK_URL`; optional `ALERT_WEBHOOK_SECRET` is sent as `X-Webhook-Secret`.
+- `POST /api/integrations/telegram/test` sends a test message using backend-only `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
+- CPU, RAM, temperature and disk threshold crossings trigger notifications, with a recovery event when the metric falls below its threshold.
+- Default thresholds are CPU 90%, RAM 90%, temperature 85 °C and disk 92%; configure with `ALERT_CPU_THRESHOLD`, `ALERT_RAM_THRESHOLD`, `ALERT_TEMP_THRESHOLD` and `ALERT_DISK_THRESHOLD`.
 
-- GET /api/integrations — configured integration names and enabled state only; never return secrets.
-- POST /api/integrations/webhook/test — test a user-configured HTTPS webhook.
-- POST /api/integrations/webhook — save endpoint and secret server-side; redact secret from all reads and logs.
+Secrets are configured only on the backend. The Android app cannot read or write webhook URLs, webhook secrets or Telegram bot credentials.
 
-Telegram credentials and webhook secrets must be stored on the backend, not embedded in the Android APK. Support test delivery and disable/delete actions.
+## Deployment and security notes
 
-## Compatibility and implementation order
+1. Back up the existing `data/` directory before replacing the service; it contains power configuration and energy history.
+2. Copy `.env.example` to `.env` and set a new long random `TOKEN`. Never upload the real `.env` or `credentials.env`.
+3. Run `docker compose up -d --build`.
+4. Keep the API on a trusted LAN or place it behind HTTPS for remote access. Do not expose the Docker proxy port 2375.
+5. Power configuration is written with restrictive file permissions. Continue to keep the persistent `data/` directory private.
 
-1. Add /api/capabilities and stable API versioning.
-2. Add Docker/container and service collectors.
-3. Add LAN inventory and diagnostics with explicit opt-in.
-4. Extend energy breakdown and forecast endpoints.
-5. Add backend-managed webhook delivery.
-
-The Android app currently supports the original stats/history/energy/power APIs and gracefully treats absent optional data as unavailable. Implementing these endpoints in the ServerMonitor service is required before corresponding advanced panels can be enabled.
+The Android client detects optional features through `/api/capabilities` and only renders panels when the backend reports support. Features requiring additional collectors beyond those listed above remain future backend work.
