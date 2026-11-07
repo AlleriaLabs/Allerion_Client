@@ -29,7 +29,7 @@ object SecureServerStore {
         val array = JSONArray(legacy)
         val servers = List(array.length()) { index ->
             val item = array.getJSONObject(index)
-            Server(item.optString("name"), item.optString("url"), item.optString("token"))
+            Server(item.optString("name"), item.optString("url"), item.optString("token"), item.optString("group", "Ungrouped"))
         }
         val oldUrl = prefs.getString("url", "").orEmpty()
         val migrated = if (servers.isEmpty() && oldUrl.isNotBlank()) {
@@ -48,7 +48,8 @@ object SecureServerStore {
             array.put(JSONObject()
                 .put("name", server.name)
                 .put("url", server.url)
-                .put("token", server.token))
+                .put("token", server.token)
+                .put("group", server.group))
         }
         val encrypted = encrypt(array.toString())
         val committed = prefs.edit()
