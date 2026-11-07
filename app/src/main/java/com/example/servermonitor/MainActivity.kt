@@ -48,8 +48,6 @@ import androidx.lifecycle.Lifecycle
 import kotlin.math.roundToInt
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 
 val Bg = Color(0xFF101113)
 val Line = Color(0xFF303136)
@@ -65,26 +63,13 @@ val Green = Color(0xFF35C98A)
 data class Server(val name: String, val url: String, val token: String)
 data class StatsResult(val json: JSONObject? = null, val error: String? = null)
 
-fun loadServers(p: SharedPreferences): List<Server> {
-    val a = JSONArray(p.getString("servers", "[]"))
-    val l = List(a.length()) { val o = a.getJSONObject(it); Server(o.getString("name"), o.getString("url"), o.getString("token")) }
-    val old = p.getString("url", "") ?: ""
-    return if (l.isEmpty() && old.isNotEmpty()) listOf(Server("My server", old, p.getString("token", "") ?: "")) else l
-}
+fun loadServers(p: SharedPreferences): List<Server> = SecureServerStore.load(p)
 
-fun saveServers(p: SharedPreferences, l: List<Server>) {
-    val a = JSONArray()
-    l.forEach { a.put(JSONObject().put("name", it.name).put("url", it.url).put("token", it.token)) }
-    p.edit().putString("servers", a.toString()).apply()
-}
+fun saveServers(p: SharedPreferences, l: List<Server>) = SecureServerStore.save(p, l)
 
 fun fetch(base: String, token: String): JSONObject {
-    val c = URL("$base/api/stats").openConnection() as HttpURLConnection
-    c.connectTimeout = 3000; c.readTimeout = 3000
-    if (token.isNotEmpty()) c.setRequestProperty("X-Token", token)
-    if (c.responseCode == 401) throw Exception("Wrong token")
-    val j = JSONObject(c.inputStream.bufferedReader().readText())
-    if (!j.has("cpu")) throw Exception("Server is starting up")
+    val j = ApiClient.getJson(base, token, "/api/stats", connectTimeoutMs = 3000, readTimeoutMs = 5000)
+    if (!j.has("cpu")) throw ApiException("Monitoring service is starting up.")
     return j
 }
 
@@ -98,13 +83,21 @@ fun rate(bytes: Double): String = when {
 fun rememberStats(sv: Server, every: Long, refreshKey: Int = 0): State<StatsResult> {
     val lc = LocalLifecycleOwner.current.lifecycle          // no polling while the app is in the background
     return produceState(StatsResult(), sv, every, refreshKey) {
+        var failures = 0
         while (true) {
             if (lc.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                value = try { StatsResult(withContext(Dispatchers.IO) { fetch(sv.url, sv.token) }, null) }
-                catch (e: CancellationException) { throw e }
-                catch (e: Exception) { StatsResult(value.json, friendlyError(e)) }
+                try {
+                    val fresh = withContext(Dispatchers.IO) { fetch(sv.url, sv.token) }
+                    value = StatsResult(fresh, null)
+                    failures = 0
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    failures = (failures + 1).coerceAtMost(6)
+                    value = StatsResult(value.json, friendlyError(e))
+                }
             }
-            delay(every)
+            delay(pollDelay(every, failures))
         }
     }
 }
@@ -222,19 +215,8 @@ fun Legend(color: Color, label: String, value: String) {
     }
 }
 
-fun httpJson(base: String, token: String, path: String, body: JSONObject? = null): JSONObject {
-    val c = URL(base + path).openConnection() as HttpURLConnection
-    c.connectTimeout = 4000; c.readTimeout = 15000
-    if (token.isNotEmpty()) c.setRequestProperty("X-Token", token)
-    if (body != null) {
-        c.requestMethod = "POST"; c.doOutput = true
-        c.setRequestProperty("Content-Type", "application/json")
-        c.outputStream.use { it.write(body.toString().toByteArray()) }
-    }
-    if (c.responseCode == 401) throw Exception("Wrong token")
-    val st = if (c.responseCode in 200..299) c.inputStream else c.errorStream
-    return JSONObject(st.bufferedReader().readText())
-}
+fun httpJson(base: String, token: String, path: String, body: JSONObject? = null): JSONObject =
+    ApiClient.getJson(base, token, path, body)
 
 val PLUGS = listOf(
     "cpu" to "No plug (CPU estimate)",
