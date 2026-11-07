@@ -55,27 +55,31 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
         val servers = try { SecureServerStore.load(config) } catch (_: Exception) { return@withContext Result.retry() }
         if (servers.isEmpty()) return@withContext Result.success()
         createChannel()
+        val thresholds = AlertPreferences.load(applicationContext)
         servers.forEach { server ->
             val prefix = (server.url + "|" + server.name).hashCode().toString()
             try {
                 val stats = fetch(server.url, server.token)
-                updateAlert(prefix + "_offline", false, server.name, "Server connection restored.")
+                updateAlert(prefix + "_offline", false, server.name, "Server connection restored.", "critical")
                 val cpu = stats.optDouble("cpu", Double.NaN)
                 val ram = stats.optDouble("ram", Double.NaN)
                 val temp = stats.optDouble("temp", Double.NaN)
-                if (!cpu.isNaN()) updateAlert(prefix + "_cpu", cpu >= 90.0, server.name, "CPU usage is " + "%.0f".format(cpu) + "% (threshold 90%).")
-                if (!ram.isNaN()) updateAlert(prefix + "_ram", ram >= 90.0, server.name, "Memory usage is " + "%.0f".format(ram) + "% (threshold 90%).")
-                if (!temp.isNaN()) updateAlert(prefix + "_temp", temp >= 85.0, server.name, "Temperature is " + "%.0f".format(temp) + " °C (threshold 85 °C).")
+                if (!cpu.isNaN()) updateAlert(prefix + "_cpu", cpu >= thresholds.cpu, server.name,
+                    "CPU usage is " + "%.0f".format(cpu) + "% (threshold %.0f%%).".format(thresholds.cpu))
+                if (!ram.isNaN()) updateAlert(prefix + "_ram", ram >= thresholds.memory, server.name,
+                    "Memory usage is " + "%.0f".format(ram) + "% (threshold %.0f%%).".format(thresholds.memory))
+                if (!temp.isNaN()) updateAlert(prefix + "_temp", temp >= thresholds.temperature, server.name,
+                    "Temperature is " + "%.0f".format(temp) + " °C (threshold %.0f °C).".format(thresholds.temperature))
                 val disks = stats.optJSONArray("disks") ?: JSONArray()
                 for (index in 0 until disks.length()) {
                     val disk = disks.optJSONObject(index) ?: JSONObject()
                     val mount = disk.optString("mount", "Disk " + (index + 1))
                     val pct = disk.optDouble("pct", Double.NaN)
-                    if (!pct.isNaN()) updateAlert(prefix + "_disk_" + index, pct >= 92.0, server.name,
-                        mount + " is " + "%.0f".format(pct) + "% full (threshold 92%).")
+                    if (!pct.isNaN()) updateAlert(prefix + "_disk_" + index, pct >= thresholds.disk, server.name,
+                        mount + " is " + "%.0f".format(pct) + "% full (threshold %.0f%%).".format(thresholds.disk))
                 }
             } catch (error: Exception) {
-                updateAlert(prefix + "_offline", true, server.name, "ALLERION cannot reach this monitoring server.")
+                updateAlert(prefix + "_offline", true, server.name, "ALLERION cannot reach this monitoring server.", "critical")
             }
         }
         Result.success()
@@ -90,14 +94,31 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
         }
     }
 
-    private fun updateAlert(key: String, active: Boolean, serverName: String, message: String) {
+    private fun updateAlert(
+        key: String,
+        active: Boolean,
+        serverName: String,
+        message: String,
+        severity: String = "warning"
+    ) {
         val prefs = applicationContext.getSharedPreferences("alert_state", Context.MODE_PRIVATE)
         val wasActive = prefs.getBoolean(key, false)
-        if (active && !wasActive) postNotification(key, serverName, message)
+        if (active && !wasActive) {
+            AlertHistoryStore.append(applicationContext, AlertEvent(
+                System.currentTimeMillis(), serverName, severity, message, false
+            ))
+            postNotification(key, serverName, message, false)
+        } else if (!active && wasActive) {
+            val recovery = if (message.isBlank()) "Condition returned to normal." else message
+            AlertHistoryStore.append(applicationContext, AlertEvent(
+                System.currentTimeMillis(), serverName, "recovery", recovery, true
+            ))
+            postNotification(key + "_recovered", serverName, recovery, true)
+        }
         prefs.edit().putBoolean(key, active).apply()
     }
 
-    private fun postNotification(key: String, serverName: String, message: String) {
+    private fun postNotification(key: String, serverName: String, message: String, recovered: Boolean) {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val intent = Intent(applicationContext, MainActivity::class.java).apply {
@@ -107,7 +128,7 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.logo_mark)
-            .setContentTitle(serverName + " · ALLERION alert")
+            .setContentTitle(serverName + if (recovered) " · ALLERION recovered" else " · ALLERION alert")
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setContentIntent(pending)
