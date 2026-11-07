@@ -60,7 +60,7 @@ val Dim = Color(0xFF676970)
 val Amber = Color(0xFFFFB547)
 val Green = Color(0xFF35C98A)
 
-data class Server(val name: String, val url: String, val token: String)
+data class Server(val name: String, val url: String, val token: String, val group: String = "Ungrouped")
 data class StatsResult(val json: JSONObject? = null, val error: String? = null)
 
 fun loadServers(p: SharedPreferences): List<Server> = SecureServerStore.load(p)
