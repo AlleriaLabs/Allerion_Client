@@ -178,6 +178,7 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
             Column(Modifier.weight(1f)) {
                 Text(sv.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sv.url.removePrefix("http://").removePrefix("https://"), fontSize = 12.sp, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sv.group, fontSize = 10.sp, color = Red, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.width(10.dp))
             StatusLabel(code)
@@ -547,6 +548,7 @@ fun EditServer(sv: Server?, onSave: (Server) -> Unit, onDelete: () -> Unit, onCa
     var name by remember { mutableStateOf(sv?.name ?: "") }
     var addr by remember { mutableStateOf(sv?.url?.removePrefix("http://") ?: "") }
     var tok by remember { mutableStateOf(sv?.token ?: "") }
+    var group by remember { mutableStateOf(sv?.group ?: "Ungrouped") }
     var testing by remember { mutableStateOf(false) }
     var test by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
     fun clean(): String { var c = addr.trim().trimEnd('/'); if (!c.startsWith("http")) c = "http://$c"; return c }
@@ -561,6 +563,7 @@ fun EditServer(sv: Server?, onSave: (Server) -> Unit, onDelete: () -> Unit, onCa
         Panel {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+                OutlinedTextField(group, { group = it }, label = { Text("Group / location (e.g. Home, NAS, Office)") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
                 OutlinedTextField(addr, { addr = it; test = null }, label = { Text("Server address") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
                 OutlinedTextField(tok, { tok = it; test = null }, label = { Text("Token") }, singleLine = true,
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
@@ -581,7 +584,7 @@ fun EditServer(sv: Server?, onSave: (Server) -> Unit, onDelete: () -> Unit, onCa
         }
         Button({
             if (!valid()) test = false to "Invalid server address."
-            else onSave(Server(name.trim().ifEmpty { "My server" }, clean(), tok.trim()))
+            else onSave(Server(name.trim().ifEmpty { "My server" }, clean(), tok.trim(), group.trim().ifEmpty { "Ungrouped" }))
         }, Modifier.fillMaxWidth().height(52.dp), enabled = addr.isNotBlank(), shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) { Text("Save", fontWeight = FontWeight.SemiBold) }
         if (sv != null) OutlinedButton(onDelete, Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) { Text("Remove server", color = Err) }
