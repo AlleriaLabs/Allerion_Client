@@ -150,6 +150,7 @@ fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, o
             }
             val up = j.optLong("uptime_s")
             Text("Updated ${fmtClock(j.optLong("ts"))}  ·  Up ${up / 86400}d ${up % 86400 / 3600}h", fontSize = 12.sp, color = Dim)
+            Text("API response · ${ApiClient.lastRequestDurationMs} ms", fontSize = 11.sp, color = Dim)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Button(onOpen, Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) {
@@ -462,8 +463,9 @@ fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
                 })
             }
             Spacer(Modifier.height(8.dp))
-            Text("Default thresholds: CPU 90%, memory 90%, temperature 85 °C, disk 92%. Alerts fire when a condition first becomes critical, not on every polling cycle.", color = Dim, fontSize = 11.sp)
+            Text("Alerts are transition-based and include recovery notifications. Customize thresholds and review recent events below.", color = Dim, fontSize = 11.sp)
         }
+        AlertSettingsPanel()
         Panel {
             Label("Server backup and restore")
             Spacer(Modifier.height(6.dp))
