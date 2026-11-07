@@ -173,13 +173,18 @@ fun BottomBar(tab: Int, onTab: (Int) -> Unit) {
 class History(val t: List<Long>, val s: Map<String, List<Double?>>, val intervalS: Int)
 
 fun parseHistory(j: JSONObject): History {
-    val ta = j.getJSONArray("t")
+    val ta = j.optJSONArray("t") ?: throw ApiException("History response is missing timestamps.")
+    val timestamps = List(ta.length()) { ta.optLong(it) }
     val m = HashMap<String, List<Double?>>()
     for (k in listOf("cpu", "ram", "temp", "down", "up", "power", "gpu", "disk")) {
         val a = j.optJSONArray(k) ?: continue
-        m[k] = List(a.length()) { if (a.isNull(it)) null else a.getDouble(it) }
+        // Keep every series aligned to the timestamp axis. Missing or invalid values become gaps.
+        m[k] = List(timestamps.size) { index ->
+            if (index >= a.length() || a.isNull(index)) null
+            else a.optDouble(index).takeUnless { it.isNaN() || it.isInfinite() }
+        }
     }
-    return History(List(ta.length()) { ta.getLong(it) }, m, j.optInt("interval", 10))
+    return History(timestamps, m, j.optInt("interval", 10).coerceAtLeast(1))
 }
 
 fun friendlyError(e: Exception): String = when {
@@ -197,13 +202,22 @@ fun friendlyError(e: Exception): String = when {
 @Composable
 fun rememberHistory(sv: Server, range: String, every: Long): State<History?> {
     val lc = LocalLifecycleOwner.current.lifecycle          // no polling while the app is in the background
-    return produceState<History?>(null, sv, range) {
+    return produceState<History?>(null, sv, range, every) {
+        var failures = 0
         while (true) {
             if (lc.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                try { value = parseHistory(withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/history?range=$range") }) }
-                catch (e: CancellationException) { throw e } catch (e: Exception) { }
+                try {
+                    value = parseHistory(withContext(Dispatchers.IO) {
+                        httpJson(sv.url, sv.token, "/api/history?range=$range")
+                    })
+                    failures = 0
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    failures = (failures + 1).coerceAtMost(6)
+                }
             }
-            delay(every)
+            delay(pollDelay(every, failures))
         }
     }
 }
@@ -212,14 +226,26 @@ fun rememberHistory(sv: Server, range: String, every: Long): State<History?> {
 fun rememberEnergy(sv: Server): State<Map<String, Double>?> {
     val lc = LocalLifecycleOwner.current.lifecycle
     return produceState<Map<String, Double>?>(null, sv) {
+        var failures = 0
         while (true) {
             if (lc.currentState.isAtLeast(Lifecycle.State.STARTED)) {
                 try {
-                    val a = withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/energy") }.getJSONArray("days")
-                    value = (0 until a.length()).associate { a.getJSONObject(it).getString("day") to a.getJSONObject(it).getDouble("kwh") }
-                } catch (e: CancellationException) { throw e } catch (e: Exception) { }
+                    val a = withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/energy") }
+                        .optJSONArray("days") ?: throw ApiException("Energy response is missing daily readings.")
+                    value = (0 until a.length()).mapNotNull { index ->
+                        val item = a.optJSONObject(index) ?: return@mapNotNull null
+                        val day = item.optString("day")
+                        val kwh = item.optDouble("kwh", Double.NaN)
+                        if (day.isBlank() || kwh.isNaN() || kwh.isInfinite()) null else day to kwh
+                    }.toMap()
+                    failures = 0
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    failures = (failures + 1).coerceAtMost(6)
+                }
             }
-            delay(60_000)
+            delay(pollDelay(60_000L, failures))
         }
     }
 }
