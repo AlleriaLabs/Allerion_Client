@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
+import android.content.Intent
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -286,6 +287,79 @@ fun AboutPanel() {
         KV("Category", "Home & Server Monitoring")
         KV("Version", BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ")")
         KV("History and energy totals", "Stored on your server")
+    }
+}
+
+@Composable
+fun ReportExportPanel(sv: Server) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
+
+    Panel {
+        Label("Monitoring report")
+        Spacer(Modifier.height(6.dp))
+        Text("Export a seven-day CSV report with timestamped CPU, memory, temperature, network, power, GPU and storage readings, plus daily energy totals when available.", color = Mut, fontSize = 12.sp)
+        Spacer(Modifier.height(10.dp))
+        Button(onClick = {
+            busy = true
+            status = null
+            scope.launch {
+                try {
+                    val report = withContext(Dispatchers.IO) {
+                        val stats = httpJson(sv.url, sv.token, "/api/stats")
+                        val history = parseHistory(httpJson(sv.url, sv.token, "/api/history?range=7d"))
+                        val energy = runCatching {
+                            httpJson(sv.url, sv.token, "/api/energy").optJSONArray("days")
+                        }.getOrNull()
+                        fun csv(value: String): String = "\"" + value.replace("\"", "\"\"") + "\""
+                        val out = StringBuilder()
+                        out.append("ALLERION monitoring report\n")
+                        out.append("Server,").append(csv(sv.name)).append("\n")
+                        out.append("Address,").append(csv(sv.url)).append("\n")
+                        out.append("Generated,").append(csv(java.time.Instant.now().toString())).append("\n")
+                        out.append("Current CPU %,").append(stats.optDouble("cpu")).append("\n")
+                        out.append("Current memory %,").append(stats.optDouble("ram")).append("\n")
+                        out.append("Current uptime seconds,").append(stats.optLong("uptime_s")).append("\n\n")
+                        out.append("Timestamp,CPU %,Memory %,Temperature C,Download Bps,Upload Bps,Power W,GPU %,Disk %\n")
+                        for (index in history.t.indices) {
+                            fun value(key: String): String = history.s[key]?.getOrNull(index)?.toString() ?: ""
+                            val timestamp = java.time.Instant.ofEpochSecond(history.t[index]).toString()
+                            out.append(csv(timestamp)).append(",")
+                                .append(value("cpu")).append(",").append(value("ram")).append(",")
+                                .append(value("temp")).append(",").append(value("down")).append(",")
+                                .append(value("up")).append(",").append(value("power")).append(",")
+                                .append(value("gpu")).append(",").append(value("disk")).append("\n")
+                        }
+                        out.append("\nDaily energy totals\nDay,kWh\n")
+                        if (energy != null) {
+                            for (index in 0 until energy.length()) {
+                                val day = energy.optJSONObject(index) ?: continue
+                                out.append(csv(day.optString("day"))).append(",")
+                                    .append(day.optDouble("kwh", Double.NaN).takeUnless { it.isNaN() } ?: "").append("\n")
+                            }
+                        }
+                        out.toString()
+                    }
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/csv"
+                        putExtra(Intent.EXTRA_SUBJECT, "ALLERION report - " + sv.name)
+                        putExtra(Intent.EXTRA_TEXT, report)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Share ALLERION report"))
+                    status = "Seven-day report prepared."
+                } catch (error: Exception) {
+                    status = friendlyError(error)
+                } finally {
+                    busy = false
+                }
+            }
+        }, Modifier.fillMaxWidth().height(48.dp), enabled = !busy,
+            shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) {
+            Text(if (busy) "Preparing report…" else "Export seven-day CSV")
+        }
+        status?.let { Text(it, color = if (it.startsWith("Seven-day")) Green else Amber, fontSize = 12.sp) }
     }
 }
 
