@@ -1,5 +1,6 @@
 package com.example.servermonitor
 
+import android.os.SystemClock
 import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -17,6 +18,9 @@ fun pollDelay(baseMs: Long, failures: Int): Long {
 
 /** One HTTP implementation for stats, history, energy, diagnostics and power APIs. */
 object ApiClient {
+    @Volatile var lastRequestDurationMs: Long = 0L
+        private set
+
     fun getJson(
         base: String,
         token: String,
@@ -42,6 +46,7 @@ object ApiClient {
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
             }
         }
+        val startedAt = SystemClock.elapsedRealtime()
         try {
             if (body != null) {
                 connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
@@ -69,6 +74,7 @@ object ApiClient {
         } catch (e: SocketTimeoutException) {
             throw ApiException("Connection timed out. Check the server and network.", null)
         } finally {
+            lastRequestDurationMs = (SystemClock.elapsedRealtime() - startedAt).coerceAtLeast(0L)
             connection.disconnect()
         }
     }
