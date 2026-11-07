@@ -158,7 +158,7 @@ fun App(p: SharedPreferences) {
             onDelete = { commit(servers.filterIndexed { i, _ -> i != e }); edit = null; open = null; expanded = null },
             onCancel = { edit = null })
         o != null && o in servers.indices -> Dashboard(servers[o], { open = null }, { edit = o })
-        hubSettings -> HubSettings { hubSettings = false }
+        hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })
         else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true })
     }
