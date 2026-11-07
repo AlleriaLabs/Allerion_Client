@@ -59,11 +59,11 @@ fun AlertSettingsPanel() {
         }) { Text("Reset to defaults", color = Red) }
     }
 
-    val events = remember { AlertHistoryStore.load(context, 30) }
+    var events by remember { mutableStateOf(AlertHistoryStore.load(context, 30)) }
     Panel {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Label("Alert history")
-            TextButton(onClick = { AlertHistoryStore.clear(context) }) { Text("Clear", color = Mut) }
+            TextButton(onClick = { AlertHistoryStore.clear(context); events = emptyList() }) { Text("Clear", color = Mut) }
         }
         if (events.isEmpty()) {
             Text("No alert events recorded yet. New alerts and recovery events will appear here.", color = Dim, fontSize = 12.sp)
