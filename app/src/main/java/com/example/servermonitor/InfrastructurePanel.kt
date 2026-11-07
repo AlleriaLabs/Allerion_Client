@@ -160,7 +160,7 @@ fun InfrastructurePanel(sv: Server) {
     }
 
     val energyDays = snapshot.energyBreakdown?.optJSONArray("days")
-    val latestEnergyDay = energyDays?.optJSONObject((energyDays.length() - 1).coerceAtLeast(0))
+    val latestEnergyDay = if (energyDays != null && energyDays.length() > 0) energyDays.optJSONObject(energyDays.length() - 1) else null
     val energySources = latestEnergyDay?.optJSONArray("sources")
     if (energySources != null && energySources.length() > 0) {
         Panel {
