@@ -213,8 +213,8 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
     val codes = servers.mapIndexed { i, sv -> status[keyOf(i, sv)] ?: 0 }
     val online = codes.count { it == 1 }; val offline = codes.count { it == 2 }
     val availability = if (online + offline == 0) "–" else "${(online * 100f / (online + offline)).roundToInt()}%"
-    Box(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
+        Column(Modifier.widthIn(max = 1100.dp).fillMaxHeight().fillMaxWidth().align(Alignment.TopCenter).verticalScroll(rememberScrollState())) {
             HubHeader(onSettings)
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.padding(top = 8.dp, bottom = 2.dp).staggerIn(0)) {
@@ -240,10 +240,25 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                         SummaryStat("Offline", "$offline", if (offline > 0) Err else Txt, Modifier.weight(1f))
                         SummaryStat("Availability", availability, Txt, Modifier.weight(1.25f))
                     }
-                    servers.forEachIndexed { i, sv ->
-                        key(keyOf(i, sv)) {
-                            ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
-                                { status[keyOf(i, sv)] = it }, Modifier.staggerIn(i + 2))
+                    if (maxWidth >= 720.dp) {
+                        servers.chunked(2).forEachIndexed { rowIndex, pair ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                pair.forEachIndexed { columnIndex, sv ->
+                                    val i = rowIndex * 2 + columnIndex
+                                    key(keyOf(i, sv)) {
+                                        ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
+                                            { status[keyOf(i, sv)] = it }, Modifier.weight(1f).staggerIn(i + 2))
+                                    }
+                                }
+                                if (pair.size == 1) Spacer(Modifier.weight(1f))
+                            }
+                        }
+                    } else {
+                        servers.forEachIndexed { i, sv ->
+                            key(keyOf(i, sv)) {
+                                ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
+                                    { status[keyOf(i, sv)] = it }, Modifier.staggerIn(i + 2))
+                            }
                         }
                     }
                 }
