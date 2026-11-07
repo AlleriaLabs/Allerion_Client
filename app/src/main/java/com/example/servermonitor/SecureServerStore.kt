@@ -65,7 +65,7 @@ object SecureServerStore {
         val array = JSONArray(json)
         return List(array.length()) { index ->
             val item = array.getJSONObject(index)
-            Server(item.optString("name"), item.optString("url"), item.optString("token"))
+            Server(item.optString("name"), item.optString("url"), item.optString("token"), item.optString("group", "Ungrouped"))
         }
     }
 
