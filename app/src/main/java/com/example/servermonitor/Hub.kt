@@ -214,6 +214,7 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
     val online = codes.count { it == 1 }; val offline = codes.count { it == 2 }
     val availability = if (online + offline == 0) "–" else "${(online * 100f / (online + offline)).roundToInt()}%"
     BoxWithConstraints(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
+        val wideLayout = maxWidth >= 720.dp
         Column(Modifier.widthIn(max = 1100.dp).fillMaxHeight().fillMaxWidth().align(Alignment.TopCenter).verticalScroll(rememberScrollState())) {
             HubHeader(onSettings)
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -240,7 +241,7 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                         SummaryStat("Offline", "$offline", if (offline > 0) Err else Txt, Modifier.weight(1f))
                         SummaryStat("Availability", availability, Txt, Modifier.weight(1.25f))
                     }
-                    if (maxWidth >= 720.dp) {
+                    if (wideLayout) {
                         servers.chunked(2).forEachIndexed { rowIndex, pair ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 pair.forEachIndexed { columnIndex, sv ->
