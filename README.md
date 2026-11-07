@@ -4,9 +4,9 @@ ALLERION is the Android client for the ALLERIA LABS home/server monitoring servi
 
 ## Current client capabilities
 
-- Multiple server profiles with add, edit, delete and connection testing.
+- Multiple server profiles with add, edit, delete, connection testing and user-defined groups/locations (for example Home, NAS and Office).
 - AES-GCM encrypted server credentials protected by Android Keystore, including migration from legacy plaintext preferences.
-- Password-protected portable server backups using PBKDF2-HMAC-SHA256 and AES-256-GCM.
+- Password-protected portable server backups using PBKDF2-HMAC-SHA256 and AES-256-GCM, including server group labels.
 - Live server status, CPU, memory, temperature, GPU, disk, network and power monitoring.
 - Historical graphs for supported 1-hour, 24-hour and 7-day ranges.
 - Daily, monthly and yearly energy summaries and electricity-cost estimates when the server supplies energy data and a tariff.
