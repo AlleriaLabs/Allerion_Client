@@ -1,6 +1,9 @@
 package com.example.servermonitor
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.Animatable
@@ -284,14 +287,122 @@ fun AboutPanel() {
 }
 
 @Composable
-fun HubSettings(onBack: () -> Unit) {
+fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
+    val context = LocalContext.current
+    var backupPassword by remember { mutableStateOf("") }
+    var backupAction by remember { mutableStateOf<String?>(null) }
+    var backupPayload by remember { mutableStateOf<String?>(null) }
+    var pendingRestore by remember { mutableStateOf<List<Server>?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val payload = backupPayload ?: error("Backup data is unavailable.")
+                context.contentResolver.openOutputStream(uri)?.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                    ?: error("Could not create the backup file.")
+                message = "Encrypted backup saved successfully."
+            } catch (error: Exception) {
+                message = "Backup failed: " + (error.message ?: "Unable to write file.")
+            }
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                backupPayload = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    ?: error("Could not read the selected file.")
+                backupAction = "restore"
+            } catch (error: Exception) {
+                message = "Could not open backup: " + (error.message ?: "Unknown error.")
+            }
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBtn(Ic.ChevronL, "Back to servers", onClick = onBack)
             Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt)
         }
         RefreshPanel()
+        Panel {
+            Label("Server backup and restore")
+            Spacer(Modifier.height(6.dp))
+            Text("Create a password-protected backup of your server names, addresses and access tokens. The backup can be restored on another ALLERION installation.", color = Mut, fontSize = 13.sp)
+            Spacer(Modifier.height(12.dp))
+            Button({ backupPassword = ""; backupAction = "export" }, Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) {
+                Text("Create encrypted backup")
+            }
+            OutlinedButton({ importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
+                Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp)) {
+                Text("Restore from backup", color = Txt)
+            }
+            Text("Keep the backup password safe. It cannot be recovered if lost. Exported backup files contain encrypted credentials.", color = Dim, fontSize = 11.sp)
+            message?.let { Spacer(Modifier.height(8.dp)); Text(it, color = if (it.startsWith("Encrypted")) Green else Amber, fontSize = 12.sp) }
+        }
         AboutPanel()
+    }
+
+    if (backupAction != null) {
+        AlertDialog(
+            onDismissRequest = { backupAction = null; backupPassword = "" },
+            title = { Text(if (backupAction == "export") "Protect your backup" else "Unlock backup", color = Txt) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (backupAction == "export") "Set a password with at least 8 characters. You will need it to restore this backup." else "Enter the password used when this backup was created.", color = Mut)
+                    OutlinedTextField(
+                        value = backupPassword,
+                        onValueChange = { backupPassword = it },
+                        label = { Text("Backup password") },
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    try {
+                        if (backupAction == "export") {
+                            val servers = loadServers(context.getSharedPreferences("cfg", android.content.Context.MODE_PRIVATE))
+                            backupPayload = BackupManager.encrypt(servers, backupPassword.toCharArray())
+                            backupAction = null
+                            exportLauncher.launch("ALLERION-backup.json")
+                        } else {
+                            val restored = BackupManager.decrypt(backupPayload ?: error("Backup file is missing."), backupPassword.toCharArray())
+                            pendingRestore = restored
+                            backupAction = null
+                        }
+                        backupPassword = ""
+                    } catch (error: Exception) {
+                        message = error.message ?: "Backup operation failed."
+                    }
+                }) { Text(if (backupAction == "export") "Continue" else "Unlock", color = Red) }
+            },
+            dismissButton = { TextButton(onClick = { backupAction = null; backupPassword = "" }) { Text("Cancel", color = Mut) } },
+            containerColor = Surf2,
+            titleContentColor = Txt,
+            textContentColor = Mut
+        )
+    }
+
+    pendingRestore?.let { restored ->
+        AlertDialog(
+            onDismissRequest = { pendingRestore = null },
+            title = { Text("Replace saved servers?", color = Txt) },
+            text = { Text("This backup contains " + restored.size + " server(s). Restoring will replace the current server list on this device. This does not change or delete anything on the monitoring servers.", color = Mut) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onRestore(restored)
+                    pendingRestore = null
+                    message = "Server list restored. Reopen a server to reconnect."
+                }) { Text("Replace servers", color = Red) }
+            },
+            dismissButton = { TextButton(onClick = { pendingRestore = null }) { Text("Cancel", color = Mut) } },
+            containerColor = Surf2,
+            titleContentColor = Txt,
+            textContentColor = Mut
+        )
     }
 }
 
