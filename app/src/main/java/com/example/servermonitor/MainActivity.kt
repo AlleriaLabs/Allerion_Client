@@ -331,7 +331,7 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
         if (source == "tuya") {
             OutlinedTextField(tid, { tid = it }, label = { Text("Device ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(tkey, { tkey = it }, label = { Text(if (hasKey) "Local key (saved, leave empty to keep)" else "Local key") },
-                singleLine = true, modifier = Modifier.fillMaxWidth())
+                singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
             Text("Protocol version", color = Mut, fontSize = 13.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("3.3", "3.4", "3.5").forEach { v -> Chip(v, tver == v) { tver = v } }
