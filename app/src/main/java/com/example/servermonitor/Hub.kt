@@ -4,6 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.Animatable
@@ -294,6 +297,19 @@ fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
     var backupPayload by remember { mutableStateOf<String?>(null) }
     var pendingRestore by remember { mutableStateOf<List<Server>?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
+    var alertsEnabled by remember {
+        mutableStateOf(context.getSharedPreferences("cfg", android.content.Context.MODE_PRIVATE).getBoolean("alerts_enabled", false))
+    }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            alertsEnabled = true
+            AlertScheduler.setEnabled(context, true)
+        } else {
+            alertsEnabled = false
+            AlertScheduler.setEnabled(context, false)
+            message = "Notifications are not enabled. Allow ALLERION notifications in Android settings to receive alerts."
+        }
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
         if (uri != null) {
@@ -325,6 +341,29 @@ fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
             Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt)
         }
         RefreshPanel()
+        Panel {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Label("Smart health alerts")
+                    Spacer(Modifier.height(4.dp))
+                    Text("Check registered servers every 15 minutes and notify when a server goes offline or CPU, memory, temperature or disk usage crosses a critical threshold.", color = Mut, fontSize = 12.sp)
+                }
+                Switch(checked = alertsEnabled, onCheckedChange = { enabled ->
+                    if (!enabled) {
+                        alertsEnabled = false
+                        AlertScheduler.setEnabled(context, false)
+                    } else if (Build.VERSION.SDK_INT >= 33 &&
+                        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        alertsEnabled = true
+                        AlertScheduler.setEnabled(context, true)
+                    }
+                })
+            }
+            Spacer(Modifier.height(8.dp))
+            Text("Default thresholds: CPU 90%, memory 90%, temperature 85 °C, disk 92%. Alerts fire when a condition first becomes critical, not on every polling cycle.", color = Dim, fontSize = 11.sp)
+        }
         Panel {
             Label("Server backup and restore")
             Spacer(Modifier.height(6.dp))
