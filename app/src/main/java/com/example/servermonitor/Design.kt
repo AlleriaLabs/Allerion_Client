@@ -187,16 +187,14 @@ fun parseHistory(j: JSONObject): History {
     return History(timestamps, m, j.optInt("interval", 10).coerceAtLeast(1))
 }
 
-fun friendlyError(e: Exception): String = when {
-    e is java.net.SocketTimeoutException -> "Connection timed out. Check the address and your network."
-    e is java.net.UnknownHostException -> "Server address not found."
-    e is java.net.ConnectException || e is java.net.NoRouteToHostException -> "Server unreachable. Check that the monitoring service is running."
-    e is javax.net.ssl.SSLException -> "Secure connection failed. Check the address."
-    e is java.net.MalformedURLException || e is IllegalArgumentException -> "Invalid server address."
-    e is org.json.JSONException -> "Monitoring service unavailable at this address."
-    e.message == "Wrong token" -> "Authentication failed. Check the token."
-    e.message?.contains("starting up") == true -> "Monitoring service is starting up."
-    else -> "Cannot reach the server."
+fun friendlyError(e: Exception): String = when (e) {
+    is ApiException -> e.message ?: "Monitoring API request failed."
+    is java.net.UnknownHostException -> "Server address not found. Check DNS or the hostname."
+    is java.net.ConnectException, is java.net.NoRouteToHostException -> "Server unreachable. Check that the monitoring service is running."
+    is javax.net.ssl.SSLException -> "Secure connection failed. Check the HTTPS certificate and address."
+    is java.net.MalformedURLException, is IllegalArgumentException -> e.message ?: "Invalid server address."
+    is org.json.JSONException -> "Monitoring service returned invalid data."
+    else -> e.message?.takeIf { it.isNotBlank() } ?: "Cannot reach the server."
 }
 
 @Composable
