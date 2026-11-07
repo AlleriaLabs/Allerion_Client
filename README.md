@@ -10,9 +10,10 @@ ALLERION is the Android client for the ALLERIA LABS home/server monitoring servi
 - Live server status, CPU, memory, temperature, GPU, disk, network and power monitoring.
 - Historical graphs for supported 1-hour, 24-hour and 7-day ranges.
 - Daily, monthly and yearly energy summaries and electricity-cost estimates when the server supplies energy data and a tariff.
-- Scheduled smart health alerts (15-minute background checks) for offline servers, CPU >= 90%, memory >= 90%, temperature >= 85 °C and disk >= 92%. Alerts are sent on transition into a critical state to avoid repeated notifications.
-- Seven-day CSV monitoring report export through Android's share sheet.
+- Scheduled smart health alerts (15-minute background checks) with user-configurable CPU, memory, temperature and disk thresholds; transition-based critical alerts, recovery notifications and a local 200-event alert history.
+- Seven-day CSV and PDF monitoring report exports through Android's document picker.
 - Adaptive multi-column server hub on wide screens and optional Android TV launcher visibility.
+- Latest monitoring API response time displayed on the expanded server card (HTTP round-trip timing, not ICMP ping).
 
 ## Build
 
@@ -59,7 +60,7 @@ The app supports HTTP for trusted private-network monitoring servers for backwar
 
 ## Smart alerts
 
-Enable Smart health alerts in ALLERION Settings. Android 13+ requires notification permission. Background checks run every 15 minutes while network connectivity is available. Thresholds are currently fixed defaults and notifications are transition-based; customize notification permission through Android system settings.
+Enable Smart health alerts in ALLERION Settings. Android 13+ requires notification permission. Background checks run every 15 minutes while network connectivity is available. CPU, memory, temperature and disk thresholds are adjustable in Settings. Alerts are logged locally and a recovery notification is sent when a previously critical condition clears. The alert history is stored on-device and capped at 200 events.
 
 ## API compatibility
 
@@ -73,6 +74,12 @@ The Android client uses these monitoring service endpoints:
 - `POST /api/power/test`
 
 The monitoring service/backend is maintained separately from this Android client. Background alerts and CSV reports rely on the same server APIs.
+
+## Current client-side additions and backend dependencies
+
+The client now exposes configurable alert thresholds, alert/recovery history, API response timing, and CSV/PDF exports using the existing API. These features do not require a backend schema change.
+
+Docker/container inventory, process/service monitoring, LAN device discovery, packet-loss/ICMP diagnostics, and richer network topology require new collectors and authenticated endpoints in the separate monitoring backend. ALLERION will only show those capabilities after the backend provides real data; it will not fabricate metrics. Telegram/webhook integrations also require user-configured destinations and secure credential storage before they can be enabled safely.
 
 ## Automatic updates
 
