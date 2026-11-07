@@ -9,7 +9,7 @@ android {
         applicationId = "com.example.servermonitor"
         minSdk = 26; targetSdk = 34
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
-        versionName = "1.0." + (System.getenv("VERSION_CODE") ?: "1")
+        versionName = System.getenv("VERSION_NAME") ?: "1.1.0"
     }
     signingConfigs {
         create("release") {
@@ -25,11 +25,14 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = if (System.getenv("KEYSTORE_FILE") != null) signingConfigs.getByName("release")
-                            else signingConfigs.getByName("debug")
+            // Never silently publish a debug-signed APK as a production release.
+            signingConfig = signingConfigs.getByName("release")
         }
     }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
