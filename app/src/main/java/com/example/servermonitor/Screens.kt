@@ -267,7 +267,7 @@ fun DiagRow(label: String, value: String, color: Color) {
 }
 
 @Composable
-fun SystemScreen(j: JSONObject, online: Boolean) {
+fun SystemScreen(sv: Server, j: JSONObject, online: Boolean) {
     val up = j.optLong("uptime_s")
     Panel {
         Label("Server"); Spacer(Modifier.height(6.dp))
@@ -287,6 +287,7 @@ fun SystemScreen(j: JSONObject, online: Boolean) {
             when { sp.dbl("down_mbps") != null -> Green; sp.str("error").isNotEmpty() -> Amber; else -> Dim })
     }
     SystemTab(j)
+    InfrastructurePanel(sv)
 }
 
 @Composable
@@ -331,7 +332,7 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                     when (t) {
                         0 -> OverviewScreen(sv, j!!, online) { detail = it }
                         1 -> PowerTab(sv, j!!.optJSONObject("power")) { setup = true }
-                        2 -> SystemScreen(j!!, online)
+                        2 -> SystemScreen(sv, j!!, online)
                         else -> SettingsScreen(sv, onEdit) { setup = true }
                     }
                 }
