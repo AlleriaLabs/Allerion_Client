@@ -85,6 +85,7 @@ fun InfrastructurePanel(sv: Server) {
         DiagRow("Service checks", if (caps.optBoolean("services")) "Enabled" else "Not configured", if (caps.optBoolean("services")) Green else Dim)
         DiagRow("LAN inventory", if (caps.optBoolean("network_inventory")) "Enabled" else "Opt-in disabled", if (caps.optBoolean("network_inventory")) Green else Dim)
         DiagRow("Webhook", if (caps.optBoolean("webhooks")) "Configured" else "Not configured", if (caps.optBoolean("webhooks")) Green else Dim)
+        DiagRow("Telegram", if (caps.optBoolean("telegram")) "Configured" else "Not configured", if (caps.optBoolean("telegram")) Green else Dim)
     }
 
     if (caps.optBoolean("processes")) {
@@ -175,7 +176,7 @@ fun InfrastructurePanel(sv: Server) {
     }
 
     NetworkDiagnosticPanel(sv, caps.optBoolean("network_diagnostics"))
-    WebhookTestPanel(sv, caps.optBoolean("webhooks"))
+    IntegrationTestPanel(sv, caps.optBoolean("webhooks"), caps.optBoolean("telegram"))
 }
 
 @Composable
@@ -214,26 +215,36 @@ private fun NetworkDiagnosticPanel(sv: Server, enabled: Boolean) {
 }
 
 @Composable
-private fun WebhookTestPanel(sv: Server, enabled: Boolean) {
+private fun IntegrationTestPanel(sv: Server, webhookEnabled: Boolean, telegramEnabled: Boolean) {
     var status by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     Panel {
-        Label("Webhook integration")
-        Text("Webhook URL and secret are configured on the backend; the app never stores or displays the secret.", color = Mut, fontSize = 11.sp)
-        OutlinedButton(onClick = {
-            busy = true; status = null
-            scope.launch {
-                try {
-                    val response = withContext(Dispatchers.IO) {
-                        ApiClient.getJson(sv.url, sv.token, "/api/integrations/webhook/test", JSONObject())
-                    }
-                    status = if (response.optBoolean("ok")) "Test delivery succeeded." else "Webhook test failed."
-                } catch (e: Exception) { status = friendlyError(e) }
-                busy = false
-            }
-        }, enabled = enabled && !busy) { Text(if (busy) "Sending…" else "Send test webhook") }
-        status?.let { Text(it, color = if (it.contains("succeeded")) Green else Amber, fontSize = 11.sp) }
-        if (!enabled) Text("Configure an HTTPS webhook endpoint on the backend to enable testing.", color = Dim, fontSize = 11.sp)
+        Label("Notification integrations")
+        Text("Webhook URL, webhook secret and Telegram bot credentials are configured on the backend; the app never stores or displays these secrets.", color = Mut, fontSize = 11.sp)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = {
+                busy = true; status = null
+                scope.launch {
+                    try {
+                        val response = withContext(Dispatchers.IO) { ApiClient.getJson(sv.url, sv.token, "/api/integrations/webhook/test", JSONObject()) }
+                        status = if (response.optBoolean("ok")) "Webhook test delivered." else "Webhook test failed."
+                    } catch (e: Exception) { status = friendlyError(e) }
+                    busy = false
+                }
+            }, enabled = webhookEnabled && !busy, modifier = Modifier.weight(1f)) { Text("Test webhook") }
+            OutlinedButton(onClick = {
+                busy = true; status = null
+                scope.launch {
+                    try {
+                        val response = withContext(Dispatchers.IO) { ApiClient.getJson(sv.url, sv.token, "/api/integrations/telegram/test", JSONObject()) }
+                        status = if (response.optBoolean("ok")) "Telegram test delivered." else "Telegram test failed."
+                    } catch (e: Exception) { status = friendlyError(e) }
+                    busy = false
+                }
+            }, enabled = telegramEnabled && !busy, modifier = Modifier.weight(1f)) { Text("Test Telegram") }
+        }
+        status?.let { Text(it, color = if (it.contains("delivered")) Green else Amber, fontSize = 11.sp) }
+        if (!webhookEnabled && !telegramEnabled) Text("Configure an HTTPS webhook or Telegram bot on the backend to enable testing.", color = Dim, fontSize = 11.sp)
     }
 }
