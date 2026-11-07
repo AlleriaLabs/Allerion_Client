@@ -121,12 +121,34 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun App(p: SharedPreferences) {
-    var servers by remember { mutableStateOf(loadServers(p)) }
+    val initialLoad = remember { runCatching { loadServers(p) } }
+    var servers by remember { mutableStateOf(initialLoad.getOrDefault(emptyList())) }
+    var storageError by remember { mutableStateOf(initialLoad.exceptionOrNull()?.message) }
     var open by remember { mutableStateOf<Int?>(null) }
     var edit by remember { mutableStateOf<Int?>(null) } // -1 = new server
     var expanded by remember { mutableStateOf<Int?>(null) }   // every server card starts collapsed
     var hubSettings by remember { mutableStateOf(false) }
-    fun commit(l: List<Server>) { servers = l; saveServers(p, l) }
+    fun commit(l: List<Server>) {
+        try {
+            saveServers(p, l)
+            servers = l
+            storageError = null
+        } catch (error: Exception) {
+            storageError = error.message ?: "Could not securely save server settings."
+        }
+    }
+    if (storageError != null) {
+        Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().padding(24.dp),
+            verticalArrangement = Arrangement.Center) {
+            Text("Server settings need attention", color = Txt, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+            Text("ALLERION could not unlock or save its encrypted server settings. Your saved credentials have not been replaced. Do not clear app data or reinstall until the Android Keystore issue is resolved.",
+                color = Mut, fontSize = 14.sp)
+            Spacer(Modifier.height(12.dp))
+            Text(storageError ?: "Secure storage error", color = Amber, fontSize = 12.sp)
+        }
+        return
+    }
     val e = edit
     val o = open
     BackHandler(enabled = e != null || o != null || hubSettings) { if (e != null) edit = null else if (o != null) open = null else hubSettings = false }
