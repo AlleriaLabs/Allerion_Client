@@ -312,81 +312,75 @@ fun ReportExportPanel(sv: Server) {
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
-    var pendingCsv by remember { mutableStateOf<String?>(null) }
+    var pendingReport by remember { mutableStateOf<String?>(null) }
+    var pendingPdf by remember { mutableStateOf<ByteArray?>(null) }
 
-    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri: Uri? ->
+    val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri: Uri? ->
         if (uri != null) {
             try {
-                val csv = pendingCsv ?: error("Report data is unavailable.")
-                context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { it.write(csv) }
+                val report = pendingReport ?: error("Report data is unavailable.")
+                context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { it.write(report) }
                     ?: error("Could not create the CSV file.")
                 status = "Seven-day CSV report saved successfully."
             } catch (error: Exception) {
-                status = "Export failed: " + (error.message ?: "Unable to write file.")
+                status = "CSV export failed: " + (error.message ?: "Unable to write file.")
+            }
+        }
+        busy = false
+    }
+    val pdfLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val pdf = pendingPdf ?: error("PDF report data is unavailable.")
+                context.contentResolver.openOutputStream(uri)?.use { it.write(pdf) }
+                    ?: error("Could not create the PDF file.")
+                status = "Seven-day PDF report saved successfully."
+            } catch (error: Exception) {
+                status = "PDF export failed: " + (error.message ?: "Unable to write file.")
             }
         }
         busy = false
     }
 
+    fun prepareReport(asPdf: Boolean) {
+        busy = true
+        status = null
+        scope.launch {
+            try {
+                val report = withContext(Dispatchers.IO) { buildMonitoringReport(sv) }
+                val safeName = sv.name.replace(Regex("[^A-Za-z0-9_-]"), "_").take(32).ifBlank { "server" }
+                if (asPdf) {
+                    pendingPdf = withContext(Dispatchers.IO) { PdfReport.render("ALLERION · 7-day report", report) }
+                    pdfLauncher.launch("ALLERION-" + safeName + "-7d.pdf")
+                    status = "Choose where to save the PDF report."
+                } else {
+                    pendingReport = report
+                    csvLauncher.launch("ALLERION-" + safeName + "-7d.csv")
+                    status = "Choose where to save the CSV report."
+                }
+            } catch (error: Exception) {
+                status = friendlyError(error)
+                busy = false
+            }
+        }
+    }
+
     Panel {
         Label("Monitoring report")
         Spacer(Modifier.height(6.dp))
-        Text("Export a seven-day CSV report with timestamped CPU, memory, temperature, network, power, GPU and storage readings, plus daily energy totals when available.", color = Mut, fontSize = 12.sp)
+        Text("Export seven days of timestamped CPU, memory, temperature, network, power, GPU and storage readings, plus daily energy totals when available.", color = Mut, fontSize = 12.sp)
         Spacer(Modifier.height(10.dp))
-        Button(onClick = {
-            busy = true
-            status = null
-            scope.launch {
-                try {
-                    val report = withContext(Dispatchers.IO) {
-                        val stats = httpJson(sv.url, sv.token, "/api/stats")
-                        val history = parseHistory(httpJson(sv.url, sv.token, "/api/history?range=7d"))
-                        val energy = runCatching {
-                            httpJson(sv.url, sv.token, "/api/energy").optJSONArray("days")
-                        }.getOrNull()
-                        fun csv(value: String): String = "\"" + value.replace("\"", "\"\"") + "\""
-                        val out = StringBuilder()
-                        out.append("ALLERION monitoring report\n")
-                        out.append("Server,").append(csv(sv.name)).append("\n")
-                        out.append("Address,").append(csv(sv.url)).append("\n")
-                        out.append("Generated,").append(csv(java.time.Instant.now().toString())).append("\n")
-                        out.append("Current CPU %,").append(stats.optDouble("cpu")).append("\n")
-                        out.append("Current memory %,").append(stats.optDouble("ram")).append("\n")
-                        out.append("Current uptime seconds,").append(stats.optLong("uptime_s")).append("\n\n")
-                        out.append("Timestamp,CPU %,Memory %,Temperature C,Download Bps,Upload Bps,Power W,GPU %,Disk %\n")
-                        for (index in history.t.indices) {
-                            fun value(key: String): String = history.s[key]?.getOrNull(index)?.toString() ?: ""
-                            val timestamp = java.time.Instant.ofEpochSecond(history.t[index]).toString()
-                            out.append(csv(timestamp)).append(",")
-                                .append(value("cpu")).append(",").append(value("ram")).append(",")
-                                .append(value("temp")).append(",").append(value("down")).append(",")
-                                .append(value("up")).append(",").append(value("power")).append(",")
-                                .append(value("gpu")).append(",").append(value("disk")).append("\n")
-                        }
-                        out.append("\nDaily energy totals\nDay,kWh\n")
-                        if (energy != null) {
-                            for (index in 0 until energy.length()) {
-                                val day = energy.optJSONObject(index) ?: continue
-                                out.append(csv(day.optString("day"))).append(",")
-                                    .append(day.optDouble("kwh", Double.NaN).takeUnless { it.isNaN() } ?: "").append("\n")
-                            }
-                        }
-                        out.toString()
-                    }
-                    pendingCsv = report
-                    val safeName = sv.name.replace(Regex("[^A-Za-z0-9_-]"), "_").take(32).ifBlank { "server" }
-                    saveLauncher.launch("ALLERION-" + safeName + "-7d.csv")
-                    status = "Choose where to save the CSV report."
-                } catch (error: Exception) {
-                    status = friendlyError(error)
-                    busy = false
-                }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { prepareReport(false) }, Modifier.weight(1f).height(48.dp), enabled = !busy,
+                shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) {
+                Text(if (busy) "Preparing…" else "Export CSV")
             }
-        }, Modifier.fillMaxWidth().height(48.dp), enabled = !busy,
-            shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) {
-            Text(if (busy) "Preparing report…" else "Export seven-day CSV")
+            OutlinedButton(onClick = { prepareReport(true) }, Modifier.weight(1f).height(48.dp), enabled = !busy,
+                shape = RoundedCornerShape(14.dp)) {
+                Text("Export PDF", color = Txt)
+            }
         }
-        status?.let { Text(it, color = if (it.startsWith("Seven-day")) Green else Amber, fontSize = 12.sp) }
+        status?.let { Text(it, color = if (it.contains("saved successfully")) Green else Amber, fontSize = 12.sp) }
     }
 }
 
