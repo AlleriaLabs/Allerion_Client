@@ -12,7 +12,7 @@ fun pollDelay(baseMs: Long, failures: Int): Long {
     val safeBase = baseMs.coerceIn(1_000L, 60_000L)
     if (failures <= 0) return safeBase
     val multiplier = 1L shl failures.coerceIn(1, 5)
-    return (safeBase * multiplier).coerceAtMost(60_000L)
+    return (safeBase * multiplier).coerceAtMost(300_000L)
 }
 
 /** One HTTP implementation for stats, history, energy, diagnostics and power APIs. */
