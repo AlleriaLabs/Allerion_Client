@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
-import android.content.Intent
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -312,6 +311,21 @@ fun ReportExportPanel(sv: Server) {
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
+    var pendingCsv by remember { mutableStateOf<String?>(null) }
+
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val csv = pendingCsv ?: error("Report data is unavailable.")
+                context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { it.write(csv) }
+                    ?: error("Could not create the CSV file.")
+                status = "Seven-day CSV report saved successfully."
+            } catch (error: Exception) {
+                status = "Export failed: " + (error.message ?: "Unable to write file.")
+            }
+        }
+        busy = false
+    }
 
     Panel {
         Label("Monitoring report")
@@ -358,16 +372,12 @@ fun ReportExportPanel(sv: Server) {
                         }
                         out.toString()
                     }
-                    val intent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/csv"
-                        putExtra(Intent.EXTRA_SUBJECT, "ALLERION report - " + sv.name)
-                        putExtra(Intent.EXTRA_TEXT, report)
-                    }
-                    context.startActivity(Intent.createChooser(intent, "Share ALLERION report"))
-                    status = "Seven-day report prepared."
+                    pendingCsv = report
+                    val safeName = sv.name.replace(Regex("[^A-Za-z0-9_-]"), "_").take(32).ifBlank { "server" }
+                    saveLauncher.launch("ALLERION-" + safeName + "-7d.csv")
+                    status = "Choose where to save the CSV report."
                 } catch (error: Exception) {
                     status = friendlyError(error)
-                } finally {
                     busy = false
                 }
             }
