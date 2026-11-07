@@ -79,7 +79,7 @@ The monitoring service/backend is maintained separately from this Android client
 
 The client now exposes configurable alert thresholds, alert/recovery history, API response timing, and CSV/PDF exports using the existing API. These features do not require a backend schema change.
 
-Docker/container inventory, process/service monitoring, LAN device discovery, packet-loss/ICMP diagnostics, and richer network topology require new collectors and authenticated endpoints in the separate monitoring backend. ALLERION will only show those capabilities after the backend provides real data; it will not fabricate metrics. Telegram/webhook integrations also require user-configured destinations and secure credential storage before they can be enabled safely.
+Docker/container inventory, process/service monitoring, LAN device discovery, packet-loss/ICMP diagnostics, and richer network topology require new collectors and authenticated endpoints in the separate monitoring backend. ALLERION will only show those capabilities after the backend provides real data; it will not fabricate metrics. Telegram/webhook integrations also require user-configured destinations and secure credential storage before they can be enabled safely. The proposed endpoint contract and implementation order are documented in [docs/BACKEND_API_ROADMAP.md](docs/BACKEND_API_ROADMAP.md).
 
 ## Automatic updates
 
