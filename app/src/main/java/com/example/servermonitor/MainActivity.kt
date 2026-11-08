@@ -439,29 +439,36 @@ fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
     val price = pw.optDouble("price", 0.0)
     val cur = pw.str("currency")
     val year = pw.dbl("year_kwh")
+    val history by rememberHistory(sv, "24h", 30_000)
+    val todayHistory = history?.s?.get("power") ?: emptyList()
     fun cost(k: Double) = if (price > 0) cur + "%.2f".format(k * price) else "Set price"
-    Panel {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Label("Power source")
-                Text(pw.str("source").ifEmpty { "No sensor" }, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Txt)
+    val shape = RoundedCornerShape(22.dp)
+    Box(Modifier.fillMaxWidth().clip(shape).background(Surf).border(1.dp, Line, shape)) {
+        HistoryGraph(listOf(GSeries(todayHistory, Red)), Modifier.matchParentSize(), 5.0, 0.48f, 0.12f, 2.dp)
+        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Surf.copy(alpha = 0.90f), 0.78f to Color.Transparent)))
+        Column(Modifier.fillMaxWidth().padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Label("Power source")
+                    Text(pw.str("source").ifEmpty { "No sensor" }, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Txt)
+                }
+                Status(watts != null)
             }
-            Status(watts != null)
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(if (watts == null) "N/A" else "%.0f".format(watts), fontSize = 54.sp, fontWeight = FontWeight.Bold, color = Txt)
+                Text(" W", fontSize = 20.sp, color = Mut, modifier = Modifier.padding(bottom = 11.dp))
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                InfoChip("Voltage", if (volts == null) "N/A" else "%.1f V".format(volts), Modifier.weight(1f))
+                ToggleMetric("Today consumption", "%.2f kWh".format(today), "Today cost", cost(today), Modifier.weight(1f))
+            }
+            TextButton(onSetup, contentPadding = PaddingValues(0.dp)) { Text("Configure power source ›", color = Red, fontSize = 13.sp) }
+            val perr = pw.str("plug_error")
+            if (perr.isNotEmpty()) Text("Plug: $perr", fontSize = 12.sp, color = Amber)
+            else if (watts == null) Text("No power reading found. Tap Configure to pick your plug.", fontSize = 12.sp, color = Dim)
         }
-        Spacer(Modifier.height(14.dp))
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(if (watts == null) "N/A" else "%.0f".format(watts), fontSize = 54.sp, fontWeight = FontWeight.Bold, color = Txt)
-            Text(" W", fontSize = 20.sp, color = Mut, modifier = Modifier.padding(bottom = 11.dp))
-        }
-        Spacer(Modifier.height(10.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            InfoChip("Voltage", if (volts == null) "N/A" else "%.1f V".format(volts), Modifier.weight(1f))
-            InfoChip("Today", "%.2f kWh".format(today), Modifier.weight(1f))
-        }
-        TextButton(onSetup, contentPadding = PaddingValues(0.dp)) { Text("Configure power source ›", color = Red, fontSize = 13.sp) }
-        val perr = pw.str("plug_error")
-        if (perr.isNotEmpty()) Text("Plug: $perr", fontSize = 12.sp, color = Amber)
-        else if (watts == null) Text("No power reading found. Tap Configure to pick your plug.", fontSize = 12.sp, color = Dim)
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         ToggleMetric("Current Month Usage", "%.2f kWh".format(month), "Current Month Cost", cost(month), Modifier.weight(1f))
@@ -508,7 +515,14 @@ fun InternetPanel(j: JSONObject, sv: Server) {
         } catch (e: Exception) { serverError = friendlyError(e) }
         loadingServers = false
     }
-    Panel {
+    val tileShape = RoundedCornerShape(22.dp)
+    Box(Modifier.fillMaxWidth().clip(tileShape).background(Surf).border(1.dp, Line, tileShape)) {
+        HistoryGraph(
+            listOf(GSeries(downHistory, Green), GSeries(upHistory, GreenLight, true)),
+            Modifier.matchParentSize(), minSpan = 0.2, lineAlpha = 0.48f, fillAlpha = 0.13f, stroke = 2.dp
+        )
+        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Surf.copy(alpha = 0.93f), 0.82f to Color.Transparent)))
+        Column(Modifier.fillMaxWidth().padding(18.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Label("Internet · Speedtest by Ookla")
             Text(if (running) when (sp.str("phase")) { "ping" -> "Testing latency"; "download" -> "Testing download"; "upload" -> "Testing upload"; else -> "Testing" } else "SPEEDTEST",
@@ -571,17 +585,11 @@ fun InternetPanel(j: JSONObject, sv: Server) {
         if (srv.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Text("Last result · $srv", fontSize = 11.sp, color = Dim) }
         val err = sp.str("error")
         if (err.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Text("Speed test failed: $err", fontSize = 11.sp, color = Amber) }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Bandwidth history", color = Txt, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            Text("LAST HOUR", color = Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Text("LIVE BANDWIDTH · LAST HOUR", color = Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Text("↓ Download   ↑ Upload", color = Mut, fontSize = 10.sp)
         }
-        Spacer(Modifier.height(6.dp))
-        HistoryGraph(
-            listOf(GSeries(downHistory, Green), GSeries(upHistory, GreenLight, true)),
-            Modifier.fillMaxWidth().height(112.dp),
-            minSpan = 0.2
-        )
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(7.dp).clip(CircleShape).background(Green)); Spacer(Modifier.width(5.dp))
@@ -593,6 +601,7 @@ fun InternetPanel(j: JSONObject, sv: Server) {
             }
         }
         Text("Live network throughput recorded by the server, not speed-test samples.", color = Dim, fontSize = 9.sp)
+        }
     }
 }
 
