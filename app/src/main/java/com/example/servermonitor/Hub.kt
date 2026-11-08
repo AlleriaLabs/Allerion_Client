@@ -156,8 +156,15 @@ fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, o
             Text("API response · ${ApiClient.lastRequestDurationMs} ms", fontSize = 11.sp, color = Dim)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Button(onOpen, Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) {
-                Icon24(Ic.Dash, Txt, 18.dp); Spacer(Modifier.width(8.dp)); Text("Open dashboard", fontWeight = FontWeight.SemiBold)
+            OutlinedButton(
+                onClick = onOpen,
+                modifier = Modifier.weight(1f).height(46.dp),
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Red.copy(alpha = 0.38f)),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF262126), contentColor = Txt)
+            ) {
+                Icon24(Ic.Dash, Red.copy(alpha = 0.85f), 18.dp); Spacer(Modifier.width(8.dp))
+                Text("Open dashboard", fontWeight = FontWeight.SemiBold)
             }
             ActionIcon(Ic.Pencil, "Edit server", onClick = onEdit)
             ActionIcon(Ic.Trash, "Delete server", Err, onDelete)
@@ -203,8 +210,15 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
 
 @Composable
 fun AddFab(onClick: () -> Unit, modifier: Modifier) {
-    Row(modifier.tap(onClick).clip(RoundedCornerShape(50)).background(Red).padding(horizontal = 18.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon24(Ic.Plus, Txt, 18.dp, desc = "Add server"); Spacer(Modifier.width(8.dp))
+    Row(
+        modifier.tap(onClick).clip(RoundedCornerShape(50))
+            .background(Color(0xFF291A1D))
+            .border(1.dp, Red.copy(alpha = 0.42f), RoundedCornerShape(50))
+            .padding(horizontal = 17.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon24(Ic.Plus, Red.copy(alpha = 0.9f), 18.dp, desc = "Add server")
+        Spacer(Modifier.width(8.dp))
         Text("Add server", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Txt)
     }
 }
@@ -267,7 +281,7 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                         }
                     }
                 }
-                Spacer(Modifier.height(96.dp))
+                Spacer(Modifier.height(124.dp))
             }
         }
         if (servers.isNotEmpty()) AddFab(onAdd, Modifier.align(Alignment.BottomEnd).padding(20.dp))
