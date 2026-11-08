@@ -303,6 +303,13 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
             val nodes = topology?.optJSONArray("nodes")
             val links = topology?.optJSONArray("links")
             Text("${nodes?.length() ?: 0} nodes · ${links?.length() ?: 0} logical connections", color = Txt, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            val gateway = topology?.optString("gateway").orEmpty().takeIf { it.isNotBlank() && it != "null" }
+            val routeInterface = topology?.optString("interface").orEmpty().takeIf { it.isNotBlank() && it != "null" }
+            val subnet = topology?.optString("subnet").orEmpty().takeIf { it.isNotBlank() && it != "null" }
+            if (gateway != null || routeInterface != null || subnet != null) {
+                Text("Gateway: " + (gateway ?: "not detected") + " · Interface: " + (routeInterface ?: "unknown") + " · Subnet: " + (subnet ?: "unknown"),
+                    color = Dim, fontSize = 10.sp)
+            }
             if (nodes == null || nodes.length() == 0) {
                 Text("No devices are currently visible in the server's ARP / neighbor cache.", color = Mut, fontSize = 11.sp)
             } else {
