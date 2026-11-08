@@ -117,7 +117,9 @@ fun StateMessage(text: String, warn: Boolean) {
 
 @Composable
 fun ActionIcon(ic: Ic, desc: String, tint: Color = Mut, onClick: () -> Unit) {
-    Box(Modifier.size(46.dp).tap(onClick).clip(RoundedCornerShape(14.dp)).background(Surf2), contentAlignment = Alignment.Center) { Icon24(ic, tint, 20.dp, desc = desc) }
+    val shape = RoundedCornerShape(15.dp)
+    Box(Modifier.size(46.dp).clip(shape).background(Surf2).border(1.dp, Line, shape).tap(onClick),
+        contentAlignment = Alignment.Center) { Icon24(ic, tint, 20.dp, desc = desc) }
 }
 
 class TileSpec(val icon: Ic, val name: String, val value: Double?, val unit: String, val sub: String?, val series: List<GSeries>,
@@ -159,9 +161,9 @@ fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, o
             OutlinedButton(
                 onClick = onOpen,
                 modifier = Modifier.weight(1f).height(46.dp),
-                shape = RoundedCornerShape(14.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Red.copy(alpha = 0.38f)),
-                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF262126), contentColor = Txt)
+                shape = RoundedCornerShape(15.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Surf2, contentColor = Txt)
             ) {
                 Icon24(Ic.Dash, Red.copy(alpha = 0.85f), 18.dp); Spacer(Modifier.width(8.dp))
                 Text("Open dashboard", fontWeight = FontWeight.SemiBold)
@@ -211,10 +213,9 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
 @Composable
 fun AddFab(onClick: () -> Unit, modifier: Modifier) {
     Row(
-        modifier.tap(onClick).clip(RoundedCornerShape(50))
-            .background(Color(0xFF291A1D))
-            .border(1.dp, Red.copy(alpha = 0.42f), RoundedCornerShape(50))
-            .padding(horizontal = 17.dp, vertical = 12.dp),
+        modifier.clip(RoundedCornerShape(16.dp)).background(Surf2)
+            .border(1.dp, Line, RoundedCornerShape(16.dp)).tap(onClick)
+            .padding(horizontal = 16.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon24(Ic.Plus, Red.copy(alpha = 0.9f), 18.dp, desc = "Add server")
@@ -390,11 +391,15 @@ fun ReportExportPanel(sv: Server) {
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { prepareReport(false) }, Modifier.weight(1f).height(48.dp), enabled = !busy,
-                shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) {
+                shape = RoundedCornerShape(15.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Surf2, contentColor = Txt),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
                 Text(if (busy) "Preparing…" else "Export CSV")
             }
             OutlinedButton(onClick = { prepareReport(true) }, Modifier.weight(1f).height(48.dp), enabled = !busy,
-                shape = RoundedCornerShape(14.dp)) {
+                shape = RoundedCornerShape(15.dp),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Surf2, contentColor = Mut),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
                 Text("Export PDF", color = Txt)
             }
         }
@@ -484,11 +489,15 @@ fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
             Text("Create a password-protected backup of your server names, addresses and access tokens. The backup can be restored on another ALLERION installation.", color = Mut, fontSize = 13.sp)
             Spacer(Modifier.height(12.dp))
             Button({ backupPassword = ""; backupAction = "export" }, Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) {
+                shape = RoundedCornerShape(15.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Surf2, contentColor = Txt),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
                 Text("Create encrypted backup")
             }
             OutlinedButton({ importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
-                Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp)) {
+                Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(15.dp),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Surf2, contentColor = Mut),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
                 Text("Restore from backup", color = Txt)
             }
             Text("Keep the backup password safe. It cannot be recovered if lost. Exported backup files contain encrypted credentials.", color = Dim, fontSize = 11.sp)
