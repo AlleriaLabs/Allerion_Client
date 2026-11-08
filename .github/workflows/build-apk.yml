@@ -86,14 +86,18 @@ jobs:
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: 1.1.${{ github.run_number }}
         run: gradle assembleRelease --no-daemon --stacktrace
-      - name: Rename APK
+      - name: Rename APK and generate checksum
         if: steps.signing.outputs.ready == 'true'
-        run: cp app/build/outputs/apk/release/app-release.apk Allerion.apk
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk Allerion.apk
+          sha256sum Allerion.apk > Allerion.apk.sha256
       - uses: actions/upload-artifact@v4
         if: steps.signing.outputs.ready == 'true'
         with:
           name: Allerion-release-${{ github.run_number }}
-          path: Allerion.apk
+          path: |
+            Allerion.apk
+            Allerion.apk.sha256
           if-no-files-found: error
       - name: Publish signed release
         if: steps.signing.outputs.ready == 'true'
@@ -101,4 +105,6 @@ jobs:
         with:
           tag_name: v1.1.${{ github.run_number }}
           name: ALLERION v1.1.${{ github.run_number }}
-          files: Allerion.apk
+          files: |
+            Allerion.apk
+            Allerion.apk.sha256

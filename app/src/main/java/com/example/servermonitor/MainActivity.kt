@@ -44,6 +44,7 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import kotlin.math.roundToInt
 import org.json.JSONArray
@@ -122,6 +123,12 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun App(p: SharedPreferences) {
+    val appContext = LocalContext.current
+    var availableUpdate by remember { mutableStateOf<AllerionUpdate?>(null) }
+    LaunchedEffect(Unit) {
+        delay(3500)
+        availableUpdate = runCatching { UpdateChecker.check(appContext) }.getOrNull()
+    }
     val initialLoad = remember { runCatching { loadServers(p) } }
     var servers by remember { mutableStateOf(initialLoad.getOrDefault(emptyList())) }
     var storageError by remember { mutableStateOf(initialLoad.exceptionOrNull()?.message) }
@@ -162,6 +169,12 @@ fun App(p: SharedPreferences) {
         hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })
         else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true })
+    }
+    availableUpdate?.let { update ->
+        AllerionUpdateDialog(update) {
+            UpdateChecker.dismiss(appContext, update.tag)
+            availableUpdate = null
+        }
     }
 }
 
