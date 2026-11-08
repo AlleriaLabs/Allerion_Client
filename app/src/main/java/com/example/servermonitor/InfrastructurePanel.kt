@@ -138,6 +138,15 @@ fun InfrastructurePanel(sv: Server) {
                     Column(Modifier.weight(1f)) {
                         Text(item.optString("name"), color = Txt, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                         Text(item.optString("image"), color = Dim, fontSize = 10.sp, maxLines = 1)
+                        val containerId = item.optString("id")
+                        val usage = snapshot.containerStats.firstOrNull { it.optString("id") == containerId }
+                        if (usage != null) {
+                            val cpu = if (usage.isNull("cpu_pct")) "CPU n/a" else "CPU %.1f%%".format(usage.optDouble("cpu_pct"))
+                            val memory = if (usage.isNull("memory_pct")) "RAM n/a" else "RAM %.1f%%".format(usage.optDouble("memory_pct"))
+                            Text("$cpu · $memory", color = Mut, fontSize = 10.sp)
+                        } else if (item.optString("state") == "running") {
+                            Text("Resource stats unavailable", color = Dim, fontSize = 10.sp)
+                        }
                     }
                     Text(item.optString("state"), color = if (item.optString("state") == "running") Green else Amber, fontSize = 11.sp)
                 }
