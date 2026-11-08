@@ -529,7 +529,7 @@ fun InternetPanel(j: JSONObject, sv: Server) {
                             Text(server.optString("location") + (server.optDouble("distance_km", -1.0).takeIf { it >= 0 }?.let { " · %.0f km".format(it) } ?: ""),
                                 color = Mut, fontSize = 10.sp)
                         } },
-                        onClick = { selectedServer = server; menuOpen = false }
+                        onClick = { selectedServer = server; manualServerId = ""; menuOpen = false }
                     )
                 }
             }
