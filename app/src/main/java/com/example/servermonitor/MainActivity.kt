@@ -371,11 +371,15 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
         OutlinedButton({ call("/api/power/test") { j ->
             if (j.optBoolean("ok")) (if (j.isNull("watts")) j.optString("note") else "Reading: ${j.getDouble("watts")} W" + (if (j.isNull("voltage")) "" else ", ${j.getDouble("voltage")} V") + "\nData: ${j.optString("raw")}")
             else "Failed: " + j.optString("error") } },
-            Modifier.fillMaxWidth().height(50.dp), enabled = !busy, shape = RoundedCornerShape(14.dp)) {
-            Text(if (busy) "Working…" else "Test connection", color = Txt) }
+            Modifier.fillMaxWidth().height(48.dp).border(1.dp, Line, RoundedCornerShape(15.dp)),
+            enabled = !busy, shape = RoundedCornerShape(15.dp),
+            colors = ButtonDefaults.outlinedButtonColors(containerColor = Surf2, contentColor = Txt)) {
+            Text(if (busy) "Working…" else "Test connection", color = Txt, fontWeight = FontWeight.Medium) }
         Button({ call("/api/power/config") { j -> if (j.optBoolean("ok")) "Saved" else "Failed" }; },
-            Modifier.fillMaxWidth().height(52.dp), enabled = !busy, shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) { Text("Save") }
+            Modifier.fillMaxWidth().height(48.dp).border(1.dp, Line, RoundedCornerShape(15.dp)),
+            enabled = !busy, shape = RoundedCornerShape(15.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Surf2, contentColor = Txt)) {
+            Text("Save", fontWeight = FontWeight.SemiBold) }
     }
 }
 
