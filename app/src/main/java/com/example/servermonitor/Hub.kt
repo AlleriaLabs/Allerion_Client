@@ -147,7 +147,7 @@ fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, o
             if (watts != null) specs += TileSpec(Ic.Zap, "Power", watts, "W", "%.2f kWh today".format(pw?.optDouble("today_kwh", 0.0) ?: 0.0), listOf(GSeries(hs("power"), Red)), 5.0)
             specs.chunked(2).forEach { pair ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    pair.forEach { s -> key(s.name) { MetricTile(s.icon, s.name, s.text ?: animNum(s.value), s.unit, s.sub, s.series, s.minSpan, Modifier.weight(1f), onOpen) } }
+                    pair.forEach { s -> key(s.name) { MetricTile(s.icon, s.name, s.text ?: animNum(s.value), s.unit, s.sub, s.series, s.minSpan, Modifier.weight(1f), onClick = onOpen) } }
                     if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
