@@ -70,7 +70,7 @@ object ApiClient {
                 val message = when (status) {
                     404 -> "The monitoring API endpoint was not found (404). Check server compatibility."
                     408, 504 -> "The monitoring server timed out."
-                    in 500..599 -> "The monitoring server returned an error ($status)."
+                    in 500..599 -> "The monitoring server returned HTTP $status."
                     else -> "The monitoring server rejected the request ($status)."
                 }
                 throw ApiException(if (detail.isBlank()) message else "$message $detail", status)
