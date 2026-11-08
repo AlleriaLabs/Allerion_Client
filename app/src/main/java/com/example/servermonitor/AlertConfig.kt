@@ -19,6 +19,22 @@ data class AlertEvent(
     val recovered: Boolean
 )
 
+/**
+ * Returns a user-facing API/configuration failure when the server answered or local
+ * credentials are missing. A null result means the request likely failed at transport level.
+ */
+fun monitoringApiFailureMessage(error: Throwable): String? {
+    val apiError = error as? ApiException ?: return null
+    if (apiError.message?.contains("API token is required", ignoreCase = true) == true) {
+        return "The API token is missing. Enter the X-Token in server settings."
+    }
+    val status = apiError.statusCode ?: return null
+    return when (status) {
+        401, 403 -> "The monitoring server rejected the API token or permissions."
+        else -> "The monitoring server responded with HTTP $status, but monitoring data is unavailable."
+    }
+}
+
 object AlertPreferences {
     private const val PREFS = "cfg"
 
