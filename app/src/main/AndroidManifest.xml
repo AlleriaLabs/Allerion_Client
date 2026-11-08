@@ -8,6 +8,7 @@
         android:label="Allerion"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
+        android:banner="@drawable/banner"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.Allerion">
         <activity android:name=".MainActivity" android:exported="true">
