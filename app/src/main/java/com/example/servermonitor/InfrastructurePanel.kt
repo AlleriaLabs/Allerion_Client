@@ -32,6 +32,7 @@ private data class InfrastructureSnapshot(
     val capabilities: JSONObject? = null,
     val processes: JSONObject? = null,
     val containers: JSONObject? = null,
+    val containerStats: List<JSONObject> = emptyList(),
     val services: JSONObject? = null,
     val devices: JSONObject? = null,
     val topology: JSONObject? = null,
@@ -56,10 +57,11 @@ fun InfrastructurePanel(sv: Server) {
                     } catch (_: Exception) {
                         null
                     }
-                    InfrastructureSnapshot(
-                        capabilities = caps,
+                    val containerData = if (features.optBoolean("containers")) optional("/api/containers") else null
+                    val containerRows = containerData?.optJSONArray("items")
+                    val statsRows = if (containerRows != null) (0 until minOf(containerRows.length(), 8)).mapNotNull { index ->\n                        val item = containerRows.optJSONObject(index) ?: return@mapNotNull null\n                        val id = item.optString("id")\n                        if (item.optString("state") != "running" || id.isBlank()) return@mapNotNull null\n                        optional("/api/containers/$id/stats")\n                    } else emptyList()\n                    InfrastructureSnapshot(\n                        capabilities = caps,
                         processes = if (features.optBoolean("processes")) optional("/api/processes?limit=12") else null,
-                        containers = if (features.optBoolean("containers")) optional("/api/containers") else null,
+                        containers = containerData,\n                        containerStats = statsRows,
                         services = if (features.optBoolean("services")) optional("/api/services") else null,
                         devices = if (features.optBoolean("network_inventory")) optional("/api/network/devices") else null,
                         topology = if (features.optBoolean("network_topology")) optional("/api/network/topology") else null,
@@ -234,7 +236,7 @@ private fun IntegrationTestPanel(sv: Server, integrationStatus: JSONObject?, web
     val scope = rememberCoroutineScope()
     Panel {
         Label("Notification integrations")
-        Text("Webhook URL, webhook secret and Telegram bot credentials are configured on the backend; the app never stores or displays these secrets.", color = Mut, fontSize = 11.sp)\n        DiagRow("Webhook destination", if (webhookEnabled) "Configured" else "Not configured", if (webhookEnabled) Green else Dim)\n        DiagRow("Telegram bot", if (telegramEnabled) "Configured" else "Not configured", if (telegramEnabled) Green else Dim)\n        integrationStatus?.optString("note")?.takeIf { it.isNotBlank() }?.let { Text(it, color = Dim, fontSize = 10.sp) }
+        Text("Webhook URL, webhook secret and Telegram bot credentials are configured on the backend; the app never stores or displays these secrets.", color = Mut, fontSize = 11.sp)\n        DiagRow("Webhook destination", if (webhookEnabled) "Configured" else "Not configured", if (webhookEnabled) Green else Dim)\n        DiagRow("Telegram bot", if (telegramEnabled) "Configured" else "Not configured", if (telegramEnabled) Green else Dim)\n        val integrationItems = integrationStatus?.optJSONArray("items")\n        if (integrationItems != null) {\n            for (i in 0 until integrationItems.length()) {\n                val item = integrationItems.optJSONObject(i) ?: continue\n                val configured = item.optBoolean("configured")\n                DiagRow(item.optString("name").replaceFirstChar { it.uppercase() }, if (configured) "Ready" else "Not configured", if (configured) Green else Dim)\n            }\n        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = {
                 busy = true; status = null
