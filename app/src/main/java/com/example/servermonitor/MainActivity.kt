@@ -48,8 +48,6 @@ import androidx.lifecycle.Lifecycle
 import kotlin.math.roundToInt
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 
 val Bg = Color(0xFF101113)
 val Line = Color(0xFF303136)
@@ -62,29 +60,16 @@ val Dim = Color(0xFF676970)
 val Amber = Color(0xFFFFB547)
 val Green = Color(0xFF35C98A)
 
-data class Server(val name: String, val url: String, val token: String)
+data class Server(val name: String, val url: String, val token: String, val group: String = "Ungrouped")
 data class StatsResult(val json: JSONObject? = null, val error: String? = null)
 
-fun loadServers(p: SharedPreferences): List<Server> {
-    val a = JSONArray(p.getString("servers", "[]"))
-    val l = List(a.length()) { val o = a.getJSONObject(it); Server(o.getString("name"), o.getString("url"), o.getString("token")) }
-    val old = p.getString("url", "") ?: ""
-    return if (l.isEmpty() && old.isNotEmpty()) listOf(Server("My server", old, p.getString("token", "") ?: "")) else l
-}
+fun loadServers(p: SharedPreferences): List<Server> = SecureServerStore.load(p)
 
-fun saveServers(p: SharedPreferences, l: List<Server>) {
-    val a = JSONArray()
-    l.forEach { a.put(JSONObject().put("name", it.name).put("url", it.url).put("token", it.token)) }
-    p.edit().putString("servers", a.toString()).apply()
-}
+fun saveServers(p: SharedPreferences, l: List<Server>) = SecureServerStore.save(p, l)
 
 fun fetch(base: String, token: String): JSONObject {
-    val c = URL("$base/api/stats").openConnection() as HttpURLConnection
-    c.connectTimeout = 3000; c.readTimeout = 3000
-    if (token.isNotEmpty()) c.setRequestProperty("X-Token", token)
-    if (c.responseCode == 401) throw Exception("Wrong token")
-    val j = JSONObject(c.inputStream.bufferedReader().readText())
-    if (!j.has("cpu")) throw Exception("Server is starting up")
+    val j = ApiClient.getJson(base, token, "/api/stats", connectTimeoutMs = 3000, readTimeoutMs = 5000)
+    if (!j.has("cpu")) throw ApiException("Monitoring service is starting up.")
     return j
 }
 
@@ -98,13 +83,21 @@ fun rate(bytes: Double): String = when {
 fun rememberStats(sv: Server, every: Long, refreshKey: Int = 0): State<StatsResult> {
     val lc = LocalLifecycleOwner.current.lifecycle          // no polling while the app is in the background
     return produceState(StatsResult(), sv, every, refreshKey) {
+        var failures = 0
         while (true) {
             if (lc.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                value = try { StatsResult(withContext(Dispatchers.IO) { fetch(sv.url, sv.token) }, null) }
-                catch (e: CancellationException) { throw e }
-                catch (e: Exception) { StatsResult(value.json, friendlyError(e)) }
+                try {
+                    val fresh = withContext(Dispatchers.IO) { fetch(sv.url, sv.token) }
+                    value = StatsResult(fresh, null)
+                    failures = 0
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    failures = (failures + 1).coerceAtMost(6)
+                    value = StatsResult(value.json, friendlyError(e))
+                }
             }
-            delay(every)
+            delay(pollDelay(every, failures))
         }
     }
 }
@@ -114,6 +107,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val prefs = getSharedPreferences("cfg", MODE_PRIVATE)
         AppSettings.refreshMs = prefs.getLong("refresh_ms", 2000L)
+        AlertScheduler.ensureScheduled(this)
         val reduce = android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
         setContent {
             var showSplash by rememberSaveable { mutableStateOf(true) }
@@ -128,12 +122,34 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun App(p: SharedPreferences) {
-    var servers by remember { mutableStateOf(loadServers(p)) }
+    val initialLoad = remember { runCatching { loadServers(p) } }
+    var servers by remember { mutableStateOf(initialLoad.getOrDefault(emptyList())) }
+    var storageError by remember { mutableStateOf(initialLoad.exceptionOrNull()?.message) }
     var open by remember { mutableStateOf<Int?>(null) }
     var edit by remember { mutableStateOf<Int?>(null) } // -1 = new server
     var expanded by remember { mutableStateOf<Int?>(null) }   // every server card starts collapsed
     var hubSettings by remember { mutableStateOf(false) }
-    fun commit(l: List<Server>) { servers = l; saveServers(p, l) }
+    fun commit(l: List<Server>) {
+        try {
+            saveServers(p, l)
+            servers = l
+            storageError = null
+        } catch (error: Exception) {
+            storageError = error.message ?: "Could not securely save server settings."
+        }
+    }
+    if (storageError != null) {
+        Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().padding(24.dp),
+            verticalArrangement = Arrangement.Center) {
+            Text("Server settings need attention", color = Txt, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+            Text("ALLERION could not unlock or save its encrypted server settings. Your saved credentials have not been replaced. Do not clear app data or reinstall until the Android Keystore issue is resolved.",
+                color = Mut, fontSize = 14.sp)
+            Spacer(Modifier.height(12.dp))
+            Text(storageError ?: "Secure storage error", color = Amber, fontSize = 12.sp)
+        }
+        return
+    }
     val e = edit
     val o = open
     BackHandler(enabled = e != null || o != null || hubSettings) { if (e != null) edit = null else if (o != null) open = null else hubSettings = false }
@@ -143,7 +159,7 @@ fun App(p: SharedPreferences) {
             onDelete = { commit(servers.filterIndexed { i, _ -> i != e }); edit = null; open = null; expanded = null },
             onCancel = { edit = null })
         o != null && o in servers.indices -> Dashboard(servers[o], { open = null }, { edit = o })
-        hubSettings -> HubSettings { hubSettings = false }
+        hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })
         else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true })
     }
@@ -222,19 +238,8 @@ fun Legend(color: Color, label: String, value: String) {
     }
 }
 
-fun httpJson(base: String, token: String, path: String, body: JSONObject? = null): JSONObject {
-    val c = URL(base + path).openConnection() as HttpURLConnection
-    c.connectTimeout = 4000; c.readTimeout = 15000
-    if (token.isNotEmpty()) c.setRequestProperty("X-Token", token)
-    if (body != null) {
-        c.requestMethod = "POST"; c.doOutput = true
-        c.setRequestProperty("Content-Type", "application/json")
-        c.outputStream.use { it.write(body.toString().toByteArray()) }
-    }
-    if (c.responseCode == 401) throw Exception("Wrong token")
-    val st = if (c.responseCode in 200..299) c.inputStream else c.errorStream
-    return JSONObject(st.bufferedReader().readText())
-}
+fun httpJson(base: String, token: String, path: String, body: JSONObject? = null): JSONObject =
+    ApiClient.getJson(base, token, path, body)
 
 val PLUGS = listOf(
     "cpu" to "No plug (CPU estimate)",
@@ -327,7 +332,7 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
         if (source == "tuya") {
             OutlinedTextField(tid, { tid = it }, label = { Text("Device ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(tkey, { tkey = it }, label = { Text(if (hasKey) "Local key (saved, leave empty to keep)" else "Local key") },
-                singleLine = true, modifier = Modifier.fillMaxWidth())
+                singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
             Text("Protocol version", color = Mut, fontSize = 13.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("3.3", "3.4", "3.5").forEach { v -> Chip(v, tver == v) { tver = v } }

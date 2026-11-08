@@ -1,6 +1,12 @@
 package com.example.servermonitor
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.Animatable
@@ -144,6 +150,7 @@ fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, o
             }
             val up = j.optLong("uptime_s")
             Text("Updated ${fmtClock(j.optLong("ts"))}  ·  Up ${up / 86400}d ${up % 86400 / 3600}h", fontSize = 12.sp, color = Dim)
+            Text("API response · ${ApiClient.lastRequestDurationMs} ms", fontSize = 11.sp, color = Dim)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Button(onOpen, Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) {
@@ -171,6 +178,7 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
             Column(Modifier.weight(1f)) {
                 Text(sv.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sv.url.removePrefix("http://").removePrefix("https://"), fontSize = 12.sp, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sv.group, fontSize = 10.sp, color = Red, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.width(10.dp))
             StatusLabel(code)
@@ -206,8 +214,9 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
     val codes = servers.mapIndexed { i, sv -> status[keyOf(i, sv)] ?: 0 }
     val online = codes.count { it == 1 }; val offline = codes.count { it == 2 }
     val availability = if (online + offline == 0) "–" else "${(online * 100f / (online + offline)).roundToInt()}%"
-    Box(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
+        val wideLayout = maxWidth >= 720.dp
+        Column(Modifier.widthIn(max = 1100.dp).fillMaxHeight().fillMaxWidth().align(Alignment.TopCenter).verticalScroll(rememberScrollState())) {
             HubHeader(onSettings)
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.padding(top = 8.dp, bottom = 2.dp).staggerIn(0)) {
@@ -233,10 +242,25 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                         SummaryStat("Offline", "$offline", if (offline > 0) Err else Txt, Modifier.weight(1f))
                         SummaryStat("Availability", availability, Txt, Modifier.weight(1.25f))
                     }
-                    servers.forEachIndexed { i, sv ->
-                        key(keyOf(i, sv)) {
-                            ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
-                                { status[keyOf(i, sv)] = it }, Modifier.staggerIn(i + 2))
+                    if (wideLayout) {
+                        servers.chunked(2).forEachIndexed { rowIndex, pair ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                pair.forEachIndexed { columnIndex, sv ->
+                                    val i = rowIndex * 2 + columnIndex
+                                    key(keyOf(i, sv)) {
+                                        ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
+                                            { status[keyOf(i, sv)] = it }, Modifier.weight(1f).staggerIn(i + 2))
+                                    }
+                                }
+                                if (pair.size == 1) Spacer(Modifier.weight(1f))
+                            }
+                        }
+                    } else {
+                        servers.forEachIndexed { i, sv ->
+                            key(keyOf(i, sv)) {
+                                ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
+                                    { status[keyOf(i, sv)] = it }, Modifier.staggerIn(i + 2))
+                            }
                         }
                     }
                 }
@@ -277,19 +301,244 @@ fun AboutPanel() {
         Spacer(Modifier.height(12.dp))
         Text(TAGLINE, fontSize = 13.sp, color = Mut)
         Spacer(Modifier.height(8.dp))
-        KV("Category", "Home & Server Monitoring"); KV("Version", "1.0"); KV("History and energy totals", "Stored on your server")
+        KV("Category", "Home & Server Monitoring")
+        KV("Version", BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ")")
+        KV("History and energy totals", "Stored on your server")
     }
 }
 
 @Composable
-fun HubSettings(onBack: () -> Unit) {
+fun ReportExportPanel(sv: Server) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var pendingReport by remember { mutableStateOf<String?>(null) }
+    var pendingPdf by remember { mutableStateOf<ByteArray?>(null) }
+
+    val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val report = pendingReport ?: error("Report data is unavailable.")
+                context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { it.write(report) }
+                    ?: error("Could not create the CSV file.")
+                status = "Seven-day CSV report saved successfully."
+            } catch (error: Exception) {
+                status = "CSV export failed: " + (error.message ?: "Unable to write file.")
+            }
+        }
+        busy = false
+    }
+    val pdfLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val pdf = pendingPdf ?: error("PDF report data is unavailable.")
+                context.contentResolver.openOutputStream(uri)?.use { it.write(pdf) }
+                    ?: error("Could not create the PDF file.")
+                status = "Seven-day PDF report saved successfully."
+            } catch (error: Exception) {
+                status = "PDF export failed: " + (error.message ?: "Unable to write file.")
+            }
+        }
+        busy = false
+    }
+
+    fun prepareReport(asPdf: Boolean) {
+        busy = true
+        status = null
+        scope.launch {
+            try {
+                val report = withContext(Dispatchers.IO) { buildMonitoringReport(sv) }
+                val safeName = sv.name.replace(Regex("[^A-Za-z0-9_-]"), "_").take(32).ifBlank { "server" }
+                if (asPdf) {
+                    pendingPdf = withContext(Dispatchers.IO) { PdfReport.render("ALLERION · 7-day report", report) }
+                    pdfLauncher.launch("ALLERION-" + safeName + "-7d.pdf")
+                    status = "Choose where to save the PDF report."
+                } else {
+                    pendingReport = report
+                    csvLauncher.launch("ALLERION-" + safeName + "-7d.csv")
+                    status = "Choose where to save the CSV report."
+                }
+            } catch (error: Exception) {
+                status = friendlyError(error)
+                busy = false
+            }
+        }
+    }
+
+    Panel {
+        Label("Monitoring report")
+        Spacer(Modifier.height(6.dp))
+        Text("Export seven days of timestamped CPU, memory, temperature, network, power, GPU and storage readings, plus daily energy totals when available.", color = Mut, fontSize = 12.sp)
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { prepareReport(false) }, Modifier.weight(1f).height(48.dp), enabled = !busy,
+                shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) {
+                Text(if (busy) "Preparing…" else "Export CSV")
+            }
+            OutlinedButton(onClick = { prepareReport(true) }, Modifier.weight(1f).height(48.dp), enabled = !busy,
+                shape = RoundedCornerShape(14.dp)) {
+                Text("Export PDF", color = Txt)
+            }
+        }
+        status?.let { Text(it, color = if (it.contains("saved successfully")) Green else Amber, fontSize = 12.sp) }
+    }
+}
+
+@Composable
+fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
+    val context = LocalContext.current
+    var backupPassword by remember { mutableStateOf("") }
+    var backupAction by remember { mutableStateOf<String?>(null) }
+    var backupPayload by remember { mutableStateOf<String?>(null) }
+    var pendingRestore by remember { mutableStateOf<List<Server>?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var alertsEnabled by remember {
+        mutableStateOf(context.getSharedPreferences("cfg", android.content.Context.MODE_PRIVATE).getBoolean("alerts_enabled", false))
+    }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            alertsEnabled = true
+            AlertScheduler.setEnabled(context, true)
+        } else {
+            alertsEnabled = false
+            AlertScheduler.setEnabled(context, false)
+            message = "Notifications are not enabled. Allow ALLERION notifications in Android settings to receive alerts."
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val payload = backupPayload ?: error("Backup data is unavailable.")
+                context.contentResolver.openOutputStream(uri)?.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                    ?: error("Could not create the backup file.")
+                message = "Encrypted backup saved successfully."
+            } catch (error: Exception) {
+                message = "Backup failed: " + (error.message ?: "Unable to write file.")
+            }
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                backupPayload = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    ?: error("Could not read the selected file.")
+                backupAction = "restore"
+            } catch (error: Exception) {
+                message = "Could not open backup: " + (error.message ?: "Unknown error.")
+            }
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBtn(Ic.ChevronL, "Back to servers", onClick = onBack)
             Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt)
         }
         RefreshPanel()
+        Panel {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Label("Smart health alerts")
+                    Spacer(Modifier.height(4.dp))
+                    Text("Check registered servers every 15 minutes and notify when a server goes offline or CPU, memory, temperature or disk usage crosses a critical threshold.", color = Mut, fontSize = 12.sp)
+                }
+                Switch(checked = alertsEnabled, onCheckedChange = { enabled ->
+                    if (!enabled) {
+                        alertsEnabled = false
+                        AlertScheduler.setEnabled(context, false)
+                    } else if (Build.VERSION.SDK_INT >= 33 &&
+                        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        alertsEnabled = true
+                        AlertScheduler.setEnabled(context, true)
+                    }
+                })
+            }
+            Spacer(Modifier.height(8.dp))
+            Text("Alerts are transition-based and include recovery notifications. Customize thresholds and review recent events below.", color = Dim, fontSize = 11.sp)
+        }
+        AlertSettingsPanel()
+        Panel {
+            Label("Server backup and restore")
+            Spacer(Modifier.height(6.dp))
+            Text("Create a password-protected backup of your server names, addresses and access tokens. The backup can be restored on another ALLERION installation.", color = Mut, fontSize = 13.sp)
+            Spacer(Modifier.height(12.dp))
+            Button({ backupPassword = ""; backupAction = "export" }, Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) {
+                Text("Create encrypted backup")
+            }
+            OutlinedButton({ importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
+                Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp)) {
+                Text("Restore from backup", color = Txt)
+            }
+            Text("Keep the backup password safe. It cannot be recovered if lost. Exported backup files contain encrypted credentials.", color = Dim, fontSize = 11.sp)
+            message?.let { Spacer(Modifier.height(8.dp)); Text(it, color = if (it.startsWith("Encrypted")) Green else Amber, fontSize = 12.sp) }
+        }
         AboutPanel()
+    }
+
+    if (backupAction != null) {
+        AlertDialog(
+            onDismissRequest = { backupAction = null; backupPassword = "" },
+            title = { Text(if (backupAction == "export") "Protect your backup" else "Unlock backup", color = Txt) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (backupAction == "export") "Set a password with at least 8 characters. You will need it to restore this backup." else "Enter the password used when this backup was created.", color = Mut)
+                    OutlinedTextField(
+                        value = backupPassword,
+                        onValueChange = { backupPassword = it },
+                        label = { Text("Backup password") },
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    try {
+                        if (backupAction == "export") {
+                            val servers = loadServers(context.getSharedPreferences("cfg", android.content.Context.MODE_PRIVATE))
+                            backupPayload = BackupManager.encrypt(servers, backupPassword.toCharArray())
+                            backupAction = null
+                            exportLauncher.launch("ALLERION-backup.json")
+                        } else {
+                            val restored = BackupManager.decrypt(backupPayload ?: error("Backup file is missing."), backupPassword.toCharArray())
+                            pendingRestore = restored
+                            backupAction = null
+                        }
+                        backupPassword = ""
+                    } catch (error: Exception) {
+                        message = error.message ?: "Backup operation failed."
+                    }
+                }) { Text(if (backupAction == "export") "Continue" else "Unlock", color = Red) }
+            },
+            dismissButton = { TextButton(onClick = { backupAction = null; backupPassword = "" }) { Text("Cancel", color = Mut) } },
+            containerColor = Surf2,
+            titleContentColor = Txt,
+            textContentColor = Mut
+        )
+    }
+
+    pendingRestore?.let { restored ->
+        AlertDialog(
+            onDismissRequest = { pendingRestore = null },
+            title = { Text("Replace saved servers?", color = Txt) },
+            text = { Text("This backup contains " + restored.size + " server(s). Restoring will replace the current server list on this device. This does not change or delete anything on the monitoring servers.", color = Mut) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onRestore(restored)
+                    pendingRestore = null
+                    message = "Server list restored. Reopen a server to reconnect."
+                }) { Text("Replace servers", color = Red) }
+            },
+            dismissButton = { TextButton(onClick = { pendingRestore = null }) { Text("Cancel", color = Mut) } },
+            containerColor = Surf2,
+            titleContentColor = Txt,
+            textContentColor = Mut
+        )
     }
 }
 
@@ -299,6 +548,7 @@ fun EditServer(sv: Server?, onSave: (Server) -> Unit, onDelete: () -> Unit, onCa
     var name by remember { mutableStateOf(sv?.name ?: "") }
     var addr by remember { mutableStateOf(sv?.url?.removePrefix("http://") ?: "") }
     var tok by remember { mutableStateOf(sv?.token ?: "") }
+    var group by remember { mutableStateOf(sv?.group ?: "Ungrouped") }
     var testing by remember { mutableStateOf(false) }
     var test by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
     fun clean(): String { var c = addr.trim().trimEnd('/'); if (!c.startsWith("http")) c = "http://$c"; return c }
@@ -313,8 +563,11 @@ fun EditServer(sv: Server?, onSave: (Server) -> Unit, onDelete: () -> Unit, onCa
         Panel {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+                OutlinedTextField(group, { group = it }, label = { Text("Group / location (e.g. Home, NAS, Office)") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
                 OutlinedTextField(addr, { addr = it; test = null }, label = { Text("Server address") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
-                OutlinedTextField(tok, { tok = it; test = null }, label = { Text("Token") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+                OutlinedTextField(tok, { tok = it; test = null }, label = { Text("Token") }, singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
             }
         }
         test?.let { (ok, msg) -> StateMessage(msg, !ok) }
@@ -331,7 +584,7 @@ fun EditServer(sv: Server?, onSave: (Server) -> Unit, onDelete: () -> Unit, onCa
         }
         Button({
             if (!valid()) test = false to "Invalid server address."
-            else onSave(Server(name.trim().ifEmpty { "My server" }, clean(), tok.trim()))
+            else onSave(Server(name.trim().ifEmpty { "My server" }, clean(), tok.trim(), group.trim().ifEmpty { "Ungrouped" }))
         }, Modifier.fillMaxWidth().height(52.dp), enabled = addr.isNotBlank(), shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) { Text("Save", fontWeight = FontWeight.SemiBold) }
         if (sv != null) OutlinedButton(onDelete, Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) { Text("Remove server", color = Err) }
