@@ -1,5 +1,10 @@
 package com.example.servermonitor
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -302,41 +307,101 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
         } else {
             val nodes = topology?.optJSONArray("nodes")
             val links = topology?.optJSONArray("links")
-            Text("${nodes?.length() ?: 0} nodes · ${links?.length() ?: 0} logical connections", color = Txt, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            val nodeItems = if (nodes == null) emptyList() else
+                (0 until minOf(nodes.length(), 40)).mapNotNull { nodes.optJSONObject(it) }
+            val linkItems = if (links == null) emptyList() else
+                (0 until minOf(links.length(), 40)).mapNotNull { links.optJSONObject(it) }
+            val linkedIps = linkItems.map { it.optString("target") }.toSet()
+            val linkedNodes = nodeItems.filter { it.optString("ip") in linkedIps }
+            val unmappedNodes = nodeItems.filter { it.optString("topology_status") == "unmapped" }
             val gateway = topology?.optString("gateway").orEmpty().takeIf { it.isNotBlank() && it != "null" }
             val routeInterface = topology?.optString("interface").orEmpty().takeIf { it.isNotBlank() && it != "null" }
             val subnet = topology?.optString("subnet").orEmpty().takeIf { it.isNotBlank() && it != "null" }
+
+            Text("${nodeItems.size} devices · ${linkItems.size} logical connections", color = Txt, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             if (gateway != null || routeInterface != null || subnet != null) {
-                Text("Gateway: " + (gateway ?: "not detected") + " · Interface: " + (routeInterface ?: "unknown") + " · Subnet: " + (subnet ?: "unknown"),
+                Text("Gateway: ${gateway ?: "not detected"}  ·  ${routeInterface ?: "interface unknown"}  ·  ${subnet ?: "subnet unknown"}",
+                    color = Mut, fontSize = 10.sp)
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Text("ALLERION SERVER", color = Mut, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Canvas(modifier = Modifier.fillMaxWidth().height(150.dp)) {
+                val centerX = size.width / 2f
+                val serverY = 12.dp.toPx()
+                val gatewayY = 64.dp.toPx()
+                val deviceY = 132.dp.toPx()
+                val red = Color(0xFFE50914)
+                val green = Color(0xFF45C486)
+                val muted = Color(0xFF777980)
+                val line = Color(0xFF45464D)
+                val server = Offset(centerX, serverY)
+                val router = Offset(centerX, gatewayY)
+                drawLine(line, server, router, strokeWidth = 2.dp.toPx())
+                drawCircle(red, radius = 8.dp.toPx(), center = server)
+                drawCircle(green, radius = 10.dp.toPx(), center = router)
+                val count = linkedNodes.size
+                linkedNodes.forEachIndexed { index, _ ->
+                    val x = if (count <= 1) centerX else
+                        18.dp.toPx() + index * (size.width - 36.dp.toPx()) / (count - 1).toFloat()
+                    val device = Offset(x, deviceY)
+                    drawLine(line, router, device, strokeWidth = 1.7.dp.toPx())
+                    drawCircle(green, radius = 6.dp.toPx(), center = device)
+                    drawCircle(Color(0xFF101113), radius = 2.dp.toPx(), center = device)
+                }
+                if (count == 0) {
+                    drawCircle(muted, radius = 5.dp.toPx(), center = Offset(centerX, deviceY))
+                }
+            }
+            Text("ROUTER / GATEWAY  ·  ${gateway ?: "not detected"}", color = Green, fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+
+            if (linkedNodes.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Label("Connected devices")
+                linkedNodes.forEach { node ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(node.optString("ip"), color = Txt, fontSize = 11.sp)
+                        Text(node.optString("mac").ifBlank { "MAC unavailable" }, color = Mut, fontSize = 10.sp)
+                    }
+                }
+                Text("Gateway paths are inferred from same-subnet neighbor records, not verified physical links.",
                     color = Dim, fontSize = 10.sp)
             }
-            if (nodes == null || nodes.length() == 0) {
-                Text("No devices are currently visible in the server's ARP / neighbor cache.", color = Mut, fontSize = 11.sp)
-            } else {
-                for (i in 0 until minOf(nodes.length(), 40)) {
-                    val node = nodes.optJSONObject(i) ?: continue
-                    val ip = node.optString("ip", "Unknown IP")
-                    val mac = node.optString("mac", "")
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(ip + if (node.optString("role") == "gateway") " · Gateway" else "", color = Txt, fontSize = 12.sp)
-                        Text(mac.ifBlank { if (node.optString("role") == "gateway") "Default route" else "MAC unavailable" }, color = Mut, fontSize = 11.sp)
+
+            if (unmappedNodes.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Label("Unmapped devices · ${unmappedNodes.size}")
+                unmappedNodes.forEach { node ->
+                    Column {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(node.optString("ip"), color = Txt, fontSize = 11.sp)
+                            Text(node.optString("mac").ifBlank { "No MAC" }, color = Mut, fontSize = 10.sp)
+                        }
+                        Text(node.optString("topology_reason", "Insufficient passive network data"),
+                            color = Dim, fontSize = 10.sp)
                     }
                 }
             }
-            if (links != null && links.length() > 0) {
+
+            val bridgeMacs = topology?.optJSONArray("unmapped_macs")
+            val bridgeCount = topology?.optInt("bridge_mac_count", 0) ?: 0
+            if (bridgeCount > 0) {
                 Spacer(Modifier.height(8.dp))
-                Label("Inferred gateway paths")
-                for (i in 0 until minOf(links.length(), 40)) {
-                    val link = links.optJSONObject(i) ?: continue
-                    Text(link.optString("source") + "  →  " + link.optString("target"),
-                        color = Txt, fontSize = 11.sp)
-                    Text(link.optString("label", "Logical LAN path") + " · inferred, not a verified physical link",
-                        color = Dim, fontSize = 10.sp)
+                Text("Additional passive bridge observations: $bridgeCount MAC addresses; ${bridgeMacs?.length() ?: 0} do not currently map to an IP address.",
+                    color = Mut, fontSize = 10.sp)
+                if (bridgeMacs != null && bridgeMacs.length() > 0) {
+                    for (i in 0 until minOf(bridgeMacs.length(), 8)) {
+                        val entry = bridgeMacs.optJSONObject(i) ?: continue
+                        Text(entry.optString("mac") + "  ·  " +
+                            (entry.optJSONArray("interfaces")?.let { arr ->
+                                (0 until arr.length()).joinToString { arr.optString(it) }
+                            } ?: "bridge interface unknown"), color = Dim, fontSize = 10.sp)
+                    }
                 }
-            } else {
-                Text("No logical gateway paths could be inferred from the current route and neighbor data.",
-                    color = Mut, fontSize = 11.sp)
             }
+
             Text(topology?.optString("note").orEmpty().ifBlank {
                 "Connections are inferred from the active gateway route and local subnet; physical links are not verified."
             }, color = Dim, fontSize = 10.sp)
