@@ -7,21 +7,26 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import kotlinx.coroutines.launch
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -29,6 +34,7 @@ import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
+
 
 data class AllerionUpdate(
     val tag: String,
@@ -213,45 +219,145 @@ fun AllerionUpdateDialog(update: AllerionUpdate, onLater: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    AlertDialog(
-        onDismissRequest = { if (!busy) onLater() },
-        title = { Text("ALLERION update available") },
-        text = {
-            Column {
-                Text("Version ${update.versionName} is available.")
-                if (update.notes.isNotBlank()) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(update.notes.take(900), style = MaterialTheme.typography.bodySmall)
-                }
-                if (busy) {
-                    Spacer(Modifier.height(14.dp))
-                    CircularProgressIndicator(progress = progress / 100f)
-                    Text("Downloading… $progress%")
-                }
-                error?.let {
-                    Spacer(Modifier.height(8.dp))
-                    Text(it, color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(enabled = !busy, onClick = {
-                busy = true
-                error = null
-                progress = 0
-                scope.launch {
-                    try {
-                        UpdateChecker.downloadAndInstall(context, update) { progress = it }
-                    } catch (e: Exception) {
-                        error = e.message ?: "Update could not be installed."
-                        busy = false
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = { if (!busy) onLater() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 440.dp)
+                .clip(RoundedCornerShape(30.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xFF20253B), Color(0xFF121622), Color(0xFF10131D))
+                    )
+                )
+                .border(1.dp, Color(0xFF59658A).copy(alpha = 0.55f), RoundedCornerShape(30.dp))
+                .padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                Brush.linearGradient(listOf(Color(0xFF8B7CFF), Color(0xFF4BC7D8)))
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("✦", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Column {
+                        Text("ALLERION", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        Text("SYSTEM UPDATE", color = Color(0xFF9DA9C8), fontSize = 9.sp, letterSpacing = 1.8.sp)
                     }
                 }
-            }) { Text(if (busy) "Downloading…" else "Update") }
-        },
-        dismissButton = {
-            TextButton(enabled = !busy, onClick = onLater) { Text("Later") }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xFF293D48))
+                        .border(1.dp, Color(0xFF4BC7D8).copy(alpha = 0.5f), RoundedCornerShape(50))
+                        .padding(horizontal = 11.dp, vertical = 6.dp)
+                ) {
+                    Text("NEW VERSION", color = Color(0xFF8DE8E8), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("A better experience\njust arrived.", color = Color.White, fontSize = 27.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold)
+                Text("Your Allerion update is ready to install.", color = Color(0xFFADB6CC), fontSize = 13.sp)
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF252C40))
+                    .border(1.dp, Color(0xFF64739B).copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("LATEST RELEASE", color = Color(0xFF9DA9C8), fontSize = 9.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Version ${update.versionName}", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                }
+                Text("↗", color = Color(0xFF79DCE0), fontSize = 30.sp, fontWeight = FontWeight.Light)
+            }
+
+            if (update.notes.isNotBlank()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("WHAT'S NEW", color = Color(0xFF9DA9C8), fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        update.notes.take(900),
+                        color = Color(0xFFD7DCEF),
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        maxLines = 7,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            if (busy) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Downloading and verifying", color = Color(0xFFD7DCEF), fontSize = 12.sp)
+                        Text("$progress%", color = Color(0xFF8DE8E8), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    LinearProgressIndicator(
+                        progress = { progress / 100f },
+                        modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(50)),
+                        color = Color(0xFF65D4D8),
+                        trackColor = Color(0xFF394158)
+                    )
+                    Text("The APK will be verified before Android opens the installer.", color = Color(0xFF9DA9C8), fontSize = 10.sp)
+                }
+            }
+
+            error?.let {
+                Text(it, color = Color(0xFFFF929D), fontSize = 11.sp, lineHeight = 16.sp)
+            }
+
+            Button(
+                enabled = !busy,
+                onClick = {
+                    busy = true
+                    error = null
+                    progress = 0
+                    scope.launch {
+                        try {
+                            UpdateChecker.downloadAndInstall(context, update) { progress = it }
+                        } catch (e: Exception) {
+                            error = e.message ?: "Update could not be installed."
+                            busy = false
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF6D7CFF),
+                    contentColor = Color.White,
+                    disabledContainerColor = Color(0xFF394158),
+                    disabledContentColor = Color(0xFF9DA9C8)
+                )
+            ) {
+                Text(if (busy) "PREPARING UPDATE…" else "DOWNLOAD & INSTALL", fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
+            androidx.compose.material3.TextButton(
+                enabled = !busy,
+                onClick = onLater,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Maybe later", color = Color(0xFFADB6CC), fontSize = 12.sp)
+            }
         }
-    )
+    }
 }
