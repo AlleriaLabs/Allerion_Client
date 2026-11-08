@@ -24,16 +24,37 @@ data class AlertEvent(
  * credentials are missing. A null result means the request likely failed at transport level.
  */
 fun monitoringApiFailureMessage(error: Throwable): String? {
-    val apiError = error as? ApiException ?: return null
-    if (apiError.message?.contains("API token is required", ignoreCase = true) == true) {
-        return "The API token is missing. Enter the X-Token in server settings."
+    val apiError = error as? ApiException
+    if (apiError != null) {
+        if (apiError.message?.contains("API token is required", ignoreCase = true) == true) {
+            return "The API token is missing. Enter the X-Token in server settings."
+        }
+        val status = apiError.statusCode
+        if (status == null) {
+            val message = apiError.message.orEmpty()
+            if (message.contains("timed out", ignoreCase = true) ||
+                message.contains("network", ignoreCase = true)) return null
+            return message.ifBlank { "The monitoring API failed before returning a response." }
+        }
+        return when (status) {
+            401, 403 -> "The monitoring server rejected the API token or permissions."
+            else -> "The monitoring server responded with HTTP $status, but monitoring data is unavailable."
+        }
     }
-    val status = apiError.statusCode ?: return (apiError.message?.takeIf { it.isNotBlank() }
-        ?: "The monitoring API returned an application error.")
-    return when (status) {
-        401, 403 -> "The monitoring server rejected the API token or permissions."
-        else -> "The monitoring server responded with HTTP $status, but monitoring data is unavailable."
+    var cause: Throwable? = error
+    repeat(6) {
+        when (cause) {
+            is java.net.UnknownHostException,
+            is java.net.ConnectException,
+            is java.net.SocketTimeoutException,
+            is java.net.NoRouteToHostException,
+            is java.net.SocketException,
+            is java.io.EOFException -> return null
+        }
+        cause = cause?.cause
     }
+    return "Background monitoring check failed: " +
+        (error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName)
 }
 
 object AlertPreferences {
