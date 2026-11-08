@@ -89,9 +89,12 @@ fun HubHeader(onSettings: () -> Unit) {
 @Composable
 fun SummaryStat(label: String, value: String, color: Color, modifier: Modifier) {
     val shape = RoundedCornerShape(18.dp)
-    Column(modifier.clip(shape).background(Surf).border(1.dp, Line, shape).padding(horizontal = 12.dp, vertical = 12.dp)) {
-        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
-        Text(label, fontSize = 11.sp, color = Dim)
+    Box(modifier.clip(shape).background(Surf).border(1.dp, Line, shape)) {
+        AnimatedSurfaceBackdrop(color, Modifier.matchParentSize())
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
+            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
+            Text(label, fontSize = 11.sp, color = Dim)
+        }
     }
 }
 
