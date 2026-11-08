@@ -3,6 +3,7 @@ package com.example.servermonitor
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -49,7 +50,23 @@ private data class InfrastructureSnapshot(
 )
 
 @Composable
+private fun CollapsibleSectionHeader(title: String, expanded: Boolean, onToggle: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(onClick = onToggle)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Label(title)
+        Spacer(Modifier.weight(1f))
+        Text(if (expanded) "−" else "+", color = Mut, fontSize = 20.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
 fun InfrastructurePanel(sv: Server) {
+    var processesExpanded by remember { mutableStateOf(false) }
+    var containersExpanded by remember { mutableStateOf(false) }
+    var lanDevicesExpanded by remember { mutableStateOf(false) }
     val snapshot by produceState(InfrastructureSnapshot(), sv.url, sv.token) {
         while (true) {
             value = withContext(Dispatchers.IO) {
@@ -118,7 +135,8 @@ fun InfrastructurePanel(sv: Server) {
     if (caps.optBoolean("processes")) {
         val rows = snapshot.processes?.optJSONArray("items")
         Panel {
-            Label("Top processes")
+            CollapsibleSectionHeader("Top processes", processesExpanded) { processesExpanded = !processesExpanded }
+            if (processesExpanded) {
             if (rows == null || rows.length() == 0) Text("Process data is not available yet.", color = Dim, fontSize = 12.sp)
             else for (i in 0 until rows.length()) {
                 val p = rows.optJSONObject(i) ?: continue
@@ -130,13 +148,15 @@ fun InfrastructurePanel(sv: Server) {
                     Text("%.1f%% · %d MB".format(p.optDouble("cpu_pct"), p.optLong("memory_bytes") / 1_000_000), color = Mut, fontSize = 11.sp)
                 }
             }
+            }
         }
     }
 
     if (caps.optBoolean("containers")) {
         val rows = snapshot.containers?.optJSONArray("items")
         Panel {
-            Label("Docker containers")
+            CollapsibleSectionHeader("Docker containers", containersExpanded) { containersExpanded = !containersExpanded }
+            if (containersExpanded) {
             if (rows == null || rows.length() == 0) Text("No containers found or Docker API is unavailable.", color = Dim, fontSize = 12.sp)
             else for (i in 0 until rows.length()) {
                 val item = rows.optJSONObject(i) ?: continue
@@ -157,6 +177,7 @@ fun InfrastructurePanel(sv: Server) {
                     Text(item.optString("state"), color = if (item.optString("state") == "running") Green else Amber, fontSize = 11.sp)
                 }
             }
+            }
         }
     }
 
@@ -176,12 +197,14 @@ fun InfrastructurePanel(sv: Server) {
     if (caps.optBoolean("network_inventory")) {
         val rows = snapshot.devices?.optJSONArray("items")
         Panel {
-            Label("LAN devices")
+            CollapsibleSectionHeader("LAN devices", lanDevicesExpanded) { lanDevicesExpanded = !lanDevicesExpanded }
+            if (lanDevicesExpanded) {
             Text("Passive neighbor discovery only. No unsolicited network sweep is performed.", color = Dim, fontSize = 11.sp)
             if (rows == null || rows.length() == 0) Text("No devices in the current ARP / neighbor cache.", color = Mut, fontSize = 12.sp)
             else for (i in 0 until minOf(rows.length(), 30)) {
                 val item = rows.optJSONObject(i) ?: continue
                 Text(item.optString("ip") + "   " + item.optString("mac"), color = Txt, fontSize = 12.sp)
+            }
             }
         }
     }
@@ -301,6 +324,7 @@ private fun IntegrationTestPanel(sv: Server, integrationStatus: JSONObject?, web
 
 @Composable
 private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
+    var unmappedExpanded by remember { mutableStateOf(false) }
     Panel {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -400,15 +424,23 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
 
             if (unmappedNodes.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { unmappedExpanded = !unmappedExpanded }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Label("Unmapped observations")
                     Spacer(Modifier.width(8.dp))
                     Text(unmappedNodes.size.toString(), color = Amber, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.weight(1f))
+                    Text(if (unmappedExpanded) "−" else "+", color = Mut, fontSize = 20.sp, fontWeight = FontWeight.Medium)
                 }
-                Spacer(Modifier.height(7.dp))
-                unmappedNodes.forEach { node ->
-                    TopologyDevice(node, Amber, Modifier.fillMaxWidth(), node.optString("topology_reason", "Insufficient passive network data"))
-                    Spacer(Modifier.height(6.dp))
+                if (unmappedExpanded) {
+                    Spacer(Modifier.height(7.dp))
+                    unmappedNodes.forEach { node ->
+                        TopologyDevice(node, Amber, Modifier.fillMaxWidth(), node.optString("topology_reason", "Insufficient passive network data"))
+                        Spacer(Modifier.height(6.dp))
+                    }
                 }
             }
             val bridgeMacs = topology?.optJSONArray("unmapped_macs")
