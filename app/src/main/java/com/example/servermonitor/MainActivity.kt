@@ -522,11 +522,14 @@ fun InternetPanel(j: JSONObject, sv: Server) {
                         catch (e: CancellationException) { throw e } catch (_: Exception) { }
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(44.dp)
+                    .border(1.dp, Line, RoundedCornerShape(15.dp)),
                 enabled = !running,
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                shape = RoundedCornerShape(15.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Surf2, contentColor = Txt, disabledContainerColor = Surf2, disabledContentColor = Dim),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                Text(if (running) "Testing…" else "Run speedtest", maxLines = 1)
+                Text(if (running) "Testing…" else "Run speedtest", maxLines = 1, fontWeight = FontWeight.SemiBold, color = if (running) Mut else Txt)
             }
         }
         Spacer(Modifier.height(12.dp))
