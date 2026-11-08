@@ -510,17 +510,23 @@ fun InternetPanel(j: JSONObject, sv: Server) {
                 Label("Internet · Speedtest by Ookla")
                 Text("SERVER · SMART", color = Mut, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (running) when (sp.str("phase")) { "ping" -> "Testing latency"; "download" -> "Testing download"; "upload" -> "Testing upload"; else -> "Testing" } else "SPEEDTEST",
-                    fontSize = 10.sp, color = if (running) Red else Dim, fontWeight = FontWeight.Bold)
-                Button(onClick = {
+            Text(if (running) when (sp.str("phase")) { "ping" -> "Testing latency"; "download" -> "Testing download"; "upload" -> "Testing upload"; else -> "Testing" } else "SPEEDTEST",
+                fontSize = 10.sp, color = if (running) Red else Dim, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Button(
+                onClick = {
                     scope.launch {
                         try { withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/speedtest", JSONObject()) } }
                         catch (e: CancellationException) { throw e } catch (_: Exception) { }
                     }
-                }, enabled = !running, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
-                    Text(if (running) "Testing…" else "Run speedtest", maxLines = 1)
-                }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !running,
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                Text(if (running) "Testing…" else "Run speedtest", maxLines = 1)
             }
         }
         Spacer(Modifier.height(12.dp))
