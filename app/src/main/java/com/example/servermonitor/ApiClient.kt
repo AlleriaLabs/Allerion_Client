@@ -16,6 +16,13 @@ fun pollDelay(baseMs: Long, failures: Int): Long {
     return (safeBase * multiplier).coerceAtMost(300_000L)
 }
 
+/** Reject missing credentials locally; the monitoring API requires header-only X-Token auth. */
+fun validateApiToken(token: String) {
+    if (token.isBlank()) {
+        throw ApiException("API token is required. Edit this server connection and enter its X-Token.")
+    }
+}
+
 /** One HTTP implementation for stats, history, energy, diagnostics and power APIs. */
 object ApiClient {
     @Volatile var lastRequestDurationMs: Long = 0L
@@ -29,6 +36,7 @@ object ApiClient {
         connectTimeoutMs: Int = 4_000,
         readTimeoutMs: Int = 15_000
     ): JSONObject {
+        validateApiToken(token)
         val normalizedBase = base.trim().trimEnd('/')
         val normalizedPath = if (path.startsWith("/")) path else "/$path"
         val url = try { URL(normalizedBase + normalizedPath) }
