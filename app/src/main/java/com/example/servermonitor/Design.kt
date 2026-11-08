@@ -351,7 +351,7 @@ fun HistoryGraph(series: List<GSeries>, modifier: Modifier = Modifier, minSpan: 
 // ---------------------------------------------------------------- metric tile: graph is the card background
 @Composable
 fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?, series: List<GSeries>, minSpan: Double,
-               modifier: Modifier = Modifier, centerContent: Boolean = false, onClick: () -> Unit) {
+               modifier: Modifier = Modifier, centerContent: Boolean = false, centerValue: Boolean = false, onClick: () -> Unit) {
     val shape = RoundedCornerShape(24.dp)
     val accent = when (icon) {
         Ic.Cpu -> Red
@@ -375,12 +375,24 @@ fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?
                 Text(name, fontSize = 12.sp, color = Mut, fontWeight = FontWeight.Medium)
             }
             if (centerContent) Spacer(Modifier.height(12.dp))
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(value, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
-                    if (unit.isNotEmpty()) Text(" $unit", fontSize = 13.sp, color = Mut)
+            if (centerValue) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(value, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
+                            if (unit.isNotEmpty()) Text(" $unit", fontSize = 13.sp, color = Mut)
+                        }
+                        if (sub != null) Text(sub, fontSize = 11.sp, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
-                if (sub != null) Text(sub, fontSize = 11.sp, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            } else {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(value, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
+                        if (unit.isNotEmpty()) Text(" $unit", fontSize = 13.sp, color = Mut)
+                    }
+                    if (sub != null) Text(sub, fontSize = 11.sp, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }
