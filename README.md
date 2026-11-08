@@ -14,6 +14,7 @@ ALLERION is the Android client for the ALLERIA LABS home/server monitoring servi
 - Seven-day CSV and PDF monitoring report exports through Android's document picker.
 - Adaptive multi-column server hub on wide screens and optional Android TV launcher visibility.
 - Latest monitoring API response time displayed on the expanded server card (HTTP round-trip timing, not ICMP ping).
+- Automatic GitHub Release update checks, release notes, download progress, SHA-256 verification, package/signing-certificate compatibility checks, and Android installer handoff.
 
 ## Build
 
@@ -48,7 +49,7 @@ base64 -w 0 allerion-release.jks
 
 Keep a secure offline backup of the keystore and passwords. Losing the signing key prevents installing future updates over copies signed with that key.
 
-**Signing continuity warning:** previous CI releases were built with the runner's debug signing configuration. GitHub-hosted runners do not preserve that generated debug keystore between runs. A newly configured persistent release key will therefore not match those old APK signatures. Users moving from those builds may need to uninstall the old app before installing the first persistently signed release. Back up any app data first.
+**Signing continuity warning:** Earlier CI builds may have used an ephemeral runner debug key. Android will reject an APK signed with a different certificate as an in-place update. The updater checks the signing certificate and refuses incompatible APKs. Test the release against the currently installed APK before distributing it. If the certificate differs, back up the app's server configuration and reinstall the new signed build; do not expect an in-place update across different signing keys.
 
 ## Credential storage and backups
 
@@ -83,7 +84,7 @@ Docker/container inventory, process/service monitoring, LAN device discovery, pa
 
 ## Automatic updates
 
-The in-app updater still requires a stable update manifest and APK download endpoint accessible to users. The source repository is private, so a private GitHub release cannot be downloaded anonymously. Do not embed a personal access token in the APK. Configure a public release feed or a dedicated public distribution endpoint before enabling unattended update downloads.
+The app checks the latest public GitHub Release and offers an update when a newer compatible release is available. A release must include both `Allerion.apk` and `Allerion.apk.sha256`. The updater verifies the checksum, package ID, and signing certificate before opening Android's package installer. Android always requires the user to confirm installation; the app does not silently install updates.
 
 ## CI
 
