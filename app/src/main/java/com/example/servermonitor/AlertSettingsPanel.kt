@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -88,7 +91,7 @@ fun AlertSettingsPanel() {
         }
     }
 
-    var events by remember { mutableStateOf(AlertHistoryStore.load(context, 30)) }
+    var events by remember { mutableStateOf(AlertHistoryStore.load(context, 10)) }
     Panel {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Label("Alert history")
@@ -97,7 +100,11 @@ fun AlertSettingsPanel() {
         if (events.isEmpty()) {
             Text("No alert events recorded yet. New alerts and recovery events will appear here.", color = Dim, fontSize = 12.sp)
         } else {
-            events.forEach { event ->
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                events.take(10).forEach { event ->
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
                         (if (event.recovered) "RECOVERED · " else event.severity.uppercase(Locale.getDefault()) + " · ") + event.server,
@@ -109,6 +116,7 @@ fun AlertSettingsPanel() {
                     Text(SimpleDateFormat("MMM d, yyyy · HH:mm", Locale.getDefault()).format(Date(event.timestamp)), color = Dim, fontSize = 10.sp)
                 }
                 Spacer(Modifier.height(9.dp))
+                }
             }
         }
     }
