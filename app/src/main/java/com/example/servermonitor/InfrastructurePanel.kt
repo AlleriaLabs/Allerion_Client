@@ -305,7 +305,7 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Label("Network topology")
-                Text("Live network map", color = Txt, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text("Gateway-to-endpoint map", color = Txt, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
             }
             Box(Modifier.clip(RoundedCornerShape(50)).background(Green.copy(alpha = 0.12f)).padding(horizontal = 10.dp, vertical = 6.dp)) {
                 Text("PASSIVE DISCOVERY", color = Green, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
@@ -329,45 +329,52 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
             val routeInterface = topology?.optString("interface").orEmpty().takeIf { it.isNotBlank() && it != "null" }
             val subnet = topology?.optString("subnet").orEmpty().takeIf { it.isNotBlank() && it != "null" }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TopologyStat("DEVICES", nodeItems.size.toString(), Blue, Modifier.weight(1f))
-                TopologyStat("LOGICAL LINKS", linkItems.size.toString(), Green, Modifier.weight(1f))
+                TopologyStat("LAN ENDPOINTS", linkedNodes.size.toString(), Blue, Modifier.weight(1f))
+                TopologyStat("GATEWAY", if (gateway != null) "ONLINE" else "N/A", Green, Modifier.weight(1f))
                 TopologyStat("UNMAPPED", unmappedNodes.size.toString(), if (unmappedNodes.isEmpty()) Mut else Amber, Modifier.weight(1f))
             }
-            Spacer(Modifier.height(12.dp))
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF141820)).border(1.dp, Color(0xFF303946), RoundedCornerShape(22.dp)).padding(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("MONITORING HOST", color = Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-                Spacer(Modifier.height(7.dp))
-                TopologyNode("ALLERION SERVER", sourceIp ?: "Host interface", Ic.Server, Red)
-                TopologyConnector(Red)
-                TopologyNode("ROUTER / GATEWAY", gateway ?: "Not detected", Ic.Globe, Green)
-                if (linkedNodes.isNotEmpty()) {
-                    TopologyBranch(linkedNodes.size)
-                    Text("DISCOVERED LAN ENDPOINTS", color = Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                } else {
-                    Spacer(Modifier.height(12.dp))
-                    Text("No linked LAN endpoints found", color = Dim, fontSize = 11.sp)
-                }
-            }
-            if (linkedNodes.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                linkedNodes.chunked(2).forEach { pair ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        pair.forEach { node ->
-                            TopologyDevice(node, Green, Modifier.weight(1f))
-                        }
-                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(14.dp))
+            if (gateway != null && linkedNodes.isNotEmpty()) {
+                val rowStep = 70.dp
+                val diagramHeight = rowStep * linkedNodes.size
+                Row(Modifier.fillMaxWidth().height(diagramHeight), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.width(112.dp)) {
+                        TopologyNode("ROUTER / GATEWAY", gateway, Ic.Globe, Green)
                     }
-                    Spacer(Modifier.height(8.dp))
+                    val density = androidx.compose.ui.platform.LocalDensity.current
+                    Box(Modifier.width(22.dp).height(diagramHeight)) {
+                        Canvas(Modifier.fillMaxSize()) {
+                            val mid = size.height / 2f
+                            val right = size.width
+                            val stepPx = with(density) { rowStep.toPx() }
+                            linkedNodes.indices.forEach { index ->
+                                val y = stepPx * index + stepPx / 2f
+                                drawLine(Green.copy(alpha = 0.52f), Offset(0f, mid), Offset(right, y), 1.6.dp.toPx())
+                                drawCircle(Green, 2.5.dp.toPx(), Offset(right, y))
+                            }
+                        }
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        linkedNodes.forEach { node ->
+                            Box(Modifier.fillMaxWidth().height(62.dp)) {
+                                TopologyDevice(node, Green, Modifier.fillMaxSize())
+                            }
+                        }
+                    }
                 }
-                Text("Logical paths are inferred from same-subnet neighbor records; physical cable links are not verified.",
+                Spacer(Modifier.height(8.dp))
+                Text("Each line is a direct logical association from the default gateway to one discovered LAN endpoint. It is inferred from same-subnet neighbor records—not a verified physical cable or traffic path.",
                     color = Dim, fontSize = 10.sp)
+            } else {
+                TopologyNode("ROUTER / GATEWAY", gateway ?: "Not detected", Ic.Globe, Green)
+                Spacer(Modifier.height(10.dp))
+                Text("No discovered LAN endpoints can currently be associated with this gateway.", color = Dim, fontSize = 11.sp)
             }
+
             if (unmappedNodes.isNotEmpty()) {
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Label("Unmapped observations")
                     Spacer(Modifier.width(8.dp))
@@ -396,7 +403,7 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text("Interface: ${routeInterface ?: "unknown"}   ·   Subnet: ${subnet ?: "unknown"}",
+            Text("Host: ${sourceIp ?: "unknown"} · Interface: ${routeInterface ?: "unknown"} · Subnet: ${subnet ?: "unknown"}",
                 color = Mut, fontSize = 10.sp)
             Text(topology?.optString("note").orEmpty().ifBlank {
                 "Connections are inferred from the active gateway route and local subnet; physical links are not verified."
