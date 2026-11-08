@@ -44,6 +44,7 @@ data class AllerionUpdate(
     val versionName: String,
     val apkUrl: String,
     val checksumUrl: String,
+    val expectedSha256: String,
     val notes: String
 )
 
@@ -76,24 +77,30 @@ object UpdateChecker {
             val assets = release.optJSONArray("assets") ?: return@withContext null
             var apk: String? = null
             var checksum: String? = null
+            var apkDigest: String? = null
             for (i in 0 until assets.length()) {
                 val asset = assets.optJSONObject(i) ?: continue
                 val name = asset.optString("name")
                 val url = asset.optString("browser_download_url")
                 if (!url.startsWith("https://")) continue
                 when (name) {
-                    "Allerion.apk" -> apk = url
+                    "Allerion.apk" -> {
+                        apk = url
+                        apkDigest = asset.optString("digest")
+                            .removePrefix("sha256:").takeIf { it.matches(Regex("(?i)[a-f0-9]{64}")) }
+                    }
                     "Allerion.apk.sha256" -> checksum = url
                 }
             }
             val apkUrl = apk ?: return@withContext null
-            val checksumUrl = checksum ?: return@withContext null
+            val checksumUrl = checksum.orEmpty()
+            val expectedSha256 = apkDigest ?: checksumUrl.takeIf { it.isNotBlank() }?.let { "" } ?: return@withContext null
             val bodyValue = release.opt("body")
             val releaseNotes = if (bodyValue == null || bodyValue == JSONObject.NULL) "" else bodyValue.toString().trim()
             val notes = releaseNotes.ifBlank {
                 "This release includes the latest Allerion improvements and fixes. Full release notes will appear here when published."
             }
-            AllerionUpdate(tag, version, apkUrl, checksumUrl, notes)
+            AllerionUpdate(tag, version, apkUrl, checksumUrl, expectedSha256, notes)
         }
     }
 
@@ -120,12 +127,16 @@ object UpdateChecker {
             error("Allow Allerion to install updates, then tap Update again.")
         }
 
-        val expected = http.newCall(Request.Builder().url(update.checksumUrl)
-            .header("User-Agent", "Allerion-Android").build()).execute().use { response ->
-            if (!response.isSuccessful) error("Could not retrieve the release checksum.")
-            Regex("(?i)^([a-f0-9]{64})").find(response.body?.string().orEmpty())?.groupValues?.get(1)
-                ?: error("The release checksum file is invalid.")
-        }
+        val expected = update.expectedSha256.takeIf { it.matches(Regex("(?i)[a-f0-9]{64}")) }
+            ?: run {
+                if (update.checksumUrl.isBlank()) error("The release does not publish a verifiable APK checksum.")
+                http.newCall(Request.Builder().url(update.checksumUrl)
+                    .header("User-Agent", "Allerion-Android").build()).execute().use { response ->
+                    if (!response.isSuccessful) error("Could not retrieve the release checksum (HTTP ${response.code}).")
+                    Regex("(?i)^([a-f0-9]{64})").find(response.body?.string().orEmpty())?.groupValues?.get(1)
+                        ?: error("The release checksum file is invalid.")
+                }
+            }
 
         val apkFile = File(context.cacheDir, "Allerion-update.apk")
         http.newCall(Request.Builder().url(update.apkUrl)
