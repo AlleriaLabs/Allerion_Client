@@ -492,6 +492,7 @@ fun InternetPanel(j: JSONObject, sv: Server) {
     var menuOpen by remember { mutableStateOf(false) }
     var loadingServers by remember { mutableStateOf(false) }
     var serverError by remember { mutableStateOf<String?>(null) }
+    var manualServerId by remember(sv.url) { mutableStateOf("") }
     fun num(k: String): String = sp.dbl(k)?.let { "%.0f".format(it) } ?: "–"
     val ping = sp.dbl("ping_ms") ?: j.dbl("ping_ms")
     val running = sp.optBoolean("running", false)
@@ -501,7 +502,8 @@ fun InternetPanel(j: JSONObject, sv: Server) {
             val response = withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/speedtest/servers") }
             val rows = response.optJSONArray("servers")
             servers = if (rows == null) emptyList() else (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
-            serverError = if (servers.isEmpty()) response.optString("error").takeIf { it.isNotBlank() } ?: "No Ookla servers returned by the backend." else null
+            serverError = response.optString("error").takeIf { it.isNotBlank() }
+                ?: if (servers.isEmpty()) "Server discovery is unavailable. Enter an Ookla server ID manually." else null
         } catch (e: CancellationException) { throw e
         } catch (e: Exception) { serverError = friendlyError(e) }
         loadingServers = false
@@ -533,15 +535,30 @@ fun InternetPanel(j: JSONObject, sv: Server) {
             }
         }
         serverError?.let { Text(it, color = Amber, fontSize = 10.sp) }
+        OutlinedTextField(
+            value = manualServerId,
+            onValueChange = { value ->
+                manualServerId = value.filter { it.isDigit() }.take(10)
+                if (manualServerId.isNotEmpty()) selectedServer = null
+            },
+            enabled = !running,
+            label = { Text("Manual Ookla server ID") },
+            placeholder = { Text("Enter server ID if discovery is unavailable") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             Button(onClick = {
                 val body = JSONObject()
-                selectedServer?.let { body.put("server_id", it.optString("id")) }
+                val serverId = manualServerId.trim().ifEmpty { selectedServer?.optString("id").orEmpty() }
+                if (serverId.isNotBlank()) body.put("server_id", serverId)
                 scope.launch {
                     try { withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/speedtest", body) } }
                     catch (e: CancellationException) { throw e } catch (_: Exception) { }
                 }
-            }, enabled = !running && selectedServer != null) { Text(if (running) "Testing…" else "Run speed test") }
+            }, enabled = !running && (selectedServer != null || manualServerId.isNotBlank())) {
+                Text(if (running) "Testing…" else "Run speed test")
+            }
         }
         if (running) { Spacer(Modifier.height(8.dp)); Bar((sp.dbl("progress") ?: 0.0).toFloat(), 4.dp) }
         Spacer(Modifier.height(12.dp))
