@@ -3,6 +3,8 @@ package com.example.servermonitor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
+import java.io.IOException
 import org.junit.Test
 
 class ApiClientTest {
@@ -27,6 +29,24 @@ class ApiClientTest {
     @Test
     fun pollDelayUsesBaseIntervalWithoutFailures() {
         assertEquals(2_000L, pollDelay(2_000L, 0))
+    }
+
+    @Test
+    fun apiAuthenticationErrorsAreNotReportedAsServerOffline() {
+        assertEquals(
+            "The monitoring server rejected the API token or permissions.",
+            monitoringApiFailureMessage(ApiException("Unauthorized", 401))
+        )
+        assertEquals(
+            "The API token is missing. Enter the X-Token in server settings.",
+            monitoringApiFailureMessage(ApiException("API token is required.", null))
+        )
+    }
+
+    @Test
+    fun serverSideApiErrorsAreDistinguishedFromTransportFailures() {
+        assertTrue(monitoringApiFailureMessage(ApiException("Internal error", 500))!!.contains("HTTP 500"))
+        assertNull(monitoringApiFailureMessage(IOException("Connection refused")))
     }
 
     @Test
