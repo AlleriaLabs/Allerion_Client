@@ -462,7 +462,7 @@ fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 InfoChip("Voltage", if (volts == null) "N/A" else "%.1f V".format(volts), Modifier.weight(1f))
-                ToggleMetric("Today consumption", "%.2f kWh".format(today), "Today cost", cost(today), Modifier.weight(1f))
+                ToggleMetric("Today", "%.2f kWh".format(today), "Today cost", cost(today), Modifier.weight(1f))
             }
             TextButton(onSetup, contentPadding = PaddingValues(0.dp)) { Text("Configure power source ›", color = Red, fontSize = 13.sp) }
             val perr = pw.str("plug_error")
