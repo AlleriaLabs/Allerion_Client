@@ -87,20 +87,44 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                val apiFailure = monitoringApiFailureMessage(error)
-                if (apiFailure != null) {
-                    updateAlert(prefix + "_offline", false, server.name, "Monitoring server is reachable.")
-                    updateAlert(prefix + "_api_error", true, server.name, apiFailure, "warning")
+                // Scheduled background DNS failures can be transient and do not prove
+                // that a server is offline. Avoid raising a false critical alert.
+                if (error.hasUnknownHostCause()) {
+                    clearUnverifiedOfflineAlert(prefix + "_offline")
                 } else {
-                    updateAlert(prefix + "_api_error", false, server.name, "Monitoring API recovered.")
-                    val detail = error.message?.takeIf { it.isNotBlank() }
-                    updateAlert(prefix + "_offline", true, server.name,
-                        "Monitoring server is unreachable from the background check" +
-                            (detail?.let { ": $it" } ?: "."), "critical")
+                    val apiFailure = monitoringApiFailureMessage(error)
+                    if (apiFailure != null) {
+                        updateAlert(prefix + "_offline", false, server.name, "Monitoring server is reachable.")
+                        updateAlert(prefix + "_api_error", true, server.name, apiFailure, "warning")
+                    } else {
+                        updateAlert(prefix + "_api_error", false, server.name, "Monitoring API recovered.")
+                        val detail = error.message?.takeIf { it.isNotBlank() }
+                        updateAlert(prefix + "_offline", true, server.name,
+                            "Monitoring server is unreachable from the background check" +
+                                (detail?.let { ": $it" } ?: "."), "critical")
+                    }
                 }
             }
         }
         Result.success()
+    }
+
+    private fun Exception.hasUnknownHostCause(): Boolean {
+        var current: Throwable? = this
+        val seen = HashSet<Throwable>()
+        while (current != null && seen.add(current)) {
+            if (current is java.net.UnknownHostException) return true
+            current = current.cause
+        }
+        return false
+    }
+
+    /** Remove a DNS-only false-positive without recording a server recovery event. */
+    private fun clearUnverifiedOfflineAlert(key: String) {
+        val prefs = applicationContext.getSharedPreferences("alert_state", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(key, false)) return
+        ActiveAlertStore.set(applicationContext, key, null)
+        prefs.edit().putBoolean(key, false).apply()
     }
 
     private fun createChannel() {
