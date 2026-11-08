@@ -169,8 +169,10 @@ fun PulseDot(color: Color, pulse: Boolean, dia: Dp = 8.dp) {
 
 @Composable
 fun IconBtn(ic: Ic, desc: String, rotate: Float = 0f, onClick: () -> Unit) {
-    Box(Modifier.size(42.dp).clip(CircleShape).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
-        Icon24(ic, Mut, 21.dp, Modifier.graphicsLayer { rotationZ = rotate }, desc)
+    Box(Modifier.size(44.dp).clip(RoundedCornerShape(15.dp)).background(Surf2)
+        .border(1.dp, Line, RoundedCornerShape(15.dp)).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center) {
+        Icon24(ic, Mut, 20.dp, Modifier.graphicsLayer { rotationZ = rotate }, desc)
     }
 }
 
@@ -367,25 +369,29 @@ fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?
         AnimatedSurfaceBackdrop(accent, Modifier.matchParentSize())
         HistoryGraph(series, Modifier.matchParentSize(), minSpan)                                   // layer 2: full-card graph
         Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Surf.copy(alpha = 0.82f), 0.72f to Color.Transparent)))
-        Column(Modifier.fillMaxSize().padding(16.dp),
-            verticalArrangement = if (centerContent) Arrangement.Center else Arrangement.SpaceBetween,
-            horizontalAlignment = Alignment.Start) {  // layer 3: readable content
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon24(icon, Mut, 16.dp); Spacer(Modifier.width(7.dp))
-                Text(name, fontSize = 12.sp, color = Mut, fontWeight = FontWeight.Medium)
-            }
-            if (centerContent) Spacer(Modifier.height(12.dp))
-            if (centerValue) {
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(value, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
-                            if (unit.isNotEmpty()) Text(" $unit", fontSize = 13.sp, color = Mut)
-                        }
-                        if (sub != null) Text(sub, fontSize = 11.sp, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
+        if (centerValue) {
+            Box(Modifier.fillMaxSize().padding(16.dp)) {
+                Row(Modifier.align(Alignment.TopStart), verticalAlignment = Alignment.CenterVertically) {
+                    Icon24(icon, Mut, 16.dp); Spacer(Modifier.width(7.dp))
+                    Text(name, fontSize = 12.sp, color = Mut, fontWeight = FontWeight.Medium)
                 }
-            } else {
+                Column(Modifier.align(Alignment.CenterStart)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(value, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
+                        if (unit.isNotEmpty()) Text(" $unit", fontSize = 13.sp, color = Mut)
+                    }
+                    if (sub != null) Text(sub, fontSize = 11.sp, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        } else {
+            Column(Modifier.fillMaxSize().padding(16.dp),
+                verticalArrangement = if (centerContent) Arrangement.Center else Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.Start) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon24(icon, Mut, 16.dp); Spacer(Modifier.width(7.dp))
+                    Text(name, fontSize = 12.sp, color = Mut, fontWeight = FontWeight.Medium)
+                }
+                if (centerContent) Spacer(Modifier.height(12.dp))
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(value, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
