@@ -92,8 +92,10 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
                     updateAlert(prefix + "_api_error", true, server.name, apiFailure, "warning")
                 } else {
                     updateAlert(prefix + "_api_error", false, server.name, "Monitoring API recovered.")
+                    val detail = error.message?.takeIf { it.isNotBlank() }
                     updateAlert(prefix + "_offline", true, server.name,
-                        "ALLERION cannot reach this monitoring server.", "critical")
+                        "Monitoring server is unreachable from the background check" +
+                            (detail?.let { ": $it" } ?: "."), "critical")
                 }
             }
         }
