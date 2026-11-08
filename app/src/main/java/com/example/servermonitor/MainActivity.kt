@@ -378,36 +378,35 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
         Button({ call("/api/power/config") { j -> if (j.optBoolean("ok")) "Saved" else "Failed" }; },
             Modifier.fillMaxWidth().height(48.dp).border(1.dp, Line, RoundedCornerShape(15.dp)),
             enabled = !busy, shape = RoundedCornerShape(15.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Surf2, contentColor = Txt)) {
+            colors = ButtonDefaults.buttonColors(containerColor = Surf2, contentColor = Txt),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
             Text("Save", fontWeight = FontWeight.SemiBold) }
     }
 }
 
 @Composable
 fun InfoChip(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier.clip(RoundedCornerShape(16.dp)).background(Surf2).padding(13.dp)) {
-        Text(label.uppercase(), fontSize = 10.sp, color = Dim, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
-        Spacer(Modifier.height(5.dp))
-        Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Column(modifier.height(104.dp).clip(RoundedCornerShape(18.dp)).background(Surf2)
+        .border(1.dp, Line, RoundedCornerShape(18.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.Center) {
+        Text(label.uppercase(), fontSize = 10.sp, color = Dim, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp,
+            maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(7.dp))
+        Text(value, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
 fun ToggleMetric(labelA: String, valueA: String, labelB: String, valueB: String, modifier: Modifier = Modifier) {
     var alt by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(22.dp)
-    Column(modifier.clip(shape).background(Surf).border(1.dp, if (alt) Red.copy(alpha = 0.7f) else Line, shape)
-        .clickable { alt = !alt }.padding(16.dp)) {
-        // label always reserves two lines and the value a fixed-height box, so both states are the same size
-        Text((if (alt) labelB else labelA).uppercase(), fontSize = 11.sp, color = Dim, fontWeight = FontWeight.Bold,
-            letterSpacing = 1.1.sp, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(8.dp))
-        Box(Modifier.fillMaxWidth().height(32.dp), contentAlignment = Alignment.CenterStart) {
-            Text(if (alt) valueB else valueA, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1,
-                overflow = TextOverflow.Ellipsis)
-        }
-        Spacer(Modifier.height(4.dp))
-        Text("Tap to switch", fontSize = 10.sp, color = Dim)
+    val shape = RoundedCornerShape(18.dp)
+    Column(modifier.height(104.dp).clip(shape).background(Surf2).border(1.dp, Line, shape)
+        .clickable { alt = !alt }.padding(14.dp), verticalArrangement = Arrangement.Center) {
+        Text((if (alt) labelB else labelA).uppercase(), fontSize = 10.sp, color = Dim, fontWeight = FontWeight.Bold,
+            letterSpacing = 0.8.sp, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(7.dp))
+        Text(if (alt) valueB else valueA, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1,
+            overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -504,8 +503,8 @@ fun InternetPanel(j: JSONObject, sv: Server) {
     val tileShape = RoundedCornerShape(22.dp)
     Box(Modifier.fillMaxWidth().clip(tileShape).background(Surf).border(1.dp, Line, tileShape)) {
         HistoryGraph(
-            listOf(GSeries(downHistory, Green), GSeries(upHistory, GreenLight, true)),
-            Modifier.matchParentSize(), minSpan = 0.2, lineAlpha = 0.48f, fillAlpha = 0.13f, stroke = 2.dp
+            listOf(GSeries(downHistory, Blue), GSeries(upHistory, Amber, true)),
+            Modifier.matchParentSize(), minSpan = 0.2, lineAlpha = 0.72f, fillAlpha = 0.18f, stroke = 2.dp
         )
         Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Surf.copy(alpha = 0.93f), 0.82f to Color.Transparent)))
         Column(Modifier.fillMaxWidth().padding(18.dp)) {
@@ -553,12 +552,12 @@ fun InternetPanel(j: JSONObject, sv: Server) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(7.dp).clip(CircleShape).background(Green)); Spacer(Modifier.width(5.dp))
-                Text("Download", color = Mut, fontSize = 10.sp)
+                Box(Modifier.size(7.dp).clip(CircleShape).background(Blue)); Spacer(Modifier.width(5.dp))
+                Text("Download", color = Blue, fontSize = 10.sp)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(7.dp).clip(CircleShape).background(GreenLight)); Spacer(Modifier.width(5.dp))
-                Text("Upload", color = Mut, fontSize = 10.sp)
+                Box(Modifier.size(7.dp).clip(CircleShape).background(Amber)); Spacer(Modifier.width(5.dp))
+                Text("Upload", color = Amber, fontSize = 10.sp)
             }
         }
         Text("Live network throughput recorded by the server, not speed-test samples.", color = Dim, fontSize = 9.sp)
