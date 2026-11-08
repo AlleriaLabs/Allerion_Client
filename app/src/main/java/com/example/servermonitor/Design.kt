@@ -369,36 +369,20 @@ fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?
         AnimatedSurfaceBackdrop(accent, Modifier.matchParentSize())
         HistoryGraph(series, Modifier.matchParentSize(), minSpan)                                   // layer 2: full-card graph
         Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Surf.copy(alpha = 0.82f), 0.72f to Color.Transparent)))
-        if (centerValue) {
-            Box(Modifier.fillMaxSize().padding(16.dp)) {
-                Row(Modifier.align(Alignment.TopStart), verticalAlignment = Alignment.CenterVertically) {
-                    Icon24(icon, Mut, 16.dp); Spacer(Modifier.width(7.dp))
-                    Text(name, fontSize = 12.sp, color = Mut, fontWeight = FontWeight.Medium)
-                }
-                Column(Modifier.align(Alignment.CenterStart)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(value, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
-                        if (unit.isNotEmpty()) Text(" $unit", fontSize = 13.sp, color = Mut)
-                    }
-                    if (sub != null) Text(sub, fontSize = 11.sp, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+        Box(Modifier.fillMaxSize().padding(16.dp)) {
+            Row(Modifier.align(Alignment.TopStart), verticalAlignment = Alignment.CenterVertically) {
+                Icon24(icon, Mut, 16.dp); Spacer(Modifier.width(7.dp))
+                Text(name, fontSize = 12.sp, color = Mut, fontWeight = FontWeight.Medium)
             }
-        } else {
-            Column(Modifier.fillMaxSize().padding(16.dp),
-                verticalArrangement = if (centerContent) Arrangement.Center else Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.Start) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon24(icon, Mut, 16.dp); Spacer(Modifier.width(7.dp))
-                    Text(name, fontSize = 12.sp, color = Mut, fontWeight = FontWeight.Medium)
-                }
-                if (centerContent) Spacer(Modifier.height(12.dp))
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(value, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
-                        if (unit.isNotEmpty()) Text(" $unit", fontSize = 13.sp, color = Mut)
-                    }
-                    if (sub != null) Text(sub, fontSize = 11.sp, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+            // Keep every metric's primary reading on the same vertical centerline.
+            // Supporting text stays at the bottom so it cannot push the value down.
+            Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically) {
+                Text(value, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
+                if (unit.isNotEmpty()) Text(" $unit", fontSize = 13.sp, color = Mut)
+            }
+            if (sub != null) {
+                Text(sub, modifier = Modifier.align(Alignment.BottomStart),
+                    fontSize = 11.sp, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
