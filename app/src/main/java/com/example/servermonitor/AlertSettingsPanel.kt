@@ -59,6 +59,35 @@ fun AlertSettingsPanel() {
         }) { Text("Reset to defaults", color = Red) }
     }
 
+    var activeAlerts by remember { mutableStateOf(ActiveAlertStore.load(context)) }
+    Panel {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Label("Active alerts")
+            TextButton(onClick = { activeAlerts = ActiveAlertStore.load(context) }) {
+                Text("Refresh", color = Red)
+            }
+        }
+        if (activeAlerts.isEmpty()) {
+            Text("No active alerts. ALLERION will list server issues here when a threshold is crossed or a server becomes unreachable.",
+                color = Dim, fontSize = 12.sp)
+        } else {
+            activeAlerts.forEach { alert ->
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(
+                        alert.severity.uppercase(Locale.getDefault()) + " · " + alert.server,
+                        color = if (alert.severity == "critical") Err else Amber,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(alert.message, color = Txt, fontSize = 12.sp)
+                    Text(SimpleDateFormat("MMM d, yyyy · HH:mm", Locale.getDefault()).format(Date(alert.timestamp)),
+                        color = Dim, fontSize = 10.sp)
+                }
+                Spacer(Modifier.height(9.dp))
+            }
+        }
+    }
+
     var events by remember { mutableStateOf(AlertHistoryStore.load(context, 30)) }
     Panel {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
