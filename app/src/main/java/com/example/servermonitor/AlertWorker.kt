@@ -65,6 +65,9 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
                 val cpu = stats.optDouble("cpu", Double.NaN)
                 val ram = stats.optDouble("ram", Double.NaN)
                 val temp = stats.optDouble("temp", Double.NaN)
+                updateAlert(prefix + "_temp_sensor", temp.isNaN(), server.name,
+                    "Temperature sensor data is unavailable. Temperature threshold alerts cannot run until the backend reports a sensor reading.",
+                    "warning")
                 if (!cpu.isNaN()) updateAlert(prefix + "_cpu", cpu >= thresholds.cpu, server.name,
                     "CPU usage is " + "%.0f".format(cpu) + "% (threshold %.0f%%).".format(thresholds.cpu))
                 if (!ram.isNaN()) updateAlert(prefix + "_ram", ram >= thresholds.memory, server.name,
