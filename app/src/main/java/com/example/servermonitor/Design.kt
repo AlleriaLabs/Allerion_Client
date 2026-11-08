@@ -103,6 +103,34 @@ fun Icon24(kind: Ic, tint: Color, sz: Dp = 20.dp, modifier: Modifier = Modifier,
     }
 }
 
+// ---------------------------------------------------------------- ambient premium tile surface
+@Composable
+fun AnimatedSurfaceBackdrop(accent: Color = Red, modifier: Modifier = Modifier) {
+    val reduceMotion = LocalReduceMotion.current
+    val transition = rememberInfiniteTransition(label = "surface-ambient")
+    val phase by transition.animateFloat(0f, 1f,
+        infiniteRepeatable(tween(12000, easing = LinearEasing), RepeatMode.Reverse), label = "surface-drift")
+    Canvas(modifier) {
+        val p = if (reduceMotion) 0.42f else phase
+        val w = size.width
+        val h = size.height
+        drawRect(Brush.linearGradient(listOf(Color(0xFF20232A), Color(0xFF191B20), Color(0xFF17191E)),
+            start = Offset(0f, 0f), end = Offset(w, h)))
+        val glowCenter = Offset(w * (0.82f - 0.12f * p), h * (0.12f + 0.12f * p))
+        val glowRadius = maxOf(w, h) * 0.78f
+        drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = 0.13f), accent.copy(alpha = 0.035f), Color.Transparent),
+            center = glowCenter, radius = glowRadius), glowRadius, glowCenter)
+        val coolCenter = Offset(w * (0.08f + 0.10f * p), h * 0.92f)
+        val coolRadius = maxOf(w, h) * 0.62f
+        drawCircle(Brush.radialGradient(listOf(Color(0xFF648BFF).copy(alpha = 0.045f), Color.Transparent),
+            center = coolCenter, radius = coolRadius), coolRadius, coolCenter)
+        if (!reduceMotion) {
+            val x = w * (0.12f + 0.76f * phase)
+            drawLine(Color.White.copy(alpha = 0.025f), Offset(x, 0f), Offset(x - h * 0.35f, h), 1.dp.toPx())
+        }
+    }
+}
+
 // ---------------------------------------------------------------- motion helpers
 @Composable
 fun Modifier.tap(onClick: () -> Unit): Modifier {
@@ -325,10 +353,20 @@ fun HistoryGraph(series: List<GSeries>, modifier: Modifier = Modifier, minSpan: 
 fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?, series: List<GSeries>, minSpan: Double,
                modifier: Modifier = Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(24.dp)
+    val accent = when (icon) {
+        Ic.Cpu -> Red
+        Ic.Memory -> Blue
+        Ic.Thermo -> Amber
+        Ic.Storage -> GreenLight
+        Ic.Activity -> Green
+        Ic.Zap -> Red
+        else -> Blue
+    }
     Box(modifier.tap(onClick).height(124.dp).clip(shape).background(Surf).border(1.dp, Line, shape)
         .semantics(mergeDescendants = true) { contentDescription = "$name $value $unit" }) {
+        AnimatedSurfaceBackdrop(accent, Modifier.matchParentSize())
         HistoryGraph(series, Modifier.matchParentSize(), minSpan)                                   // layer 2: full-card graph
-        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Surf.copy(alpha = 0.78f), 0.72f to Color.Transparent)))
+        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Surf.copy(alpha = 0.82f), 0.72f to Color.Transparent)))
         Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {  // layer 3: readable content
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon24(icon, Mut, 16.dp); Spacer(Modifier.width(7.dp))
