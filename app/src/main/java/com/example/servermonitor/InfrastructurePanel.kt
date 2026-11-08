@@ -1,16 +1,16 @@
 package com.example.servermonitor
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -301,8 +301,17 @@ private fun IntegrationTestPanel(sv: Server, integrationStatus: JSONObject?, web
 @Composable
 private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
     Panel {
-        Label("Network topology")
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Label("Network topology")
+                Text("Live network map", color = Txt, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Box(Modifier.clip(RoundedCornerShape(50)).background(Green.copy(alpha = 0.12f)).padding(horizontal = 10.dp, vertical = 6.dp)) {
+                Text("PASSIVE DISCOVERY", color = Green, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+            }
+        }
         if (!enabled) {
+            Spacer(Modifier.height(10.dp))
             Text("Enable LAN discovery on the monitoring backend to view its passive network inventory.", color = Dim, fontSize = 11.sp)
         } else {
             val nodes = topology?.optJSONArray("nodes")
@@ -315,81 +324,65 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
             val linkedNodes = nodeItems.filter { it.optString("ip") in linkedIps }
             val unmappedNodes = nodeItems.filter { it.optString("topology_status") == "unmapped" }
             val gateway = topology?.optString("gateway").orEmpty().takeIf { it.isNotBlank() && it != "null" }
+            val sourceIp = topology?.optString("source_ip").orEmpty().takeIf { it.isNotBlank() && it != "null" }
             val routeInterface = topology?.optString("interface").orEmpty().takeIf { it.isNotBlank() && it != "null" }
             val subnet = topology?.optString("subnet").orEmpty().takeIf { it.isNotBlank() && it != "null" }
 
-            Text("${nodeItems.size} devices · ${linkItems.size} logical connections", color = Txt, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            if (gateway != null || routeInterface != null || subnet != null) {
-                Text("Gateway: ${gateway ?: "not detected"}  ·  ${routeInterface ?: "interface unknown"}  ·  ${subnet ?: "subnet unknown"}",
-                    color = Mut, fontSize = 10.sp)
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TopologyStat("DEVICES", nodeItems.size.toString(), Blue, Modifier.weight(1f))
+                TopologyStat("LOGICAL LINKS", linkItems.size.toString(), Green, Modifier.weight(1f))
+                TopologyStat("UNMAPPED", unmappedNodes.size.toString(), if (unmappedNodes.isEmpty()) Mut else Amber, Modifier.weight(1f))
             }
-
-            Spacer(Modifier.height(10.dp))
-            Text("ALLERION SERVER", color = Mut, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-            Canvas(modifier = Modifier.fillMaxWidth().height(150.dp)) {
-                val centerX = size.width / 2f
-                val serverY = 12.dp.toPx()
-                val gatewayY = 64.dp.toPx()
-                val deviceY = 132.dp.toPx()
-                val red = Color(0xFFE50914)
-                val green = Color(0xFF45C486)
-                val muted = Color(0xFF777980)
-                val line = Color(0xFF45464D)
-                val server = Offset(centerX, serverY)
-                val router = Offset(centerX, gatewayY)
-                drawLine(line, server, router, strokeWidth = 2.dp.toPx())
-                drawCircle(red, radius = 8.dp.toPx(), center = server)
-                drawCircle(green, radius = 10.dp.toPx(), center = router)
-                val count = linkedNodes.size
-                linkedNodes.forEachIndexed { index, _ ->
-                    val x = if (count <= 1) centerX else
-                        18.dp.toPx() + index * (size.width - 36.dp.toPx()) / (count - 1).toFloat()
-                    val device = Offset(x, deviceY)
-                    drawLine(line, router, device, strokeWidth = 1.7.dp.toPx())
-                    drawCircle(green, radius = 6.dp.toPx(), center = device)
-                    drawCircle(Color(0xFF101113), radius = 2.dp.toPx(), center = device)
-                }
-                if (count == 0) {
-                    drawCircle(muted, radius = 5.dp.toPx(), center = Offset(centerX, deviceY))
+            Spacer(Modifier.height(12.dp))
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                .background(Color(0xFF141820)).border(1.dp, Color(0xFF303946), RoundedCornerShape(22.dp)).padding(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("MONITORING HOST", color = Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                Spacer(Modifier.height(7.dp))
+                TopologyNode("ALLERION SERVER", sourceIp ?: "Host interface", Ic.Server, Red)
+                TopologyConnector(Red)
+                TopologyNode("ROUTER / GATEWAY", gateway ?: "Not detected", Ic.Globe, Green)
+                if (linkedNodes.isNotEmpty()) {
+                    TopologyBranch(linkedNodes.size)
+                    Text("DISCOVERED LAN ENDPOINTS", color = Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                } else {
+                    Spacer(Modifier.height(12.dp))
+                    Text("No linked LAN endpoints found", color = Dim, fontSize = 11.sp)
                 }
             }
-            Text("ROUTER / GATEWAY  ·  ${gateway ?: "not detected"}", color = Green, fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-
             if (linkedNodes.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                Label("Connected devices")
-                linkedNodes.forEach { node ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(node.optString("ip"), color = Txt, fontSize = 11.sp)
-                        Text(node.optString("mac").ifBlank { "MAC unavailable" }, color = Mut, fontSize = 10.sp)
+                Spacer(Modifier.height(10.dp))
+                linkedNodes.chunked(2).forEach { pair ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        pair.forEach { node ->
+                            TopologyDevice(node, Green, Modifier.weight(1f))
+                        }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
+                    Spacer(Modifier.height(8.dp))
                 }
-                Text("Gateway paths are inferred from same-subnet neighbor records, not verified physical links.",
+                Text("Logical paths are inferred from same-subnet neighbor records; physical cable links are not verified.",
                     color = Dim, fontSize = 10.sp)
             }
-
             if (unmappedNodes.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                Label("Unmapped devices · ${unmappedNodes.size}")
+                Spacer(Modifier.height(14.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Label("Unmapped observations")
+                    Spacer(Modifier.width(8.dp))
+                    Text(unmappedNodes.size.toString(), color = Amber, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(7.dp))
                 unmappedNodes.forEach { node ->
-                    Column {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(node.optString("ip"), color = Txt, fontSize = 11.sp)
-                            Text(node.optString("mac").ifBlank { "No MAC" }, color = Mut, fontSize = 10.sp)
-                        }
-                        Text(node.optString("topology_reason", "Insufficient passive network data"),
-                            color = Dim, fontSize = 10.sp)
-                    }
+                    TopologyDevice(node, Amber, Modifier.fillMaxWidth(), node.optString("topology_reason", "Insufficient passive network data"))
+                    Spacer(Modifier.height(6.dp))
                 }
             }
-
             val bridgeMacs = topology?.optJSONArray("unmapped_macs")
             val bridgeCount = topology?.optInt("bridge_mac_count", 0) ?: 0
             if (bridgeCount > 0) {
                 Spacer(Modifier.height(8.dp))
-                Text("Additional passive bridge observations: $bridgeCount MAC addresses; ${bridgeMacs?.length() ?: 0} do not currently map to an IP address.",
+                Text("Additional bridge observations: $bridgeCount MAC addresses; ${bridgeMacs?.length() ?: 0} are not currently mapped to an IP address.",
                     color = Mut, fontSize = 10.sp)
                 if (bridgeMacs != null && bridgeMacs.length() > 0) {
                     for (i in 0 until minOf(bridgeMacs.length(), 8)) {
@@ -401,10 +394,100 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                     }
                 }
             }
-
+            Spacer(Modifier.height(8.dp))
+            Text("Interface: ${routeInterface ?: "unknown"}   ·   Subnet: ${subnet ?: "unknown"}",
+                color = Mut, fontSize = 10.sp)
             Text(topology?.optString("note").orEmpty().ifBlank {
                 "Connections are inferred from the active gateway route and local subnet; physical links are not verified."
             }, color = Dim, fontSize = 10.sp)
+        }
+    }
+}
+
+@Composable
+private fun TopologyStat(label: String, value: String, tint: Color, modifier: Modifier) {
+    Box(modifier.clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B2029))
+        .border(1.dp, Color(0xFF303946), RoundedCornerShape(14.dp))) {
+        AnimatedSurfaceBackdrop(tint, Modifier.matchParentSize())
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
+            Text(value, color = tint, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = Dim, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun TopologyNode(title: String, detail: String, icon: Ic, tint: Color) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFF202630))
+        .border(1.dp, tint.copy(alpha = 0.38f), RoundedCornerShape(16.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(tint.copy(alpha = 0.13f)),
+            contentAlignment = Alignment.Center) { Icon24(icon, tint, 21.dp) }
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = tint, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+            Text(detail, color = Txt, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+        PulseDot(tint, true, 5.dp)
+    }
+}
+
+@Composable
+private fun TopologyConnector(tint: Color) {
+    val reduceMotion = LocalReduceMotion.current
+    val transition = rememberInfiniteTransition(label = "topology-link")
+    val phase by transition.animateFloat(0f, 1f,
+        infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "topology-packet")
+    Canvas(Modifier.width(28.dp).height(24.dp)) {
+        val x = size.width / 2f
+        drawLine(tint.copy(alpha = 0.42f), Offset(x, 0f), Offset(x, size.height), 2.dp.toPx())
+        val y = if (reduceMotion) size.height * 0.5f else size.height * phase
+        drawCircle(tint.copy(alpha = 0.9f), 3.dp.toPx(), Offset(x, y))
+    }
+}
+
+@Composable
+private fun TopologyBranch(count: Int) {
+    val reduceMotion = LocalReduceMotion.current
+    val transition = rememberInfiniteTransition(label = "topology-branch")
+    val phase by transition.animateFloat(0f, 1f,
+        infiniteRepeatable(tween(2200, easing = LinearEasing)), label = "topology-flow")
+    Canvas(Modifier.fillMaxWidth().height(28.dp)) {
+        val center = size.width / 2f
+        val y = 5.dp.toPx()
+        val bottom = size.height
+        val edge = if (count <= 1) center else 16.dp.toPx()
+        val far = if (count <= 1) center else size.width - 16.dp.toPx()
+        val stroke = 1.5.dp.toPx()
+        drawLine(Green.copy(alpha = 0.48f), Offset(center, 0f), Offset(center, y), stroke)
+        drawLine(Green.copy(alpha = 0.48f), Offset(edge, y), Offset(far, y), stroke)
+        val points = minOf(count, 12)
+        for (i in 0 until points) {
+            val x = if (points <= 1) center else edge + i * (far - edge) / (points - 1)
+            drawLine(Green.copy(alpha = 0.48f), Offset(x, y), Offset(x, bottom), stroke)
+            drawCircle(Green, 3.dp.toPx(), Offset(x, bottom))
+        }
+        if (!reduceMotion) {
+            val travelX = center + (far - edge) * (phase - 0.5f)
+            drawCircle(Color(0xFFB8F5D8), 2.5.dp.toPx(), Offset(travelX, y))
+        }
+    }
+}
+
+@Composable
+private fun TopologyDevice(node: JSONObject, tint: Color, modifier: Modifier, reason: String? = null) {
+    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B2029))
+        .border(1.dp, tint.copy(alpha = 0.22f), RoundedCornerShape(14.dp)).padding(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            PulseDot(tint, tint == Green, 4.dp)
+            Spacer(Modifier.width(7.dp))
+            Text(node.optString("ip"), color = Txt, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(node.optString("mac").ifBlank { "MAC unavailable" }, color = Mut, fontSize = 9.sp, maxLines = 1)
+        if (!reason.isNullOrBlank()) {
+            Spacer(Modifier.height(5.dp))
+            Text(reason, color = Dim, fontSize = 9.sp)
         }
     }
 }
