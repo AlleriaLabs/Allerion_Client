@@ -63,6 +63,26 @@ The app supports HTTP for trusted private-network monitoring servers for backwar
 
 Enable Smart health alerts in ALLERION Settings. Android 13+ requires notification permission. Background checks run every 15 minutes while network connectivity is available. CPU, memory, temperature and disk thresholds are adjustable in Settings. Alerts are logged locally and a recovery notification is sent when a previously critical condition clears. The alert history is stored on-device and capped at 200 events.
 
+## Phase 11 infrastructure intelligence
+
+The Android Infrastructure Intelligence panel uses the API v2 endpoints when the backend advertises the matching capability:
+
+- Docker container inventory plus point-in-time CPU and memory metrics for up to eight running containers.
+- Passive LAN topology inventory. The backend reports discovered nodes and only reports links when it can verify them; it currently returns no inferred physical links.
+- Integration readiness status and explicit webhook / Telegram test actions.
+- Existing TCP reachability diagnostics for private IPv4 targets.
+
+Configure optional backend features in the monitoring service container environment (never put these secrets in the Android app):
+
+- `SERVICE_CHECKS`: semicolon-separated `Name=https://health-url;Another=https://another-health-url` entries, up to 20 checks. Use HTTPS for remote services.
+- `ENABLE_LAN_DISCOVERY=1`: enables passive ARP / neighbor-cache inventory. It does not scan the subnet.
+- `ALERT_WEBHOOK_URL`: HTTPS destination for alert events.
+- `ALERT_WEBHOOK_SECRET`: optional shared secret sent as `X-Webhook-Secret`.
+- `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`: backend-only Telegram delivery credentials.
+- Docker: provide a protected Docker socket proxy or Docker API endpoint. Never expose an unrestricted Docker API on the LAN or internet.
+
+After changing container environment variables, recreate the monitoring service container. The app refreshes infrastructure information approximately once per minute. Docker CPU and memory values are point-in-time samples, not retained historical charts.
+
 ## API compatibility
 
 The Android client uses these monitoring service endpoints:
