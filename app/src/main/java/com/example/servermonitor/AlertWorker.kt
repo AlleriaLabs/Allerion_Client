@@ -17,6 +17,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -78,8 +79,18 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
                     if (!pct.isNaN()) updateAlert(prefix + "_disk_" + index, pct >= thresholds.disk, server.name,
                         mount + " is " + "%.0f".format(pct) + "% full (threshold %.0f%%).".format(thresholds.disk))
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (error: Exception) {
-                updateAlert(prefix + "_offline", true, server.name, "ALLERION cannot reach this monitoring server.", "critical")
+                val apiFailure = monitoringApiFailureMessage(error)
+                if (apiFailure != null) {
+                    updateAlert(prefix + "_offline", false, server.name, "Monitoring server is reachable.")
+                    updateAlert(prefix + "_api_error", true, server.name, apiFailure, "warning")
+                } else {
+                    updateAlert(prefix + "_api_error", false, server.name, "Monitoring API recovered.")
+                    updateAlert(prefix + "_offline", true, server.name,
+                        "ALLERION cannot reach this monitoring server.", "critical")
+                }
             }
         }
         Result.success()
