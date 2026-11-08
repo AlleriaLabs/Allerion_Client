@@ -84,19 +84,39 @@ fun healthWarnings(j: JSONObject): List<String> {
 fun HealthCard(j: JSONObject, online: Boolean, modifier: Modifier = Modifier) {
     val warns = if (online) healthWarnings(j) else emptyList()
     val color = when { !online -> Err; warns.isNotEmpty() -> Amber; else -> Green }
-    val title = when { !online -> "Server offline"; warns.isNotEmpty() -> "${warns.size} warning" + (if (warns.size > 1) "s" else ""); else -> "All systems normal" }
-    val up = j.optLong("uptime_s")
+    val status = when {
+        !online -> "OFFLINE"
+        warns.isNotEmpty() -> "${warns.size} WARNING" + if (warns.size > 1) "S" else ""
+        else -> "ONLINE"
+    }
+    val uptimeSeconds = j.optLong("uptime_s").coerceAtLeast(0L)
+    val uptime = "${uptimeSeconds / 86400}d ${uptimeSeconds % 86400 / 3600}h"
+
     Panel(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(46.dp).clip(CircleShape).background(color.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) { Icon24(Ic.Heart, color, 23.dp) }
-            Spacer(Modifier.width(14.dp))
+            Box(
+                Modifier.size(36.dp).clip(CircleShape)
+                    .background(color.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon24(Ic.Globe, color, 19.dp)
+            }
+            Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Txt)
-                Text(if (online) "Monitoring connected · up ${up / 86400}d ${up % 86400 / 3600}h" else "Cannot reach the monitoring service", fontSize = 12.sp, color = Mut)
+                Text("GATEWAY", fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                    color = Mut, letterSpacing = 1.sp)
+                Text(status, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color)
+                Text(
+                    if (online) "Uptime · $uptime" else "Cannot reach the monitoring service",
+                    fontSize = 11.sp, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
             }
             PulseDot(color, online && warns.isEmpty())
         }
-        warns.forEach { Spacer(Modifier.height(8.dp)); Text("•  $it", fontSize = 12.sp, color = Amber) }
+        warns.forEach {
+            Spacer(Modifier.height(6.dp))
+            Text("•  $it", fontSize = 12.sp, color = Amber)
+        }
     }
 }
 
