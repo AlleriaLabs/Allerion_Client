@@ -32,7 +32,7 @@ gradle assembleDebug
 
 ## Release signing (required)
 
-Production releases must use one persistent Android signing keystore. The workflow intentionally skips publishing a release when signing secrets are missing; it never falls back to the ephemeral debug key.
+Production releases must use one persistent Android signing keystore. The workflow intentionally skips publishing a release when signing secrets are missing; it never falls back to the ephemeral debug key. After adding or changing these secrets, trigger a new workflow run; an earlier run will not pick up secrets saved afterward.
 
 Configure these GitHub Actions repository secrets:
 
