@@ -302,7 +302,7 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
         } else {
             val nodes = topology?.optJSONArray("nodes")
             val links = topology?.optJSONArray("links")
-            Text("${nodes?.length() ?: 0} discovered nodes · ${links?.length() ?: 0} confirmed links", color = Txt, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("${nodes?.length() ?: 0} nodes · ${links?.length() ?: 0} logical connections", color = Txt, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             if (nodes == null || nodes.length() == 0) {
                 Text("No devices are currently visible in the server's ARP / neighbor cache.", color = Mut, fontSize = 11.sp)
             } else {
@@ -311,13 +311,27 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                     val ip = node.optString("ip", "Unknown IP")
                     val mac = node.optString("mac", "")
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(ip, color = Txt, fontSize = 12.sp)
-                        Text(mac, color = Mut, fontSize = 11.sp)
+                        Text(ip + if (node.optString("role") == "gateway") " · Gateway" else "", color = Txt, fontSize = 12.sp)
+                        Text(mac.ifBlank { if (node.optString("role") == "gateway") "Default route" else "MAC unavailable" }, color = Mut, fontSize = 11.sp)
                     }
                 }
             }
+            if (links != null && links.length() > 0) {
+                Spacer(Modifier.height(8.dp))
+                Label("Inferred gateway paths")
+                for (i in 0 until minOf(links.length(), 40)) {
+                    val link = links.optJSONObject(i) ?: continue
+                    Text(link.optString("source") + "  →  " + link.optString("target"),
+                        color = Txt, fontSize = 11.sp)
+                    Text(link.optString("label", "Logical LAN path") + " · inferred, not a verified physical link",
+                        color = Dim, fontSize = 10.sp)
+                }
+            } else {
+                Text("No logical gateway paths could be inferred from the current route and neighbor data.",
+                    color = Mut, fontSize = 11.sp)
+            }
             Text(topology?.optString("note").orEmpty().ifBlank {
-                "Inventory is passive. Connections are shown only when the backend can verify them."
+                "Connections are inferred from the active gateway route and local subnet; physical links are not verified."
             }, color = Dim, fontSize = 10.sp)
         }
     }
