@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 object AlertScheduler {
     private const val WORK_NAME = "allerion_server_health_alerts"
@@ -70,18 +71,18 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
                     "Temperature sensor data is unavailable. Temperature threshold alerts cannot run until the backend reports a sensor reading.",
                     "warning")
                 if (!cpu.isNaN()) updateAlert(prefix + "_cpu", cpu >= thresholds.cpu, server.name,
-                    "CPU usage is " + "%.0f".format(cpu) + "% (threshold %.0f%%).".format(thresholds.cpu))
+                    "CPU usage is ${cpu.roundToInt()}% (threshold ${thresholds.cpu.roundToInt()}%).")
                 if (!ram.isNaN()) updateAlert(prefix + "_ram", ram >= thresholds.memory, server.name,
-                    "Memory usage is " + "%.0f".format(ram) + "% (threshold %.0f%%).".format(thresholds.memory))
+                    "Memory usage is ${ram.roundToInt()}% (threshold ${thresholds.memory.roundToInt()}%).")
                 if (!temp.isNaN()) updateAlert(prefix + "_temp", temp >= thresholds.temperature, server.name,
-                    "Temperature is " + "%.0f".format(temp) + " °C (threshold %.0f °C).".format(thresholds.temperature))
+                    "Temperature is ${temp.roundToInt()} °C (threshold ${thresholds.temperature.roundToInt()} °C).")
                 val disks = stats.optJSONArray("disks") ?: JSONArray()
                 for (index in 0 until disks.length()) {
                     val disk = disks.optJSONObject(index) ?: JSONObject()
                     val mount = disk.optString("mount", "Disk " + (index + 1))
                     val pct = disk.optDouble("pct", Double.NaN)
                     if (!pct.isNaN()) updateAlert(prefix + "_disk_" + index, pct >= thresholds.disk, server.name,
-                        mount + " is " + "%.0f".format(pct) + "% full (threshold %.0f%%).".format(thresholds.disk))
+                        "$mount is ${pct.roundToInt()}% full (threshold ${thresholds.disk.roundToInt()}%).")
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
