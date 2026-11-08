@@ -187,10 +187,13 @@ fun JSONObject.dbl(k: String): Double? = if (!has(k) || isNull(k)) null else opt
 @Composable
 fun Panel(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     val shape = RoundedCornerShape(24.dp)
-    Column(
+    Box(
         Modifier.then(modifier).fillMaxWidth().clip(shape).background(Surf).border(1.dp, Line, shape)
-            .let { if (onClick != null) it.clickable(onClick = onClick) else it }.padding(18.dp),
-        content = content)
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+    ) {
+        AnimatedSurfaceBackdrop(Red, Modifier.matchParentSize())
+        Column(Modifier.fillMaxWidth().padding(18.dp), content = content)
+    }
 }
 
 @Composable
