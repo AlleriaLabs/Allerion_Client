@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -20,6 +21,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -85,7 +88,12 @@ object UpdateChecker {
             }
             val apkUrl = apk ?: return@withContext null
             val checksumUrl = checksum ?: return@withContext null
-            AllerionUpdate(tag, version, apkUrl, checksumUrl, release.optString("body").trim())
+            val bodyValue = release.opt("body")
+            val releaseNotes = if (bodyValue == null || bodyValue == JSONObject.NULL) "" else bodyValue.toString().trim()
+            val notes = releaseNotes.ifBlank {
+                "This release includes the latest Allerion improvements and fixes. Full release notes will appear here when published."
+            }
+            AllerionUpdate(tag, version, apkUrl, checksumUrl, notes)
         }
     }
 
@@ -218,112 +226,88 @@ fun AllerionUpdateDialog(update: AllerionUpdate, onLater: () -> Unit) {
     var progress by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val background = Color(0xFF101113)
+    val surface = Color(0xFF1B1C20)
+    val surfaceRaised = Color(0xFF24252A)
+    val accent = Color(0xFFE50914)
+    val primaryText = Color(0xFFF5F5F5)
+    val mutedText = Color(0xFF929398)
+    val subtleText = Color(0xFF676970)
+    val outline = Color(0xFF303136)
 
-    androidx.compose.ui.window.Dialog(
-        onDismissRequest = { if (!busy) onLater() }
-    ) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = { if (!busy) onLater() }) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = 440.dp)
-                .clip(RoundedCornerShape(30.dp))
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFF20253B), Color(0xFF121622), Color(0xFF10131D))
-                    )
-                )
-                .border(1.dp, Color(0xFF59658A).copy(alpha = 0.55f), RoundedCornerShape(30.dp))
-                .padding(22.dp),
+            modifier = Modifier.fillMaxWidth().widthIn(max = 440.dp)
+                .clip(RoundedCornerShape(26.dp)).background(background)
+                .border(1.dp, outline, RoundedCornerShape(26.dp)).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(
-                                Brush.linearGradient(listOf(Color(0xFF8B7CFF), Color(0xFF4BC7D8)))
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("✦", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Column {
-                        Text("ALLERION", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                        Text("SYSTEM UPDATE", color = Color(0xFF9DA9C8), fontSize = 9.sp, letterSpacing = 1.8.sp)
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(Color(0xFF293D48))
-                        .border(1.dp, Color(0xFF4BC7D8).copy(alpha = 0.5f), RoundedCornerShape(50))
-                        .padding(horizontal = 11.dp, vertical = 6.dp)
-                ) {
-                    Text("NEW VERSION", color = Color(0xFF8DE8E8), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                }
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("A better experience\njust arrived.", color = Color.White, fontSize = 27.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold)
-                Text("Your Allerion update is ready to install.", color = Color(0xFFADB6CC), fontSize = 13.sp)
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF252C40))
-                    .border(1.dp, Color(0xFF64739B).copy(alpha = 0.35f), RoundedCornerShape(20.dp))
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("LATEST RELEASE", color = Color(0xFF9DA9C8), fontSize = 9.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Version ${update.versionName}", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                }
-                Text("↗", color = Color(0xFF79DCE0), fontSize = 30.sp, fontWeight = FontWeight.Light)
-            }
-
-            if (update.notes.isNotBlank()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("WHAT'S NEW", color = Color(0xFF9DA9C8), fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        update.notes.take(900),
-                        color = Color(0xFFD7DCEF),
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp,
-                        maxLines = 7,
-                        overflow = TextOverflow.Ellipsis
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                        contentDescription = "Allerion logo",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.size(46.dp).clip(RoundedCornerShape(13.dp))
+                            .background(surfaceRaised).padding(4.dp)
                     )
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("ALLERION", color = primaryText, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
+                        Text("APP UPDATE", color = mutedText, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
+                    }
                 }
+                Box(Modifier.clip(RoundedCornerShape(50)).background(accent.copy(alpha = 0.14f))
+                    .border(1.dp, accent.copy(alpha = 0.55f), RoundedCornerShape(50)).padding(horizontal = 11.dp, vertical = 7.dp)) {
+                    Text("NEW VERSION", color = Color(0xFFFF7A80), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("A new version is ready.", color = primaryText, fontSize = 25.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold)
+                Text("Update Allerion to get the latest improvements.", color = mutedText, fontSize = 12.sp, lineHeight = 17.sp)
+            }
+
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(surface)
+                .border(1.dp, outline, RoundedCornerShape(18.dp)).padding(15.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("LATEST VERSION", color = mutedText, fontSize = 9.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.SemiBold)
+                    Text("v${update.versionName}", color = primaryText, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text("Installed v${BuildConfig.VERSION_NAME}", color = subtleText, fontSize = 10.sp)
+                }
+                Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(accent.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                    Text("↑", color = accent, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(surface)
+                .border(1.dp, outline, RoundedCornerShape(18.dp)).padding(15.dp),
+                verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.width(3.dp).height(14.dp).clip(RoundedCornerShape(3.dp)).background(accent))
+                    Text("WHAT'S NEW", color = primaryText, fontSize = 10.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold)
+                }
+                Text(
+                    update.notes.ifBlank { "This release includes the latest Allerion improvements and fixes. Full release notes will appear here when published." }.take(1200),
+                    color = mutedText, fontSize = 12.sp, lineHeight = 18.sp, maxLines = 8, overflow = TextOverflow.Ellipsis
+                )
             }
 
             if (busy) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Downloading and verifying", color = Color(0xFFD7DCEF), fontSize = 12.sp)
-                        Text("$progress%", color = Color(0xFF8DE8E8), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Downloading and verifying", color = primaryText, fontSize = 11.sp)
+                        Text("$progress%", color = Color(0xFFFF777D), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                     LinearProgressIndicator(
                         progress = { progress / 100f },
-                        modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(50)),
-                        color = Color(0xFF65D4D8),
-                        trackColor = Color(0xFF394158)
+                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)),
+                        color = accent, trackColor = surfaceRaised
                     )
-                    Text("The APK will be verified before Android opens the installer.", color = Color(0xFF9DA9C8), fontSize = 10.sp)
+                    Text("The APK is verified before Android opens the installer.", color = subtleText, fontSize = 10.sp)
                 }
             }
-
-            error?.let {
-                Text(it, color = Color(0xFFFF929D), fontSize = 11.sp, lineHeight = 16.sp)
-            }
+            error?.let { Text(it, color = Color(0xFFFF777D), fontSize = 11.sp, lineHeight = 16.sp) }
 
             Button(
                 enabled = !busy,
@@ -341,22 +325,16 @@ fun AllerionUpdateDialog(update: AllerionUpdate, onLater: () -> Unit) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF6D7CFF),
-                    contentColor = Color.White,
-                    disabledContainerColor = Color(0xFF394158),
-                    disabledContentColor = Color(0xFF9DA9C8)
+                shape = RoundedCornerShape(15.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = accent, contentColor = Color.White,
+                    disabledContainerColor = surfaceRaised, disabledContentColor = mutedText
                 )
             ) {
-                Text(if (busy) "PREPARING UPDATE…" else "DOWNLOAD & INSTALL", fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text(if (busy) "PREPARING UPDATE…" else "DOWNLOAD & INSTALL", fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
             }
-            androidx.compose.material3.TextButton(
-                enabled = !busy,
-                onClick = onLater,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Maybe later", color = Color(0xFFADB6CC), fontSize = 12.sp)
+            TextButton(enabled = !busy, onClick = onLater, modifier = Modifier.fillMaxWidth()) {
+                Text("Maybe later", color = mutedText, fontSize = 12.sp)
             }
         }
     }
