@@ -114,15 +114,23 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
     ) {
         val prefs = applicationContext.getSharedPreferences("alert_state", Context.MODE_PRIVATE)
         val wasActive = prefs.getBoolean(key, false)
+        val now = System.currentTimeMillis()
+        if (active) {
+            ActiveAlertStore.set(applicationContext, key, ActiveAlert(
+                key, now, serverName, severity, message
+            ))
+        } else {
+            ActiveAlertStore.set(applicationContext, key, null)
+        }
         if (active && !wasActive) {
             AlertHistoryStore.append(applicationContext, AlertEvent(
-                System.currentTimeMillis(), serverName, severity, message, false
+                now, serverName, severity, message, false
             ))
             postNotification(key, serverName, message, false)
         } else if (!active && wasActive) {
             val recovery = if (message.isBlank()) "Condition returned to normal." else message
             AlertHistoryStore.append(applicationContext, AlertEvent(
-                System.currentTimeMillis(), serverName, "recovery", recovery, true
+                now, serverName, "recovery", recovery, true
             ))
             postNotification(key + "_recovered", serverName, recovery, true)
         }
