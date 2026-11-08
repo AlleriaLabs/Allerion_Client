@@ -118,6 +118,7 @@ class MainActivity : ComponentActivity() {
             }
             }
         }
+        }
     }
 }
 
@@ -660,8 +661,18 @@ fun SystemTab(j: JSONObject) {
         Legend(Dim, "IPv4", j.str("ip").ifEmpty { "-" })
     }
     val procs = j.optJSONArray("procs") ?: JSONArray()
+    var applicationsExpanded by rememberSaveable { mutableStateOf(false) }
     Panel {
-        Label("Applications")
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { applicationsExpanded = !applicationsExpanded }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Label("Applications")
+            Spacer(Modifier.weight(1f))
+            Text(if (applicationsExpanded) "−" else "+", color = Mut, fontSize = 20.sp, fontWeight = FontWeight.Medium)
+        }
+        if (applicationsExpanded) {
         Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
             Text("Name", color = Dim, modifier = Modifier.weight(2f), fontSize = 12.sp)
