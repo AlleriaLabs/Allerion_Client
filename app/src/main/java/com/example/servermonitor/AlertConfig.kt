@@ -49,7 +49,8 @@ fun monitoringApiFailureMessage(error: Throwable): String? {
             is java.net.SocketTimeoutException,
             is java.net.NoRouteToHostException,
             is java.net.SocketException,
-            is java.io.EOFException -> return null
+            is java.io.EOFException,
+            is java.io.IOException -> return null
         }
         cause = cause?.cause
     }
