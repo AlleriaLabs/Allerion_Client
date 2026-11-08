@@ -165,7 +165,7 @@ fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, o
                 border = androidx.compose.foundation.BorderStroke(1.dp, Line),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = Surf2, contentColor = Txt)
             ) {
-                Icon24(Ic.Dash, Red.copy(alpha = 0.85f), 18.dp); Spacer(Modifier.width(8.dp))
+                Icon24(Ic.Dash, Mut, 18.dp); Spacer(Modifier.width(8.dp))
                 Text("Open dashboard", fontWeight = FontWeight.SemiBold)
             }
             ActionIcon(Ic.Pencil, "Edit server", onClick = onEdit)
@@ -218,7 +218,7 @@ fun AddFab(onClick: () -> Unit, modifier: Modifier) {
             .padding(horizontal = 16.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon24(Ic.Plus, Red.copy(alpha = 0.9f), 18.dp, desc = "Add server")
+        Icon24(Ic.Plus, Txt, 18.dp, desc = "Add server")
         Spacer(Modifier.width(8.dp))
         Text("Add server", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Txt)
     }
@@ -390,13 +390,13 @@ fun ReportExportPanel(sv: Server) {
         Text("Export seven days of timestamped CPU, memory, temperature, network, power, GPU and storage readings, plus daily energy totals when available.", color = Mut, fontSize = 12.sp)
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { prepareReport(false) }, Modifier.weight(1f).height(48.dp), enabled = !busy,
+            Button(onClick = { prepareReport(false) }, Modifier.weight(1f).height(48.dp).border(1.dp, Line, RoundedCornerShape(15.dp)), enabled = !busy,
                 shape = RoundedCornerShape(15.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Surf2, contentColor = Txt),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
                 Text(if (busy) "Preparing…" else "Export CSV")
             }
-            OutlinedButton(onClick = { prepareReport(true) }, Modifier.weight(1f).height(48.dp), enabled = !busy,
+            OutlinedButton(onClick = { prepareReport(true) }, Modifier.weight(1f).height(48.dp).border(1.dp, Line, RoundedCornerShape(15.dp)), enabled = !busy,
                 shape = RoundedCornerShape(15.dp),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = Surf2, contentColor = Mut),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
@@ -488,14 +488,14 @@ fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
             Spacer(Modifier.height(6.dp))
             Text("Create a password-protected backup of your server names, addresses and access tokens. The backup can be restored on another ALLERION installation.", color = Mut, fontSize = 13.sp)
             Spacer(Modifier.height(12.dp))
-            Button({ backupPassword = ""; backupAction = "export" }, Modifier.fillMaxWidth().height(48.dp),
+            Button({ backupPassword = ""; backupAction = "export" }, Modifier.fillMaxWidth().height(48.dp).border(1.dp, Line, RoundedCornerShape(15.dp)),
                 shape = RoundedCornerShape(15.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Surf2, contentColor = Txt),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
                 Text("Create encrypted backup")
             }
             OutlinedButton({ importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
-                Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(15.dp),
+                Modifier.fillMaxWidth().height(48.dp).border(1.dp, Line, RoundedCornerShape(15.dp)), shape = RoundedCornerShape(15.dp),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = Surf2, contentColor = Mut),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
                 Text("Restore from backup", color = Txt)
