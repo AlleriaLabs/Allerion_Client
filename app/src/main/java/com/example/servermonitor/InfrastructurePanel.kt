@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -46,9 +47,13 @@ fun InfrastructurePanel(sv: Server) {
                 try {
                     val caps = ApiClient.getJson(sv.url, sv.token, "/api/capabilities", readTimeoutMs = 5000)
                     val features = caps.optJSONObject("features") ?: JSONObject()
-                    fun optional(path: String): JSONObject? = runCatching {
+                    fun optional(path: String): JSONObject? = try {
                         ApiClient.getJson(sv.url, sv.token, path, connectTimeoutMs = 2500, readTimeoutMs = 5000)
-                    }.getOrNull()
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        null
+                    }
                     InfrastructureSnapshot(
                         capabilities = caps,
                         processes = if (features.optBoolean("processes")) optional("/api/processes?limit=12") else null,
@@ -58,6 +63,8 @@ fun InfrastructurePanel(sv: Server) {
                         forecast = if (features.optBoolean("energy_forecast")) optional("/api/energy/forecast?days=30") else null,
                         energyBreakdown = if (features.optBoolean("energy_breakdown")) optional("/api/energy/breakdown") else null
                     )
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
                 } catch (error: Exception) {
                     InfrastructureSnapshot(error = friendlyError(error))
                 }
@@ -196,7 +203,8 @@ private fun NetworkDiagnosticPanel(sv: Server, enabled: Boolean) {
             scope.launch {
                 try { result = withContext(Dispatchers.IO) {
                     ApiClient.getJson(sv.url, sv.token, "/api/network/diagnostics?target=" + target.trim())
-                } } catch (e: Exception) { error = friendlyError(e) }
+                } } catch (e: CancellationException) { throw e
+                } catch (e: Exception) { error = friendlyError(e) }
                 busy = false
             }
         }, enabled = enabled && !busy && target.isNotBlank()) { Text(if (busy) "Testing…" else "Run diagnostics") }
@@ -229,6 +237,7 @@ private fun IntegrationTestPanel(sv: Server, webhookEnabled: Boolean, telegramEn
                     try {
                         val response = withContext(Dispatchers.IO) { ApiClient.getJson(sv.url, sv.token, "/api/integrations/webhook/test", JSONObject()) }
                         status = if (response.optBoolean("ok")) "Webhook test delivered." else "Webhook test failed."
+                    } catch (e: CancellationException) { throw e
                     } catch (e: Exception) { status = friendlyError(e) }
                     busy = false
                 }
