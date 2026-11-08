@@ -34,6 +34,8 @@ private data class InfrastructureSnapshot(
     val containers: JSONObject? = null,
     val services: JSONObject? = null,
     val devices: JSONObject? = null,
+    val topology: JSONObject? = null,
+    val integrations: JSONObject? = null,
     val forecast: JSONObject? = null,
     val energyBreakdown: JSONObject? = null,
     val error: String? = null
@@ -60,6 +62,8 @@ fun InfrastructurePanel(sv: Server) {
                         containers = if (features.optBoolean("containers")) optional("/api/containers") else null,
                         services = if (features.optBoolean("services")) optional("/api/services") else null,
                         devices = if (features.optBoolean("network_inventory")) optional("/api/network/devices") else null,
+                        topology = if (features.optBoolean("network_topology")) optional("/api/network/topology") else null,
+                        integrations = optional("/api/integrations"),
                         forecast = if (features.optBoolean("energy_forecast")) optional("/api/energy/forecast?days=30") else null,
                         energyBreakdown = if (features.optBoolean("energy_breakdown")) optional("/api/energy/breakdown") else null
                     )
@@ -182,8 +186,9 @@ fun InfrastructurePanel(sv: Server) {
         }
     }
 
+    NetworkTopologyPanel(snapshot.topology, caps.optBoolean("network_topology"))
     NetworkDiagnosticPanel(sv, caps.optBoolean("network_diagnostics"))
-    IntegrationTestPanel(sv, caps.optBoolean("webhooks"), caps.optBoolean("telegram"))
+    IntegrationTestPanel(sv, snapshot.integrations, caps.optBoolean("webhooks"), caps.optBoolean("telegram"))
 }
 
 @Composable
@@ -223,13 +228,13 @@ private fun NetworkDiagnosticPanel(sv: Server, enabled: Boolean) {
 }
 
 @Composable
-private fun IntegrationTestPanel(sv: Server, webhookEnabled: Boolean, telegramEnabled: Boolean) {
+private fun IntegrationTestPanel(sv: Server, integrationStatus: JSONObject?, webhookEnabled: Boolean, telegramEnabled: Boolean) {
     var status by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     Panel {
         Label("Notification integrations")
-        Text("Webhook URL, webhook secret and Telegram bot credentials are configured on the backend; the app never stores or displays these secrets.", color = Mut, fontSize = 11.sp)
+        Text("Webhook URL, webhook secret and Telegram bot credentials are configured on the backend; the app never stores or displays these secrets.", color = Mut, fontSize = 11.sp)\n        DiagRow("Webhook destination", if (webhookEnabled) "Configured" else "Not configured", if (webhookEnabled) Green else Dim)\n        DiagRow("Telegram bot", if (telegramEnabled) "Configured" else "Not configured", if (telegramEnabled) Green else Dim)\n        integrationStatus?.optString("note")?.takeIf { it.isNotBlank() }?.let { Text(it, color = Dim, fontSize = 10.sp) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = {
                 busy = true; status = null
@@ -255,5 +260,36 @@ private fun IntegrationTestPanel(sv: Server, webhookEnabled: Boolean, telegramEn
         }
         status?.let { Text(it, color = if (it.contains("delivered")) Green else Amber, fontSize = 11.sp) }
         if (!webhookEnabled && !telegramEnabled) Text("Configure an HTTPS webhook or Telegram bot on the backend to enable testing.", color = Dim, fontSize = 11.sp)
+    }
+}
+
+
+@Composable
+private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
+    Panel {
+        Label("Network topology")
+        if (!enabled) {
+            Text("Enable LAN discovery on the monitoring backend to view its passive network inventory.", color = Dim, fontSize = 11.sp)
+        } else {
+            val nodes = topology?.optJSONArray("nodes")
+            val links = topology?.optJSONArray("links")
+            Text("${nodes?.length() ?: 0} discovered nodes · ${links?.length() ?: 0} confirmed links", color = Txt, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            if (nodes == null || nodes.length() == 0) {
+                Text("No devices are currently visible in the server's ARP / neighbor cache.", color = Mut, fontSize = 11.sp)
+            } else {
+                for (i in 0 until minOf(nodes.length(), 40)) {
+                    val node = nodes.optJSONObject(i) ?: continue
+                    val ip = node.optString("ip", "Unknown IP")
+                    val mac = node.optString("mac", "")
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(ip, color = Txt, fontSize = 12.sp)
+                        Text(mac, color = Mut, fontSize = 11.sp)
+                    }
+                }
+            }
+            Text(topology?.optString("note").orEmpty().ifBlank {
+                "Inventory is passive. Connections are shown only when the backend can verify them."
+            }, color = Dim, fontSize = 10.sp)
+        }
     }
 }
