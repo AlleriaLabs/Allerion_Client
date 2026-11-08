@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -210,6 +211,7 @@ fun AllerionUpdateDialog(update: AllerionUpdate, onLater: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var progress by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     AlertDialog(
         onDismissRequest = { if (!busy) onLater() },
@@ -223,7 +225,7 @@ fun AllerionUpdateDialog(update: AllerionUpdate, onLater: () -> Unit) {
                 }
                 if (busy) {
                     Spacer(Modifier.height(14.dp))
-                    CircularProgressIndicator(progress = { progress / 100f })
+                    CircularProgressIndicator(progress = progress / 100f)
                     Text("Downloading… $progress%")
                 }
                 error?.let {
@@ -238,7 +240,7 @@ fun AllerionUpdateDialog(update: AllerionUpdate, onLater: () -> Unit) {
                 busy = true
                 error = null
                 progress = 0
-                kotlinx.coroutines.MainScope().launch {
+                scope.launch {
                     try {
                         UpdateChecker.downloadAndInstall(context, update) { progress = it }
                     } catch (e: Exception) {
