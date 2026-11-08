@@ -484,31 +484,98 @@ fun Speed3(label: String, value: String, unit: String, modifier: Modifier = Modi
 fun InternetPanel(j: JSONObject, sv: Server) {
     val scope = rememberCoroutineScope()
     val sp = j.optJSONObject("speed") ?: JSONObject()
+    val history by rememberHistory(sv, "1h", 10_000)
+    val downHistory = (history?.s?.get("down") ?: emptyList()).map { it?.times(1e-6) }
+    val upHistory = (history?.s?.get("up") ?: emptyList()).map { it?.times(1e-6) }
+    var servers by remember(sv.url) { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var selectedServer by remember(sv.url) { mutableStateOf<JSONObject?>(null) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var loadingServers by remember { mutableStateOf(false) }
+    var serverError by remember { mutableStateOf<String?>(null) }
     fun num(k: String): String = sp.dbl(k)?.let { "%.0f".format(it) } ?: "–"
     val ping = sp.dbl("ping_ms") ?: j.dbl("ping_ms")
     val running = sp.optBoolean("running", false)
-    Panel(onClick = {
-        scope.launch {
-            try { withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/speedtest", JSONObject()) } }
-            catch (e: CancellationException) { throw e } catch (e: Exception) { }
-        }
-    }) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    LaunchedEffect(sv.url, sv.token) {
+        loadingServers = true
+        try {
+            val response = withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/speedtest/servers") }
+            val rows = response.optJSONArray("servers")
+            servers = if (rows == null) emptyList() else (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
+            serverError = if (servers.isEmpty()) response.optString("error").takeIf { it.isNotBlank() } ?: "No Ookla servers returned by the backend." else null
+        } catch (e: CancellationException) { throw e
+        } catch (e: Exception) { serverError = friendlyError(e) }
+        loadingServers = false
+    }
+    Panel {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Label("Internet · Speedtest by Ookla")
-            val phase = when (sp.str("phase")) { "ping" -> "Testing latency"; "download" -> "Testing download"; "upload" -> "Testing upload"; else -> "Testing" }
-            Text(if (running) phase + (sp.dbl("progress")?.let { " ${(it * 100).roundToInt()}%" } ?: "…") else "Tap to test", fontSize = 12.sp, color = if (running) Red else Dim)
+            Text(if (running) when (sp.str("phase")) { "ping" -> "Testing latency"; "download" -> "Testing download"; "upload" -> "Testing upload"; else -> "Testing" } else "SPEEDTEST",
+                fontSize = 10.sp, color = if (running) Red else Dim, fontWeight = FontWeight.Bold)
         }
-        if (running) { Spacer(Modifier.height(10.dp)); Bar((sp.dbl("progress") ?: 0.0).toFloat(), 4.dp) }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(8.dp))
+        Text("Ookla test server", color = Mut, fontSize = 11.sp)
+        Box {
+            OutlinedButton(onClick = { menuOpen = true }, enabled = !running && servers.isNotEmpty()) {
+                Text(selectedServer?.let { it.optString("name") + " · " + it.optString("location") }
+                    ?: if (loadingServers) "Loading available servers…" else "Select a server", maxLines = 1)
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                servers.forEach { server ->
+                    DropdownMenuItem(
+                        text = { Column {
+                            Text(server.optString("name"), color = Txt, fontSize = 13.sp)
+                            Text(server.optString("location") + (server.optDouble("distance_km", -1.0).takeIf { it >= 0 }?.let { " · %.0f km".format(it) } ?: ""),
+                                color = Mut, fontSize = 10.sp)
+                        } },
+                        onClick = { selectedServer = server; menuOpen = false }
+                    )
+                }
+            }
+        }
+        serverError?.let { Text(it, color = Amber, fontSize = 10.sp) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Button(onClick = {
+                val body = JSONObject()
+                selectedServer?.let { body.put("server_id", it.optString("id")) }
+                scope.launch {
+                    try { withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/speedtest", body) } }
+                    catch (e: CancellationException) { throw e } catch (_: Exception) { }
+                }
+            }, enabled = !running && selectedServer != null) { Text(if (running) "Testing…" else "Run speed test") }
+        }
+        if (running) { Spacer(Modifier.height(8.dp)); Bar((sp.dbl("progress") ?: 0.0).toFloat(), 4.dp) }
+        Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth()) {
             Speed3("Download", num("down_mbps"), "Mbps", Modifier.weight(1f))
             Speed3("Upload", num("up_mbps"), "Mbps", Modifier.weight(1f))
             Speed3("Ping", ping?.let { "%.0f".format(it) } ?: "–", "ms", Modifier.weight(1f))
         }
         val srv = sp.str("server")
-        if (srv.isNotEmpty()) { Spacer(Modifier.height(8.dp)); Text(srv, fontSize = 12.sp, color = Dim) }
+        if (srv.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Text("Last result · $srv", fontSize = 11.sp, color = Dim) }
         val err = sp.str("error")
-        if (err.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Text("Speed test failed. Check the server's internet connection and the speed test tool on the server.", fontSize = 12.sp, color = Amber) }
+        if (err.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Text("Speed test failed: $err", fontSize = 11.sp, color = Amber) }
+        Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Bandwidth history", color = Txt, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("LAST HOUR", color = Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(6.dp))
+        HistoryGraph(
+            listOf(GSeries(downHistory, Green), GSeries(upHistory, GreenLight, true)),
+            Modifier.fillMaxWidth().height(112.dp),
+            minSpan = 0.2
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(7.dp).clip(CircleShape).background(Green)); Spacer(Modifier.width(5.dp))
+                Text("Download", color = Mut, fontSize = 10.sp)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(7.dp).clip(CircleShape).background(GreenLight)); Spacer(Modifier.width(5.dp))
+                Text("Upload", color = Mut, fontSize = 10.sp)
+            }
+        }
+        Text("Live network throughput recorded by the server, not speed-test samples.", color = Dim, fontSize = 9.sp)
     }
 }
 
