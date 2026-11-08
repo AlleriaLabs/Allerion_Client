@@ -99,3 +99,48 @@ object AlertHistoryStore {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY).apply()
     }
 }
+
+
+data class ActiveAlert(
+    val key: String,
+    val timestamp: Long,
+    val server: String,
+    val severity: String,
+    val message: String
+)
+
+/** Persistent snapshot of currently active conditions, separate from the append-only event history. */
+object ActiveAlertStore {
+    private const val PREFS = "active_alerts"
+    private const val KEY = "items"
+
+    @Synchronized
+    fun set(context: Context, alertKey: String, alert: ActiveAlert?) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val current = runCatching { JSONObject(prefs.getString(KEY, "{}") ?: "{}") }
+            .getOrElse { JSONObject() }
+        if (alert == null) current.remove(alertKey) else current.put(alertKey, JSONObject()
+            .put("key", alert.key)
+            .put("timestamp", alert.timestamp)
+            .put("server", alert.server)
+            .put("severity", alert.severity)
+            .put("message", alert.message))
+        prefs.edit().putString(KEY, current.toString()).apply()
+    }
+
+    @Synchronized
+    fun load(context: Context): List<ActiveAlert> {
+        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, "{}")
+        val current = runCatching { JSONObject(raw ?: "{}") }.getOrElse { JSONObject() }
+        return current.keys().asSequence().mapNotNull { key ->
+            val item = current.optJSONObject(key) ?: return@mapNotNull null
+            ActiveAlert(
+                key = item.optString("key", key),
+                timestamp = item.optLong("timestamp"),
+                server = item.optString("server", "Server"),
+                severity = item.optString("severity", "warning"),
+                message = item.optString("message")
+            )
+        }.sortedByDescending { it.timestamp }.toList()
+    }
+}
