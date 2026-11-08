@@ -351,7 +351,7 @@ fun HistoryGraph(series: List<GSeries>, modifier: Modifier = Modifier, minSpan: 
 // ---------------------------------------------------------------- metric tile: graph is the card background
 @Composable
 fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?, series: List<GSeries>, minSpan: Double,
-               modifier: Modifier = Modifier, onClick: () -> Unit) {
+               modifier: Modifier = Modifier, centerContent: Boolean = false, onClick: () -> Unit) {
     val shape = RoundedCornerShape(24.dp)
     val accent = when (icon) {
         Ic.Cpu -> Red
@@ -367,11 +367,13 @@ fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?
         AnimatedSurfaceBackdrop(accent, Modifier.matchParentSize())
         HistoryGraph(series, Modifier.matchParentSize(), minSpan)                                   // layer 2: full-card graph
         Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Surf.copy(alpha = 0.82f), 0.72f to Color.Transparent)))
-        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {  // layer 3: readable content
+        Column(Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = if (centerContent) Arrangement.Center else Arrangement.SpaceBetween) {  // layer 3: readable content
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon24(icon, Mut, 16.dp); Spacer(Modifier.width(7.dp))
                 Text(name, fontSize = 12.sp, color = Mut, fontWeight = FontWeight.Medium)
             }
+            if (centerContent) Spacer(Modifier.height(12.dp))
             Column {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(value, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
