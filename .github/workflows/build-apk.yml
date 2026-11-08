@@ -105,6 +105,7 @@ jobs:
         with:
           tag_name: v1.1.${{ github.run_number }}
           name: ALLERION v1.1.${{ github.run_number }}
+          generate_release_notes: true
           files: |
             Allerion.apk
             Allerion.apk.sha256
