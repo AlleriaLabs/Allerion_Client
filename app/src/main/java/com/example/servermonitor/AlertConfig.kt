@@ -28,7 +28,8 @@ fun monitoringApiFailureMessage(error: Throwable): String? {
     if (apiError.message?.contains("API token is required", ignoreCase = true) == true) {
         return "The API token is missing. Enter the X-Token in server settings."
     }
-    val status = apiError.statusCode ?: return null
+    val status = apiError.statusCode ?: return (apiError.message?.takeIf { it.isNotBlank() }
+        ?: "The monitoring API returned an application error.")
     return when (status) {
         401, 403 -> "The monitoring server rejected the API token or permissions."
         else -> "The monitoring server responded with HTTP $status, but monitoring data is unavailable."
