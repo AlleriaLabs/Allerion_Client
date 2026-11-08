@@ -344,15 +344,25 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                         TopologyNode("ROUTER / GATEWAY", gateway, Ic.Globe, Green)
                     }
                     val density = androidx.compose.ui.platform.LocalDensity.current
-                    Box(Modifier.width(22.dp).height(diagramHeight)) {
+                    Box(Modifier.width(32.dp).height(diagramHeight)) {
                         Canvas(Modifier.fillMaxSize()) {
                             val mid = size.height / 2f
+                            val branchX = size.width * 0.52f
                             val right = size.width
                             val stepPx = with(density) { rowStep.toPx() }
-                            linkedNodes.indices.forEach { index ->
-                                val y = stepPx * index + stepPx / 2f
-                                drawLine(Green.copy(alpha = 0.52f), Offset(0f, mid), Offset(right, y), 1.6.dp.toPx())
-                                drawCircle(Green, 2.5.dp.toPx(), Offset(right, y))
+                            val ys = linkedNodes.indices.map { index -> stepPx * index + stepPx / 2f }
+                            val stroke = 1.8.dp.toPx()
+                            val lineColor = Green.copy(alpha = 0.62f)
+
+                            // A continuous gateway trunk with one branch to every discovered endpoint.
+                            drawLine(lineColor, Offset(0f, mid), Offset(branchX, mid), stroke)
+                            if (ys.size > 1) {
+                                drawLine(lineColor, Offset(branchX, ys.first()), Offset(branchX, ys.last()), stroke)
+                            }
+                            ys.forEach { y ->
+                                drawLine(lineColor, Offset(branchX, y), Offset(right, y), stroke)
+                                drawCircle(Green.copy(alpha = 0.9f), 2.6.dp.toPx(), Offset(branchX, y))
+                                drawCircle(Green, 2.8.dp.toPx(), Offset(right, y))
                             }
                         }
                     }
