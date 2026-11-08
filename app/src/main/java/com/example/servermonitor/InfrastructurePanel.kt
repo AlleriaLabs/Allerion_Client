@@ -338,7 +338,7 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
             Spacer(Modifier.height(14.dp))
             if (gateway != null && linkedNodes.isNotEmpty()) {
                 // Full-width endpoint cards keep IP, MAC and source details readable on narrow phones.
-                TopologyNode("ROUTER / GATEWAY", gateway, Ic.Globe, Green)
+                GatewayStatusNode(gateway, true)
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Label("DISCOVERED LAN ENDPOINTS")
@@ -393,7 +393,7 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                     color = Dim, fontSize = 10.sp
                 )
             } else {
-                TopologyNode("ROUTER / GATEWAY", gateway ?: "Not detected", Ic.Globe, Green)
+                GatewayStatusNode(gateway ?: "Not detected", gateway != null)
                 Spacer(Modifier.height(10.dp))
                 Text("No discovered LAN endpoints can currently be associated with this gateway.", color = Dim, fontSize = 11.sp)
             }
@@ -446,6 +446,29 @@ private fun TopologyStat(label: String, value: String, tint: Color, modifier: Mo
             Text(value, color = tint, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text(label, color = Dim, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp, maxLines = 1)
         }
+    }
+}
+
+@Composable
+private fun GatewayStatusNode(address: String, online: Boolean) {
+    val tint = if (online) Green else Dim
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF202630))
+            .border(1.dp, tint.copy(alpha = 0.32f), RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp))
+            .background(tint.copy(alpha = 0.13f)), contentAlignment = Alignment.Center) {
+            Icon24(Ic.Globe, tint, 19.dp)
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text("GATEWAY", color = tint, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+            Text(address, color = Txt, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+        Text(if (online) "ONLINE" else "NOT FOUND", color = tint, fontSize = 9.sp, fontWeight = FontWeight.Bold)
     }
 }
 
