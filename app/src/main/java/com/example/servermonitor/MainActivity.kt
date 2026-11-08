@@ -494,25 +494,9 @@ fun InternetPanel(j: JSONObject, sv: Server) {
     val history by rememberHistory(sv, "1h", 10_000)
     val downHistory = (history?.s?.get("down") ?: emptyList()).map { it?.times(1e-6) }
     val upHistory = (history?.s?.get("up") ?: emptyList()).map { it?.times(1e-6) }
-    var servers by remember(sv.url) { mutableStateOf<List<JSONObject>>(emptyList()) }
-    var selectedServer by remember(sv.url) { mutableStateOf<JSONObject?>(null) }
-    var menuOpen by remember { mutableStateOf(false) }
-    var loadingServers by remember { mutableStateOf(false) }
-    
     fun num(k: String): String = sp.dbl(k)?.let { "%.0f".format(it) } ?: "–"
     val ping = sp.dbl("ping_ms") ?: j.dbl("ping_ms")
     val running = sp.optBoolean("running", false)
-    LaunchedEffect(sv.url, sv.token) {
-        loadingServers = true
-        try {
-            val response = withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/speedtest/servers") }
-            val rows = response.optJSONArray("servers")
-            servers = if (rows == null) emptyList() else (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
-            
-        } catch (e: CancellationException) { throw e
-        } catch (_: Exception) { servers = emptyList() }
-        loadingServers = false
-    }
     val tileShape = RoundedCornerShape(22.dp)
     Box(Modifier.fillMaxWidth().clip(tileShape).background(Surf).border(1.dp, Line, tileShape)) {
         HistoryGraph(
@@ -522,43 +506,24 @@ fun InternetPanel(j: JSONObject, sv: Server) {
         Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Surf.copy(alpha = 0.93f), 0.82f to Color.Transparent)))
         Column(Modifier.fillMaxWidth().padding(18.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Label("Internet · Speedtest by Ookla")
-            Text(if (running) when (sp.str("phase")) { "ping" -> "Testing latency"; "download" -> "Testing download"; "upload" -> "Testing upload"; else -> "Testing" } else "SPEEDTEST",
-                fontSize = 10.sp, color = if (running) Red else Dim, fontWeight = FontWeight.Bold)
-        }
-        Spacer(Modifier.height(8.dp))
-        Text("Ookla test server", color = Mut, fontSize = 11.sp)
-        Box {
-            OutlinedButton(onClick = { menuOpen = true }, enabled = !running && servers.isNotEmpty()) {
-                Text(selectedServer?.let { it.optString("name") + " · " + it.optString("location") }
-                    ?: if (loadingServers) "Loading available servers…" else "Select a server", maxLines = 1)
+            Column {
+                Label("Internet · Speedtest by Ookla")
+                Text("SERVER · SMART", color = Mut, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                servers.forEach { server ->
-                    DropdownMenuItem(
-                        text = { Column {
-                            Text(server.optString("name"), color = Txt, fontSize = 13.sp)
-                            Text(server.optString("location") + (server.optDouble("distance_km", -1.0).takeIf { it >= 0 }?.let { " · %.0f km".format(it) } ?: ""),
-                                color = Mut, fontSize = 10.sp)
-                        } },
-                        onClick = { selectedServer = server; menuOpen = false }
-                    )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (running) when (sp.str("phase")) { "ping" -> "Testing latency"; "download" -> "Testing download"; "upload" -> "Testing upload"; else -> "Testing" } else "SPEEDTEST",
+                    fontSize = 10.sp, color = if (running) Red else Dim, fontWeight = FontWeight.Bold)
+                Button(onClick = {
+                    scope.launch {
+                        try { withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/speedtest", JSONObject()) } }
+                        catch (e: CancellationException) { throw e } catch (_: Exception) { }
+                    }
+                }, enabled = !running, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
+                    Text(if (running) "Testing…" else "Run speedtest", maxLines = 1)
                 }
             }
         }
-        
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            Button(onClick = {
-                val body = JSONObject()
-                selectedServer?.optString("id")?.takeIf { it.isNotBlank() }?.let { body.put("server_id", it) }
-                scope.launch {
-                    try { withContext(Dispatchers.IO) { httpJson(sv.url, sv.token, "/api/speedtest", body) } }
-                    catch (e: CancellationException) { throw e } catch (_: Exception) { }
-                }
-            }, enabled = !running) {
-                Text(if (running) "Testing…" else "Run speed test")
-            }
-        }
+        Spacer(Modifier.height(12.dp))
         if (running) { Spacer(Modifier.height(8.dp)); Bar((sp.dbl("progress") ?: 0.0).toFloat(), 4.dp) }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth()) {
@@ -568,8 +533,6 @@ fun InternetPanel(j: JSONObject, sv: Server) {
         }
         val srv = sp.str("server")
         if (srv.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Text("Last result · $srv", fontSize = 11.sp, color = Dim) }
-        val err = sp.str("error")
-        if (err.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Text("Speed test failed: $err", fontSize = 11.sp, color = Amber) }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("LIVE BANDWIDTH · LAST HOUR", color = Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold)
