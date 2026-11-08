@@ -332,7 +332,7 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
             Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TopologyStat("LAN ENDPOINTS", linkedNodes.size.toString(), Blue, Modifier.weight(1f))
-                TopologyStat("GATEWAY", if (gateway != null) "ONLINE" else "N/A", Green, Modifier.weight(1f))
+                GatewayTopologyStat(gateway != null, Modifier.weight(1f))
                 TopologyStat("UNMAPPED", unmappedNodes.size.toString(), if (unmappedNodes.isEmpty()) Mut else Amber, Modifier.weight(1f))
             }
             Spacer(Modifier.height(14.dp))
@@ -433,6 +433,24 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
             Text(topology?.optString("note").orEmpty().ifBlank {
                 "Connections are inferred from the active gateway route and local subnet; physical links are not verified."
             }, color = Dim, fontSize = 10.sp)
+        }
+    }
+}
+
+@Composable
+private fun GatewayTopologyStat(online: Boolean, modifier: Modifier) {
+    val tint = if (online) Green else Dim
+    Box(modifier.clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B2029))
+        .border(1.dp, Color(0xFF303946), RoundedCornerShape(14.dp))) {
+        AnimatedSurfaceBackdrop(tint, Modifier.matchParentSize())
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon24(Ic.Globe, tint, 20.dp)
+            Spacer(Modifier.height(3.dp))
+            Text("GATEWAY", color = Dim, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp, maxLines = 1)
         }
     }
 }
