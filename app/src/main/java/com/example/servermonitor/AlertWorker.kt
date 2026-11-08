@@ -62,6 +62,7 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
             try {
                 val stats = fetch(server.url, server.token)
                 updateAlert(prefix + "_offline", false, server.name, "Server connection restored.", "critical")
+                updateAlert(prefix + "_api_error", false, server.name, "Monitoring API recovered.")
                 val cpu = stats.optDouble("cpu", Double.NaN)
                 val ram = stats.optDouble("ram", Double.NaN)
                 val temp = stats.optDouble("temp", Double.NaN)
