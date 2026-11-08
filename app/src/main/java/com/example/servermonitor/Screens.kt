@@ -139,7 +139,7 @@ fun OverviewScreen(sv: Server, j: JSONObject, online: Boolean, onOpen: (String) 
     }
     Row(Modifier.fillMaxWidth().staggerIn(2), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         MetricTile(Ic.Thermo, "Temperature", animNum(temp), if (temp == null) "" else "°C", if (temp == null) "No sensor found" else null,
-            listOf(GSeries(hs("temp"), Amber)), 4.0, Modifier.weight(1f)) { onOpen("temp") }
+            listOf(GSeries(hs("temp"), Amber)), 4.0, Modifier.weight(1f), centerContent = true) { onOpen("temp") }
         MetricTile(Ic.Activity, "Network", dv, du, "↑ $uv $uu", listOf(GSeries(hs("down"), Green), GSeries(hs("up"), GreenLight, true)), 200_000.0,
             Modifier.weight(1f)) { onOpen("net") }
     }
