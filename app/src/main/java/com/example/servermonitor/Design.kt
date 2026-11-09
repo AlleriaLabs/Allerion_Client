@@ -184,10 +184,11 @@ fun PulseDot(color: Color, pulse: Boolean, dia: Dp = 8.dp) {
 }
 
 @Composable
-fun IconBtn(ic: Ic, desc: String, rotate: Float = 0f, onClick: () -> Unit) {
-    Box(Modifier.size(44.dp).clip(RoundedCornerShape(15.dp)).background(Surf2)
-        .border(1.dp, Line, RoundedCornerShape(15.dp)).clickable(onClick = onClick),
-        contentAlignment = Alignment.Center) {
+fun IconBtn(ic: Ic, desc: String, rotate: Float = 0f, plain: Boolean = false, onClick: () -> Unit) {
+    val buttonModifier = if (plain) Modifier.size(44.dp).clickable(onClick = onClick)
+        else Modifier.size(44.dp).clip(RoundedCornerShape(15.dp)).background(Surf2)
+            .border(1.dp, Line, RoundedCornerShape(15.dp)).clickable(onClick = onClick)
+    Box(buttonModifier, contentAlignment = Alignment.Center) {
         Icon24(ic, Mut, 20.dp, Modifier.graphicsLayer { rotationZ = rotate }, desc)
     }
 }
