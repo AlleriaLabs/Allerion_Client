@@ -391,8 +391,8 @@ fun PowerStatTile(
     alternate: Pair<String, String>? = null
 ) {
     var showAlternate by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(24.dp)
-    Box(modifier.height(124.dp).clip(shape).background(Surf).border(1.dp, Line, shape)
+    val shape = RoundedCornerShape(20.dp)
+    Box(modifier.height(112.dp).clip(shape).background(Surf).border(1.dp, Line, shape)
         .then(if (alternate != null) Modifier.clickable { showAlternate = !showAlternate } else Modifier)) {
         if (series.any { s -> s.values.any { it != null } }) {
             HistoryGraph(series, Modifier.matchParentSize(), minSpan, lineAlpha = 0.48f, fillAlpha = 0.10f, stroke = 1.6.dp)
@@ -400,16 +400,17 @@ fun PowerStatTile(
         Box(Modifier.matchParentSize().background(
             Brush.horizontalGradient(0f to Surf.copy(alpha = 0.78f), 0.76f to Surf.copy(alpha = 0.42f), 1f to Color.Transparent)
         ))
-        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
+        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
             Text((if (showAlternate) alternate?.first else label)?.uppercase().orEmpty(),
                 fontSize = AppType.small, color = Mut, fontWeight = FontWeight.Medium, letterSpacing = 0.8.sp,
                 maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
             val displayValue = if (showAlternate) alternate?.second ?: value else value
             Text(displayValue,
                 fontSize = when {
-                    displayValue.startsWith("Php", ignoreCase = true) -> 18.sp
-                    displayValue.length >= 8 -> 22.sp
-                    else -> 30.sp
+                    displayValue.startsWith("Php", ignoreCase = true) -> 17.sp
+                    displayValue.length >= 9 -> 19.sp
+                    displayValue.length >= 7 -> 22.sp
+                    else -> 27.sp
                 },
                 fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, softWrap = false,
                 overflow = TextOverflow.Clip)
@@ -471,11 +472,11 @@ fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
     val monthEnergy = energy?.filterKeys { it.startsWith(monthPrefix) }?.toSortedMap()?.values?.toList()?.map { it as Double? } ?: emptyList()
     val yearEnergy = energy?.entries?.groupBy { it.key.take(7) }?.toSortedMap()?.values?.map { entries -> entries.sumOf { it.value } }?.map { it as Double? } ?: emptyList()
     fun cost(k: Double) = if (price > 0) cur + "%.2f".format(k * price) else "Set price"
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(20.dp)
     Box(Modifier.fillMaxWidth().clip(shape).background(Surf).border(1.dp, Line, shape)) {
-        // Match the Energy section's subtle red ambient accent without restoring its live graph.
+        // Keep the energy hero's ambient accent restrained and slow.
         AnimatedSurfaceBackdrop(accent = Red, modifier = Modifier.matchParentSize())
-        Column(Modifier.fillMaxWidth().padding(18.dp)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Label("Power source")
@@ -483,12 +484,12 @@ fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
                 }
                 Status(watts != null)
             }
-            Spacer(Modifier.height(14.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(if (watts == null) "N/A" else "%.0f".format(watts), fontSize = AppType.heroLarge, fontWeight = FontWeight.Bold, color = Txt)
-                Text(" W", fontSize = AppType.title, color = Mut, modifier = Modifier.padding(bottom = 11.dp))
-            }
             Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(if (watts == null) "N/A" else animNum(watts, "%.0f"), fontSize = AppType.hero, fontWeight = FontWeight.Bold, color = Txt)
+                Text(" W", fontSize = AppType.titleSmall, color = Mut, modifier = Modifier.padding(bottom = 9.dp))
+            }
+            Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 InfoChip("Voltage", if (volts == null) "N/A" else "%.1f V".format(volts), Modifier.weight(1f),
                     listOf(GSeries(voltageHistory, Amber)))
