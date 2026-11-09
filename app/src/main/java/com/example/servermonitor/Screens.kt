@@ -131,15 +131,22 @@ fun OverviewScreen(sv: Server, j: JSONObject, online: Boolean, onOpen: (String) 
     fun hs(k: String): List<Double?> = h?.s?.get(k) ?: emptyList()
     val cpu = j.getDouble("cpu"); val ram = j.getDouble("ram")
     val temp = j.dbl("temp"); val gpu = j.dbl("gpu"); val disk = diskPct(j)
-    val up = j.optLong("uptime_s")
+    val snapshotTs = j.optLong("ts")
+    val initialUptime = j.optLong("uptime_s").coerceAtLeast(0L)
+    var liveUptime by remember(snapshotTs, initialUptime) { mutableStateOf(initialUptime) }
+    LaunchedEffect(snapshotTs, initialUptime) {
+        while (true) {
+            kotlinx.coroutines.delay(1_000)
+            liveUptime += 1L
+        }
+    }
     var usedGb = 0.0; var totGb = 0.0
     j.optJSONArray("disks")?.let { for (i in 0 until it.length()) { usedGb += it.getJSONObject(i).optDouble("used_gb", 0.0); totGb += it.getJSONObject(i).optDouble("total_gb", 0.0) } }
-    HealthCard(j, online, Modifier.staggerIn(0))
     Panel {
         Label("Server details"); Spacer(Modifier.height(6.dp))
         KV("Host", j.str("host"))
         KV("System", j.str("os"))
-        KV("Uptime", "${up / 86400}d ${up % 86400 / 3600}h ${up % 3600 / 60}m")
+        KV("Uptime", "${liveUptime / 86400}d ${liveUptime % 86400 / 3600}h ${liveUptime % 3600 / 60}m ${liveUptime % 60}s")
         KV("Address", j.str("ip").ifEmpty { "-" })
         KV("CPU cores", "${j.optInt("cores")}")
         KV("Memory", "${j.optDouble("ram_total_gb")} GB")
