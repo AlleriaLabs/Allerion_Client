@@ -406,8 +406,13 @@ fun PowerStatTile(
                 maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
             val displayValue = if (showAlternate) alternate?.second ?: value else value
             Text(displayValue,
-                fontSize = if (displayValue.length >= 8) 24.sp else 30.sp,
-                fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                fontSize = when {
+                    displayValue.startsWith("Php", ignoreCase = true) -> 18.sp
+                    displayValue.length >= 8 -> 22.sp
+                    else -> 30.sp
+                },
+                fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, softWrap = false,
+                overflow = TextOverflow.Clip)
         }
     }
 }
