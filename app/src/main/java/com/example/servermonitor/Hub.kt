@@ -91,9 +91,9 @@ fun SummaryStat(label: String, value: String, color: Color, modifier: Modifier) 
     val shape = RoundedCornerShape(18.dp)
     Box(modifier.clip(shape).background(Surf).border(1.dp, Line, shape)) {
         AnimatedSurfaceBackdrop(color, Modifier.matchParentSize())
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
-            Text(value, fontSize = AppType.title, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
-            Text(label, fontSize = AppType.caption, color = Dim)
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
+            Text(value, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
+            Text(label, fontSize = AppType.micro, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -161,10 +161,10 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
     var confirm by remember { mutableStateOf(false) }
     Panel(modifier) {
         Row(Modifier.fillMaxWidth().tap(onToggle), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Surf2), contentAlignment = Alignment.Center) { Icon24(Ic.Server, Mut, 22.dp) }
-            Spacer(Modifier.width(14.dp))
+            Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(Surf2), contentAlignment = Alignment.Center) { Icon24(Ic.Server, Mut, 20.dp) }
+            Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
-                Text(sv.name, fontSize = AppType.titleSmall, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sv.name, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sv.url.removePrefix("http://").removePrefix("https://"), fontSize = AppType.small, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sv.group, fontSize = AppType.caption, color = Red, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -173,8 +173,8 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
             Spacer(Modifier.width(6.dp))
             Icon24(Ic.ChevronD, Mut, 20.dp, Modifier.graphicsLayer { rotationZ = rot }, if (expanded) "Collapse" else "Expand")
         }
-        AnimatedVisibility(visible = expanded, enter = expandVertically(tween(300, easing = FastOutSlowInEasing)) + fadeIn(tween(300)),
-            exit = shrinkVertically(tween(240, easing = FastOutSlowInEasing)) + fadeOut(tween(160))) {
+        AnimatedVisibility(visible = expanded, enter = expandVertically(tween(240, easing = FastOutSlowInEasing)) + fadeIn(tween(220)),
+            exit = shrinkVertically(tween(190, easing = FastOutSlowInEasing)) + fadeOut(tween(140))) {
             ExpandedBody(sv, j, r.error, onOpen, onEdit) { confirm = true }
         }
     }
@@ -212,10 +212,10 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
         val wideLayout = maxWidth >= 720.dp
         Column(Modifier.widthIn(max = 1100.dp).fillMaxHeight().fillMaxWidth().align(Alignment.TopCenter).verticalScroll(rememberScrollState())) {
             HubHeader(onSettings)
-            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.padding(top = 8.dp, bottom = 2.dp).staggerIn(0)) {
-                    Text("Servers", fontSize = AppType.display, fontWeight = FontWeight.Bold, color = Txt)
-                    Text("Your connected infrastructure", fontSize = AppType.body, color = Mut)
+            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.padding(top = 6.dp, bottom = 1.dp).staggerIn(0)) {
+                    Text("Servers", fontSize = AppType.displaySmall, fontWeight = FontWeight.Bold, color = Txt)
+                    Text("Your connected infrastructure", fontSize = AppType.small, color = Mut)
                 }
                 if (servers.isEmpty()) {
                     Panel(Modifier.staggerIn(1)) {
@@ -230,7 +230,7 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                         }
                     }
                 } else {
-                    Row(Modifier.fillMaxWidth().staggerIn(1), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth().staggerIn(1), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         SummaryStat("Servers", "${servers.size}", Txt, Modifier.weight(1f))
                         SummaryStat("Online", "$online", Green, Modifier.weight(1f))
                         SummaryStat("Offline", "$offline", if (offline > 0) Err else Txt, Modifier.weight(1f))
