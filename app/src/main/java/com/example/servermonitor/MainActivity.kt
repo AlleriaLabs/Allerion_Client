@@ -50,16 +50,17 @@ import kotlin.math.roundToInt
 import org.json.JSONArray
 import org.json.JSONObject
 
-val Bg = Color(0xFF101113)
-val Line = Color(0xFF303136)
-val Red = Color(0xFFE50914)
-val DeepRed = Color(0xFF9B0710)
-val Txt = Color(0xFFF5F5F5)
-val Mut = Color(0xFF929398)
-val Track = Color(0xFF2A2B30)
-val Dim = Color(0xFF676970)
-val Amber = Color(0xFFFFB547)
-val Green = Color(0xFF35C98A)
+// Allerion "Obsidian Signal" design system: cool graphite, soft white, focused crimson.
+val Bg = Color(0xFF090B10)
+val Line = Color(0xFF252A34)
+val Red = Color(0xFFFF3548)
+val DeepRed = Color(0xFF9E1B2A)
+val Txt = Color(0xFFF3F5F8)
+val Mut = Color(0xFFA0A8B5)
+val Track = Color(0xFF252B35)
+val Dim = Color(0xFF727D8D)
+val Amber = Color(0xFFFFC46B)
+val Green = Color(0xFF43D6A0)
 
 data class Server(val name: String, val url: String, val token: String, val group: String = "Ungrouped")
 data class StatsResult(val json: JSONObject? = null, val error: String? = null)
@@ -178,27 +179,31 @@ fun App(p: SharedPreferences) {
     }
 }
 
-val Surf = Color(0xFF1B1C20)
-val Surf2 = Color(0xFF24252A)
+val Surf = Color(0xFF121720)
+val Surf2 = Color(0xFF1A2230)
 
 fun JSONObject.str(k: String): String = if (!has(k) || isNull(k)) "" else optString(k)
 fun JSONObject.dbl(k: String): Double? = if (!has(k) || isNull(k)) null else optDouble(k).takeIf { !it.isNaN() }
 
 @Composable
 fun Panel(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(22.dp)
     Box(
-        Modifier.then(modifier).fillMaxWidth().clip(shape).background(Surf).border(1.dp, Line, shape)
+        Modifier.then(modifier).fillMaxWidth().clip(shape).background(Surf)
+            .border(1.dp, Line.copy(alpha = 0.92f), shape)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
     ) {
-        AnimatedSurfaceBackdrop(Red, Modifier.matchParentSize())
+        // A quiet top-edge highlight gives the surface depth without washing out its content.
+        Box(Modifier.fillMaxWidth().height(1.dp).background(
+            Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.075f), Color.Transparent))
+        ))
         Column(Modifier.fillMaxWidth().padding(18.dp), content = content)
     }
 }
 
 @Composable
-fun Label(text: String) = Text(text.uppercase(), fontSize = AppType.caption, color = Dim, fontWeight = FontWeight.Bold,
-    letterSpacing = 1.1.sp)
+fun Label(text: String) = Text(text.uppercase(), fontSize = AppType.caption, color = Mut, fontWeight = FontWeight.SemiBold,
+    letterSpacing = 1.35.sp)
 
 @Composable
 fun Bar(frac: Float, h: Dp = 8.dp) {
@@ -236,11 +241,16 @@ fun StatTile(title: String, value: String, sub: String, pct: Double?, modifier: 
 
 @Composable
 fun Status(online: Boolean) {
-    Row(Modifier.clip(RoundedCornerShape(50)).background(Surf2).padding(horizontal = 11.dp, vertical = 7.dp),
+    val statusColor = if (online) Green else Err
+    Row(Modifier.clip(RoundedCornerShape(50))
+        .background(statusColor.copy(alpha = 0.09f))
+        .border(1.dp, statusColor.copy(alpha = 0.24f), RoundedCornerShape(50))
+        .padding(horizontal = 11.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        PulseDot(if (online) Green else Err, online)
-        Spacer(Modifier.width(4.dp))
-        Text(if (online) "Online" else "Offline", fontSize = AppType.small, color = Txt)
+        PulseDot(statusColor, online)
+        Spacer(Modifier.width(6.dp))
+        Text(if (online) "ONLINE" else "OFFLINE", fontSize = AppType.micro, color = statusColor, fontWeight = FontWeight.Bold,
+            letterSpacing = 0.8.sp)
     }
 }
 
@@ -267,9 +277,13 @@ val PLUGS = listOf(
 
 @Composable
 fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
     Text(text, color = if (selected) Txt else Mut, fontSize = AppType.body,
-        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (selected) Red else Track)
-            .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp))
+        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+        modifier = Modifier.clip(shape)
+            .background(if (selected) Red.copy(alpha = 0.16f) else Surf2)
+            .border(1.dp, if (selected) Red.copy(alpha = 0.42f) else Line, shape)
+            .clickable(onClick = onClick).padding(horizontal = 15.dp, vertical = 9.dp))
 }
 
 @Composable
