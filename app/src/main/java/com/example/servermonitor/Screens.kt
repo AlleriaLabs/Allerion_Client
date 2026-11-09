@@ -248,6 +248,70 @@ fun chartFor(mode: String, today: java.time.LocalDate, e: Map<String, Double>?, 
 }
 
 @Composable
+private fun EnergyValueChart(cd: ChartData, mode: String, loading: Boolean) {
+    val values = cd.vals.filterNotNull()
+    val unit = if (mode == "Day") "W" else "kWh"
+    val latest = cd.vals.lastOrNull { it != null }
+    var low = values.minOrNull() ?: 0.0
+    var high = values.maxOrNull() ?: 0.0
+    if (high - low < cd.minSpan) {
+        val mid = (high + low) / 2.0
+        low = mid - cd.minSpan / 2.0
+        high = mid + cd.minSpan / 2.0
+    }
+    val pad = (high - low) * 0.14
+    low -= pad
+    high += pad
+    fun axis(v: Double): String = if (mode == "Day") "%.0f".format(v) else "%.2f".format(v)
+    val plotShape = RoundedCornerShape(14.dp)
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(if (mode == "Day") "POWER DRAW · W" else "ENERGY USE · KWH",
+                color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+            Spacer(Modifier.weight(1f))
+            Text(latest?.let { "LATEST  ${axis(it)} $unit" } ?: if (loading) "LOADING" else "NO READINGS",
+                color = if (latest != null) Red else Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Row(Modifier.fillMaxWidth().height(164.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.width(48.dp).fillMaxHeight(), verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.End) {
+                Text(axis(high), color = Dim, fontSize = 10.sp, maxLines = 1)
+                Text(axis((high + low) / 2.0), color = Dim, fontSize = 10.sp, maxLines = 1)
+                Text(axis(low), color = Dim, fontSize = 10.sp, maxLines = 1)
+            }
+            Box(Modifier.weight(1f).fillMaxHeight().clip(plotShape).background(Surf2)
+                .border(1.dp, Line.copy(alpha = 0.75f), plotShape)) {
+                Canvas(Modifier.matchParentSize()) {
+                    for (i in 0..2) {
+                        val y = size.height * i / 2f
+                        drawLine(Line.copy(alpha = 0.72f), Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
+                    }
+                    for (i in 0..4) {
+                        val x = size.width * i / 4f
+                        drawLine(Line.copy(alpha = 0.32f), Offset(x, 0f), Offset(x, size.height), 1.dp.toPx())
+                    }
+                }
+                if (values.isEmpty()) {
+                    Text(if (loading) "Loading recorded values…" else "No measured readings for this period",
+                        color = Dim, fontSize = AppType.caption, textAlign = TextAlign.Center,
+                        modifier = Modifier.align(Alignment.Center).padding(horizontal = 12.dp))
+                } else {
+                    HistoryGraph(listOf(GSeries(cd.vals, Red)), Modifier.matchParentSize(),
+                        cd.minSpan, 0.98f, 0.20f, 2.2.dp)
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(cd.left, color = Dim, fontSize = AppType.caption)
+            Text(if (mode == "Day") "NOW" else "LATEST", color = Dim, fontSize = AppType.caption)
+            Text(cd.right, color = Dim, fontSize = AppType.caption)
+        }
+    }
+}
+
+@Composable
 fun EnergyPanel(sv: Server, pw: JSONObject) {
     val energy by rememberEnergy(sv)
     val hist by rememberHistory(sv, "24h", 30_000)
@@ -257,23 +321,28 @@ fun EnergyPanel(sv: Server, pw: JSONObject) {
     val cd = chartFor(mode, today, energy, hist)
     val ok = cd.vals.filterNotNull()
     Panel {
-        Label(if (mode == "Day") "Power · last 24 hours" else "Energy · $mode")
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("Day", "Week", "Month", "Year").forEach { m -> Chip(m, mode == m) { mode = m } } }
-        Spacer(Modifier.height(14.dp))
-        Box(Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(16.dp)).background(Surf2)) {
-            if (ok.isEmpty()) Text(if (energy == null && mode != "Day") "Loading…" else "No readings recorded for this period yet.", color = Dim, fontSize = AppType.body,
-                modifier = Modifier.align(Alignment.Center).padding(24.dp), textAlign = TextAlign.Center)
-            else HistoryGraph(listOf(GSeries(cd.vals, Red)), Modifier.matchParentSize(), cd.minSpan, 0.95f, 0.24f, 2.dp)
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Label(if (mode == "Day") "Power · last 24 hours" else "Energy · $mode")
+                    Text(if (mode == "Day") "Live power history" else "Measured consumption over time",
+                        color = Dim, fontSize = AppType.caption)
+                }
+                Text("${ok.size} POINTS", color = Mut, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("Day", "Week", "Month", "Year").forEach { m -> Chip(m, mode == m) { mode = m } }
+            }
+            EnergyValueChart(cd, mode, energy == null && mode != "Day")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                InfoChip(cd.aLabel, cd.a, Modifier.weight(1f))
+                InfoChip(cd.bLabel, cd.b, Modifier.weight(1f))
+            }
+            val since = pw.str("since")
+            if (since.isNotEmpty() && mode != "Day") {
+                Text("Energy tracked since $since", fontSize = AppType.caption, color = Dim)
+            }
         }
-        Spacer(Modifier.height(6.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(cd.left, fontSize = AppType.caption, color = Dim); Text(cd.right, fontSize = AppType.caption, color = Dim) }
-        Spacer(Modifier.height(12.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            InfoChip(cd.aLabel, cd.a, Modifier.weight(1f)); InfoChip(cd.bLabel, cd.b, Modifier.weight(1f))
-        }
-        val since = pw.str("since")
-        if (since.isNotEmpty() && mode != "Day") { Spacer(Modifier.height(8.dp)); Text("Energy tracked since $since", fontSize = AppType.caption, color = Dim) }
     }
 }
 
