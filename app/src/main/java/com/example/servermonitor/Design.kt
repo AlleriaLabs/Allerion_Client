@@ -206,7 +206,7 @@ fun BottomBar(tab: Int, onTab: (Int) -> Unit) {
                 val selected = tab == i
                 val tint by animateColorAsState(if (selected) Red else Dim, tween(220), label = "nav-icon")
                 Column(Modifier.weight(1f).tap { onTab(i) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.width(52.dp).height(31.dp).clip(RoundedCornerShape(11.dp))
+                    Box(Modifier.width(54.dp).height(32.dp).clip(RoundedCornerShape(12.dp))
                         .background(if (selected) Red.copy(alpha = 0.13f) else Color.Transparent),
                         contentAlignment = Alignment.Center) {
                         Icon24(ic, tint, 21.dp, desc = label)
@@ -375,7 +375,7 @@ fun HistoryGraph(series: List<GSeries>, modifier: Modifier = Modifier, minSpan: 
 @Composable
 fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?, series: List<GSeries>, minSpan: Double,
                modifier: Modifier = Modifier, centerContent: Boolean = false, centerValue: Boolean = false, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(19.dp)
+    val shape = RoundedCornerShape(20.dp)
     val accent = when (icon) {
         Ic.Cpu -> Red
         Ic.Memory -> Blue
@@ -385,8 +385,8 @@ fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?
         Ic.Zap -> Red
         else -> Blue
     }
-    Box(modifier.tap(onClick).height(122.dp).clip(shape).background(Surf)
-        .border(1.dp, Line, shape)
+    Box(modifier.tap(onClick).height(128.dp).clip(shape).background(Surf)
+        .border(1.dp, Line.copy(alpha = 0.82f), shape)
         .semantics(mergeDescendants = true) { contentDescription = "$name $value $unit" }) {
         HistoryGraph(series, Modifier.matchParentSize(), minSpan, lineAlpha = 0.30f, fillAlpha = 0.07f, stroke = 1.4.dp)
         Box(Modifier.matchParentSize().background(Brush.horizontalGradient(
@@ -394,9 +394,9 @@ fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?
         )))
         Box(Modifier.fillMaxSize().padding(14.dp)) {
             Row(Modifier.align(Alignment.TopStart), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(25.dp).clip(RoundedCornerShape(8.dp)).background(accent.copy(alpha = 0.13f)),
+                Box(Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(accent.copy(alpha = 0.14f)),
                     contentAlignment = Alignment.Center) {
-                    Icon24(icon, accent, 14.dp)
+                    Icon24(icon, accent, 15.dp)
                 }
                 Spacer(Modifier.width(8.dp))
                 Text(name, fontSize = AppType.small, color = Mut, fontWeight = FontWeight.Medium)
