@@ -177,7 +177,7 @@ fun InfrastructurePanel(sv: Server, networkOnly: Boolean = false, powerOnly: Boo
         }
     }
 
-    if (!networkOnly && caps.optBoolean("processes")) {
+    if (!networkOnly && !powerOnly && caps.optBoolean("processes")) {
         val rows = snapshot.processes?.optJSONArray("items")
         Panel {
             CollapsibleSectionHeader("Top processes", processesExpanded) { processesExpanded = !processesExpanded }
@@ -197,7 +197,7 @@ fun InfrastructurePanel(sv: Server, networkOnly: Boolean = false, powerOnly: Boo
         }
     }
 
-    if (!networkOnly && caps.optBoolean("containers")) {
+    if (!networkOnly && !powerOnly && caps.optBoolean("containers")) {
         val rows = snapshot.containers?.optJSONArray("items")
         Panel {
             CollapsibleSectionHeader("Docker containers", containersExpanded) { containersExpanded = !containersExpanded }
