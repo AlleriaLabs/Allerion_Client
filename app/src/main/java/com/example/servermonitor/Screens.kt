@@ -266,8 +266,6 @@ private fun EnergyValueChart(cd: ChartData, mode: String, loading: Boolean) {
     low -= pad
     high += pad
     fun axis(v: Double): String = if (mode == "Day") "%.0f".format(v) else "%.2f".format(v)
-    val plotShape = RoundedCornerShape(14.dp)
-
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(if (mode == "Day") "POWER DRAW · W" else "ENERGY USE · KWH",
@@ -277,15 +275,7 @@ private fun EnergyValueChart(cd: ChartData, mode: String, loading: Boolean) {
                 color = if (latest != null) Red else Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Row(Modifier.fillMaxWidth().height(164.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.width(48.dp).fillMaxHeight(), verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.End) {
-                Text(axis(high), color = Dim, fontSize = 10.sp, maxLines = 1)
-                Text(axis((high + low) / 2.0), color = Dim, fontSize = 10.sp, maxLines = 1)
-                Text(axis(low), color = Dim, fontSize = 10.sp, maxLines = 1)
-            }
-            BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().clip(plotShape).background(Surf2)
-                .border(1.dp, Line.copy(alpha = 0.75f), plotShape)) {
+        BoxWithConstraints(Modifier.fillMaxWidth().height(164.dp)) {
                 Canvas(Modifier.matchParentSize()) {
                     for (i in 0..2) {
                         val y = size.height * i / 2f
