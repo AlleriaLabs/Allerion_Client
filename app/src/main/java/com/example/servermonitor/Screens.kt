@@ -143,7 +143,11 @@ fun OverviewScreen(sv: Server, j: JSONObject, online: Boolean, onOpen: (String) 
     var usedGb = 0.0; var totGb = 0.0
     j.optJSONArray("disks")?.let { for (i in 0 until it.length()) { usedGb += it.getJSONObject(i).optDouble("used_gb", 0.0); totGb += it.getJSONObject(i).optDouble("total_gb", 0.0) } }
     Panel {
-        Label("Server details"); Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) { Label("Server details"); Text(j.str("host").ifEmpty { sv.name }, color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            Status(online)
+        }
+        Spacer(Modifier.height(8.dp))
         KV("Host", j.str("host"))
         KV("System", j.str("os"))
         KV("Uptime", "${liveUptime / 86400}d ${liveUptime % 86400 / 3600}h ${liveUptime % 3600 / 60}m ${liveUptime % 60}s")
@@ -191,7 +195,7 @@ fun MetricDetail(sv: Server, kind: String, j: JSONObject, onBack: () -> Unit) {
     fun f(v: Double?) = if (v == null) "–" else fmt.format(v) + (if (unit == "%") "%" else " $unit")
     val series = if (kind == "net") listOf(GSeries(vals, Green), GSeries((h?.s?.get("up") ?: emptyList()).map { it?.times(scale) }, GreenLight, true))
                  else listOf(GSeries(vals, color))
-    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
+    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBtn(Ic.ChevronL, "Back to dashboard", onClick = onBack)
@@ -373,7 +377,8 @@ fun DiagRow(label: String, value: String, color: Color) {
 @Composable
 fun SystemScreen(sv: Server, j: JSONObject, online: Boolean) {
     Panel {
-        Label("Diagnostics"); Spacer(Modifier.height(4.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Label("System diagnostics"); Spacer(Modifier.weight(1f)); Status(online) }
+        Spacer(Modifier.height(5.dp))
         DiagRow("Monitoring connection", if (online) "Connected" else "Offline", if (online) Green else Err)
         DiagRow("Temperature sensor", if (j.dbl("temp") != null) "Available" else "Not found", if (j.dbl("temp") != null) Green else Dim)
         DiagRow("GPU", if (j.dbl("gpu") != null) "Available" else "Not available", if (j.dbl("gpu") != null) Green else Dim)
@@ -387,7 +392,7 @@ fun NetworkScreen(sv: Server, j: JSONObject, onOpen: (String) -> Unit) {
     val (downValue, downUnit) = netFmt(j.getDouble("net_down_bps"))
     val (upValue, upUnit) = netFmt(j.getDouble("net_up_bps"))
     Panel {
-        Label("Network status")
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Label("Network status"); Spacer(Modifier.weight(1f)); Status(true) }
         Spacer(Modifier.height(8.dp))
         DiagRow("IPv4 address", j.str("ip").ifEmpty { "Not reported" }, Green)
         DiagRow("Download", "$downValue $downUnit", Blue)
@@ -402,7 +407,9 @@ fun NetworkScreen(sv: Server, j: JSONObject, onOpen: (String) -> Unit) {
 fun ActionRow(title: String, sub: String, onClick: () -> Unit) {
     Panel(onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) { Text(title, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold, color = Txt); Text(sub, fontSize = AppType.small, color = Mut) }
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Surf2), contentAlignment = Alignment.Center) { Icon24(Ic.Gear, Red, 18.dp) }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) { Text(title, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold, color = Txt); Text(sub, fontSize = AppType.small, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             Text("›", fontSize = AppType.section, color = Red)
         }
     }
@@ -415,6 +422,22 @@ fun SettingsScreen(sv: Server, onEdit: () -> Unit) {
     ReportExportPanel(sv)
     RefreshPanel()
     AboutPanel()
+}
+
+@Composable
+private fun DashboardSectionHeader(tab: Int, server: String) {
+    val (eyebrow, title, subtitle) = when (tab) {
+        0 -> Triple("SERVER OVERVIEW", "Infrastructure", "Live health and resource utilization for $server")
+        1 -> Triple("NETWORK INTELLIGENCE", "Network", "Traffic, connected devices and diagnostics")
+        2 -> Triple("ENERGY MONITORING", "Power", "Consumption, cost and energy insights")
+        3 -> Triple("SERVER MANAGEMENT", "System", "Processes, containers and system diagnostics")
+        else -> Triple("PREFERENCES", "Settings", "Manage your Allerion experience and server")
+    }
+    Column(Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 3.dp).staggerIn(0), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(eyebrow, color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
+        Text(title, color = Txt, fontSize = AppType.displaySmall, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp)
+        Text(subtitle, color = Mut, fontSize = AppType.small, lineHeight = 17.sp)
+    }
 }
 
 @Composable
