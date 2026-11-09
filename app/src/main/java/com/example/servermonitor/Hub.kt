@@ -88,12 +88,12 @@ fun HubHeader(onSettings: () -> Unit) {
 
 @Composable
 fun SummaryStat(label: String, value: String, color: Color, modifier: Modifier) {
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(16.dp)
     Box(modifier.clip(shape).background(Surf).border(1.dp, Line, shape)) {
         AnimatedSurfaceBackdrop(color, Modifier.matchParentSize())
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
             Text(value, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
-            Text(label, fontSize = AppType.micro, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(label, fontSize = AppType.caption, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -161,7 +161,7 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
     var confirm by remember { mutableStateOf(false) }
     Panel(modifier) {
         Row(Modifier.fillMaxWidth().tap(onToggle), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(Surf2), contentAlignment = Alignment.Center) { Icon24(Ic.Server, Mut, 20.dp) }
+            Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Surf2), contentAlignment = Alignment.Center) { Icon24(Ic.Server, Mut, 20.dp) }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
                 Text(sv.name, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
