@@ -456,9 +456,10 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
         AppHeader(sv, j, r.error, online, onBack, { refreshKey++ }, { tab = 4 })
         Box(Modifier.weight(1f)) {
             Crossfade(tab, animationSpec = tween(220), label = "tabs") { t ->
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (j == null && t != 4) { Text(r.error ?: "Connecting…", color = Amber, fontSize = AppType.body); return@Column }
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                     DashboardSectionHeader(t, sv.name)
+                    if (j == null && t != 4) { Panel { Label("Connecting to server"); Text(r.error ?: "Establishing a secure monitoring connection…", color = Amber, fontSize = AppType.body) }; return@Column }
                     when (t) {
                         0 -> OverviewScreen(sv, j!!, online) { detail = it }
                         1 -> NetworkScreen(sv, j!!) { detail = it }
