@@ -440,7 +440,7 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                 Box(Modifier.fillMaxWidth().height(diagramHeight)
                     .pointerInput(Unit) {
                         detectTransformGestures { _, _, zoomChange, _ ->
-                            topologyZoom = (topologyZoom * zoomChange).coerceIn(0.65f, 2.5f)
+                            topologyZoom = (topologyZoom * zoomChange).coerceIn(0.65f, 1.0f)
                         }
                     }
                     ) {
