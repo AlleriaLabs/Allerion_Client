@@ -411,22 +411,11 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                 // Full-width endpoint cards keep IP, MAC and source details readable on narrow phones.
                 GatewayStatusNode(gateway, true)
                 // Continue the gateway trunk visually into the discovered-endpoint branch.
-                val gatewayReduceMotion = LocalReduceMotion.current
-                val gatewayFlow = rememberInfiniteTransition(label = "gateway-endpoint-link")
-                val gatewayPacket by gatewayFlow.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 1f,
-                    animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing)),
-                    label = "gateway-endpoint-packet"
-                )
+                // Static continuation joins the gateway card to the single animated endpoint trunk.
                 Canvas(Modifier.fillMaxWidth().height(24.dp)) {
                     val x = 11.dp.toPx()
-                    val stroke = 1.7.dp.toPx()
-                    drawLine(Green.copy(alpha = 0.48f), Offset(x, 0f), Offset(x, size.height), stroke)
-                    val y = if (gatewayReduceMotion) size.height / 2f else size.height * gatewayPacket
-                    drawCircle(Color(0xFFB8F5D8).copy(alpha = 0.95f), 3.5.dp.toPx(), Offset(x, y))
+                    drawLine(Green.copy(alpha = 0.48f), Offset(x, 0f), Offset(x, size.height), 1.7.dp.toPx())
                 }
-                Spacer(Modifier.height(2.dp))
                 val rowStep = 82.dp
                 val diagramHeight = rowStep * linkedNodes.size
                 val reduceMotion = LocalReduceMotion.current
@@ -470,8 +459,7 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                             drawCircle(Green.copy(alpha = 0.75f), 2.5.dp.toPx(), Offset(trunkX, y))
                             drawCircle(Green.copy(alpha = 0.9f), 3.dp.toPx(), Offset(size.width - 2.dp.toPx(), y))
                         }
-                        val packetY = if (reduceMotion) cardCenterOffset else
-                            cardCenterOffset + (lastY - cardCenterOffset) * packet
+                        val packetY = if (reduceMotion) lastY / 2f else lastY * packet
                         drawCircle(Color(0xFFB8F5D8).copy(alpha = 0.95f), 4.dp.toPx(), Offset(trunkX, packetY))
                         drawCircle(Color(0xFFB8F5D8).copy(alpha = 0.18f), 8.dp.toPx(), Offset(trunkX, packetY))
                     }
