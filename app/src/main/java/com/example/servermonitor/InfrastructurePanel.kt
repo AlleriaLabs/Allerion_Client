@@ -426,7 +426,7 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                     val y = if (gatewayReduceMotion) size.height / 2f else size.height * gatewayPacket
                     drawCircle(Color(0xFFB8F5D8).copy(alpha = 0.95f), 3.5.dp.toPx(), Offset(x, y))
                 }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(start = 11.dp), verticalAlignment = Alignment.CenterVertically) {
                     Label("DISCOVERED LAN ENDPOINTS")
                     Spacer(Modifier.weight(1f))
                     Text("${linkedNodes.size} CONNECTED", color = Green, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
