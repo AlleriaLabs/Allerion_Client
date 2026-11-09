@@ -402,10 +402,12 @@ fun PowerStatTile(
         ))
         Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
             Text((if (showAlternate) alternate?.first else label)?.uppercase().orEmpty(),
-                fontSize = 10.sp, color = Dim, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp,
+                fontSize = 12.sp, color = Mut, fontWeight = FontWeight.Medium, letterSpacing = 0.8.sp,
                 maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(if (showAlternate) alternate?.second ?: value else value,
-                fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val displayValue = if (showAlternate) alternate?.second ?: value else value
+            Text(displayValue,
+                fontSize = if (displayValue.length >= 8) 24.sp else 30.sp,
+                fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
