@@ -73,13 +73,13 @@ private object InfrastructureSnapshotCache {
 @Composable
 private fun CollapsibleSectionHeader(title: String, expanded: Boolean, onToggle: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(onClick = onToggle)
-            .padding(vertical = 4.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onToggle)
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Label(title)
         Spacer(Modifier.weight(1f))
-        Text(if (expanded) "−" else "+", color = Red, fontSize = AppType.title, fontWeight = FontWeight.Medium)
+        Text(if (expanded) "−" else "+", color = Red, fontSize = AppType.section, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -161,7 +161,7 @@ fun InfrastructurePanel(sv: Server, networkOnly: Boolean = false, powerOnly: Boo
 
     Panel {
         Label(when { networkOnly -> "Network capabilities"; powerOnly -> "Power capabilities"; else -> "Infrastructure intelligence" })
-        Text("Live data from the ServerMonitor backend. Optional collectors appear only when enabled and available.", color = Mut, fontSize = AppType.small)
+        Text("Live data from the ServerMonitor backend. Optional collectors appear only when enabled and available.", color = Mut, fontSize = AppType.body)
         Spacer(Modifier.height(8.dp))
         DiagRow("API version", snapshot.capabilities?.optInt("api_version", 1)?.toString() ?: "Unknown", Green)
         if (networkOnly) {
@@ -244,7 +244,7 @@ fun InfrastructurePanel(sv: Server, networkOnly: Boolean = false, powerOnly: Boo
         Panel {
             CollapsibleSectionHeader("LAN devices", lanDevicesExpanded) { lanDevicesExpanded = !lanDevicesExpanded }
             if (lanDevicesExpanded) {
-            Text("Passive neighbor discovery only. No unsolicited network sweep is performed.", color = Dim, fontSize = AppType.small)
+            Text("Passive neighbor discovery only. No unsolicited network sweep is performed.", color = Dim, fontSize = AppType.caption)
             if (rows == null || rows.length() == 0) Text("No devices in the current ARP / neighbor cache.", color = Mut, fontSize = AppType.small)
             else for (i in 0 until minOf(rows.length(), 30)) {
                 val item = rows.optJSONObject(i) ?: continue
