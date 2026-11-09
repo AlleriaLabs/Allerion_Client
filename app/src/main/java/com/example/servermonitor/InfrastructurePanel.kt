@@ -79,7 +79,7 @@ private fun CollapsibleSectionHeader(title: String, expanded: Boolean, onToggle:
     ) {
         Label(title)
         Spacer(Modifier.weight(1f))
-        Text(if (expanded) "−" else "+", color = Mut, fontSize = AppType.title, fontWeight = FontWeight.Medium)
+        Text(if (expanded) "−" else "+", color = Red, fontSize = AppType.title, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -244,7 +244,7 @@ fun InfrastructurePanel(sv: Server, networkOnly: Boolean = false, powerOnly: Boo
         Panel {
             CollapsibleSectionHeader("LAN devices", lanDevicesExpanded) { lanDevicesExpanded = !lanDevicesExpanded }
             if (lanDevicesExpanded) {
-            Text("Passive neighbor discovery only. No unsolicited network sweep is performed.", color = Dim, fontSize = AppType.caption)
+            Text("Passive neighbor discovery only. No unsolicited network sweep is performed.", color = Dim, fontSize = AppType.small)
             if (rows == null || rows.length() == 0) Text("No devices in the current ARP / neighbor cache.", color = Mut, fontSize = AppType.small)
             else for (i in 0 until minOf(rows.length(), 30)) {
                 val item = rows.optJSONObject(i) ?: continue
