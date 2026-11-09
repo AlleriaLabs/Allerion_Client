@@ -385,29 +385,42 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
 }
 
 @Composable
-fun InfoChip(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(modifier.height(104.dp).clip(RoundedCornerShape(18.dp)).background(Surf2)
-        .border(1.dp, Line, RoundedCornerShape(18.dp)).padding(14.dp),
-        verticalArrangement = Arrangement.Center) {
-        Text(label.uppercase(), fontSize = 10.sp, color = Dim, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp,
-            maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(7.dp))
-        Text(value, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
+fun PowerStatTile(
+    label: String, value: String, modifier: Modifier = Modifier,
+    series: List<GSeries> = emptyList(), minSpan: Double = 5.0,
+    alternate: Pair<String, String>? = null
+) {
+    var showAlternate by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(24.dp)
+    Box(modifier.height(124.dp).clip(shape).background(Surf).border(1.dp, Line, shape)
+        .then(if (alternate != null) Modifier.clickable { showAlternate = !showAlternate } else Modifier)) {
+        if (series.any { s -> s.values.any { it != null } }) {
+            HistoryGraph(series, Modifier.matchParentSize(), minSpan, lineAlpha = 0.48f, fillAlpha = 0.10f, stroke = 1.6.dp)
+        }
+        Box(Modifier.matchParentSize().background(
+            Brush.horizontalGradient(0f to Surf.copy(alpha = 0.78f), 0.76f to Surf.copy(alpha = 0.42f), 1f to Color.Transparent)
+        ))
+        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Text((if (showAlternate) alternate?.first else label)?.uppercase().orEmpty(),
+                fontSize = 10.sp, color = Dim, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp,
+                maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(if (showAlternate) alternate?.second ?: value else value,
+                fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
 @Composable
-fun ToggleMetric(labelA: String, valueA: String, labelB: String, valueB: String, modifier: Modifier = Modifier) {
-    var alt by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(18.dp)
-    Column(modifier.height(104.dp).clip(shape).background(Surf2).border(1.dp, Line, shape)
-        .clickable { alt = !alt }.padding(14.dp), verticalArrangement = Arrangement.Center) {
-        Text((if (alt) labelB else labelA).uppercase(), fontSize = 10.sp, color = Dim, fontWeight = FontWeight.Bold,
-            letterSpacing = 0.8.sp, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(7.dp))
-        Text(if (alt) valueB else valueA, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1,
-            overflow = TextOverflow.Ellipsis)
-    }
+fun InfoChip(label: String, value: String, modifier: Modifier = Modifier, series: List<GSeries> = emptyList()) {
+    PowerStatTile(label, value, modifier, series)
+}
+
+@Composable
+fun ToggleMetric(
+    labelA: String, valueA: String, labelB: String, valueB: String, modifier: Modifier = Modifier,
+    series: List<GSeries> = emptyList()
+) {
+    PowerStatTile(labelA, valueA, modifier, series, alternate = labelB to valueB)
 }
 
 @Composable
@@ -443,7 +456,13 @@ fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
     val cur = pw.str("currency")
     val year = pw.dbl("year_kwh")
     val history by rememberHistory(sv, "24h", 30_000)
+    val energy by rememberEnergy(sv)
     val todayHistory = history?.s?.get("power") ?: emptyList()
+    val voltageHistory = history?.s?.get("voltage")?.takeIf { values -> values.any { it != null } } ?: todayHistory
+    val todayDate = java.time.LocalDate.now()
+    val monthPrefix = todayDate.toString().take(7)
+    val monthEnergy = energy?.filterKeys { it.startsWith(monthPrefix) }?.toSortedMap()?.values?.toList()?.map { it as Double? } ?: emptyList()
+    val yearEnergy = energy?.entries?.groupBy { it.key.take(7) }?.toSortedMap()?.values?.map { entries -> entries.sumOf { it.value } }?.map { it as Double? } ?: emptyList()
     fun cost(k: Double) = if (price > 0) cur + "%.2f".format(k * price) else "Set price"
     val shape = RoundedCornerShape(22.dp)
     Box(Modifier.fillMaxWidth().clip(shape).background(Surf).border(1.dp, Line, shape)) {
@@ -464,8 +483,10 @@ fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                InfoChip("Voltage", if (volts == null) "N/A" else "%.1f V".format(volts), Modifier.weight(1f))
-                ToggleMetric("Today", "%.2f kWh".format(today), "Today cost", cost(today), Modifier.weight(1f))
+                InfoChip("Voltage", if (volts == null) "N/A" else "%.1f V".format(volts), Modifier.weight(1f),
+                    listOf(GSeries(voltageHistory, Amber)))
+                ToggleMetric("Today", "%.2f kWh".format(today), "Today cost", cost(today), Modifier.weight(1f),
+                    listOf(GSeries(todayHistory, Red)))
             }
             TextButton(onSetup, contentPadding = PaddingValues(0.dp)) { Text("Configure power source ›", color = Red, fontSize = 13.sp) }
             val perr = pw.str("plug_error")
@@ -474,9 +495,11 @@ fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
         }
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        ToggleMetric("Current Month Usage", "%.2f kWh".format(month), "Current Month Cost", cost(month), Modifier.weight(1f))
+        ToggleMetric("Current Month Usage", "%.2f kWh".format(month), "Current Month Cost", cost(month), Modifier.weight(1f),
+            listOf(GSeries(monthEnergy, Blue)))
         ToggleMetric("Current Year Usage", year?.let { "%.2f kWh".format(it) } ?: "Update server",
-            "Current Year Cost", year?.let { cost(it) } ?: "Update server", Modifier.weight(1f))
+            "Current Year Cost", year?.let { cost(it) } ?: "Update server", Modifier.weight(1f),
+            listOf(GSeries(yearEnergy, Green)))
     }
     EnergyPanel(sv, pw)
 }
