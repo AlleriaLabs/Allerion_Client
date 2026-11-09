@@ -57,7 +57,7 @@ fun AppHeader(sv: Server, j: JSONObject?, err: String?, online: Boolean, onBack:
     var spin by remember { mutableStateOf(0) }
     val rot by animateFloatAsState(spin * 360f, tween(700, easing = FastOutSlowInEasing), label = "spin")
     Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 8.dp, top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconBtn(Ic.ChevronL, "Back to servers", onClick = onBack)
+        IconBtn(Ic.ChevronL, "Back to servers", plain = true, onClick = onBack)
         Image(painterResource(R.drawable.logo_mark), null, Modifier.size(26.dp))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
@@ -67,8 +67,8 @@ fun AppHeader(sv: Server, j: JSONObject?, err: String?, online: Boolean, onBack:
                 fontSize = AppType.caption, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Status(online)
-        IconBtn(Ic.Refresh, "Refresh", rot) { spin++; onRefresh() }
-        IconBtn(Ic.Gear, "Settings", onClick = onSettings)
+        IconBtn(Ic.Refresh, "Refresh", rot, plain = true) { spin++; onRefresh() }
+        IconBtn(Ic.Gear, "Settings", plain = true, onClick = onSettings)
     }
 }
 
