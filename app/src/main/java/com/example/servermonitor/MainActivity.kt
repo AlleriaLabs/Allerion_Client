@@ -618,20 +618,60 @@ fun InternetPanel(j: JSONObject, sv: Server) {
 @Composable
 fun DiskPie(d: JSONArray) {
     val entries = List(d.length()) { d.getJSONObject(it) }
+    // One display item per physical disk. A disk can contain several mounted
+    // partitions/volumes, but those are combined into a single capacity figure.
     val groups = entries.groupBy { o ->
-        o.optString("disk_id").ifBlank { o.optString("disk").ifBlank { o.optString("device", "Unknown device") } }
+        o.optString("disk_id").ifBlank {
+            o.optString("disk").ifBlank { o.optString("device", "Unknown device") }
+        }
     }
-    val mountedEntries = entries.filter { it.optBoolean("mounted", true) }
-    val total = mountedEntries.sumOf { it.optDouble("total_gb", 0.0) }.coerceAtLeast(0.0)
-    val used = mountedEntries.sumOf { it.optDouble("used_gb", 0.0) }.coerceAtLeast(0.0)
-    val free = mountedEntries.sumOf { it.optDouble("free_gb", (it.optDouble("total_gb", 0.0) - it.optDouble("used_gb", 0.0)).coerceAtLeast(0.0)) }
+    data class DiskSummary(
+        val key: String,
+        val name: String,
+        val connection: String,
+        val external: Boolean,
+        val mounted: Boolean,
+        val usedGb: Double,
+        val totalGb: Double,
+        val freeGb: Double
+    )
+    val disks = groups.map { (key, rawEntries) ->
+        // Mountinfo can expose the same filesystem through more than one mount
+        // point. Count each block partition only once when rolling up a disk.
+        val parts = rawEntries.distinctBy {
+            it.optString("id").ifBlank { it.optString("device") + "|" + it.optString("mount") }
+        }
+        val mountedParts = parts.filter { it.optBoolean("mounted", true) }
+        val first = parts.first()
+        val totalGb = mountedParts.sumOf { it.optDouble("total_gb", 0.0).coerceAtLeast(0.0) }
+        val usedGb = mountedParts.sumOf { it.optDouble("used_gb", 0.0).coerceAtLeast(0.0) }
+        val freeGb = mountedParts.sumOf {
+            it.optDouble("free_gb", (it.optDouble("total_gb", 0.0) - it.optDouble("used_gb", 0.0)).coerceAtLeast(0.0)).coerceAtLeast(0.0)
+        }
+        val connection = parts.firstNotNullOfOrNull { it.optString("connection").takeIf(String::isNotBlank) } ?: "Storage device"
+        DiskSummary(
+            key = key,
+            name = first.optString("model").ifBlank { first.optString("disk").ifBlank { key } },
+            connection = connection,
+            external = parts.any { it.optBoolean("removable", false) || it.optString("connection") == "USB" },
+            mounted = mountedParts.isNotEmpty(),
+            usedGb = usedGb,
+            totalGb = totalGb,
+            freeGb = freeGb
+        )
+    }.sortedBy { it.name.lowercase() }
+
+    val mountedDisks = disks.filter { it.mounted }
+    val total = mountedDisks.sumOf { it.totalGb }
+    val used = mountedDisks.sumOf { it.usedGb }
+    val free = mountedDisks.sumOf { it.freeGb }
     val pct = if (total > 0.0) (used / total * 100.0).coerceIn(0.0, 100.0) else 0.0
     val cols = listOf(Red, Color(0xFFF5F5F1), Color(0xFFB20710), Color(0xFF8C8C8C), Color(0xFFFF6B6B), Color(0xFF5E5E5E))
 
-    if (entries.isEmpty()) {
-        Text("No host-mounted physical storage detected", color = Mut, fontSize = AppType.body)
+    if (disks.isEmpty()) {
+        Text("No physical storage detected", color = Mut, fontSize = AppType.body)
         Spacer(Modifier.height(5.dp))
-        Text("Connect and mount the drive on Linux. Allerion will list it automatically after the next refresh.",
+        Text("Connect and mount the drive on Linux. Allerion will list each physical disk automatically after the next refresh.",
             color = Dim, fontSize = AppType.small)
         return
     }
@@ -651,66 +691,60 @@ fun DiskPie(d: JSONArray) {
         }
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text("${groups.size} storage device${if (groups.size == 1) "" else "s"}",
+            Text("${disks.size} physical disk${if (disks.size == 1) "" else "s"}",
                 color = Txt, fontSize = AppType.body, fontWeight = FontWeight.SemiBold)
-            if (mountedEntries.isEmpty()) {
-                Text("No mounted volumes", color = Amber, fontSize = AppType.body)
-                Text("Detected devices are listed below", color = Mut, fontSize = AppType.small)
+            if (mountedDisks.isEmpty()) {
+                Text("No mounted storage", color = Amber, fontSize = AppType.body)
+                Text("Detected disks are listed below", color = Mut, fontSize = AppType.small)
             } else {
                 Text("%.1f GB used".format(used), color = Txt, fontSize = AppType.body)
-                Text("%.1f GB mounted".format(total), color = Mut, fontSize = AppType.small)
+                Text("%.1f GB mounted capacity".format(total), color = Mut, fontSize = AppType.small)
                 Text("%.1f GB available".format(free), color = Mut, fontSize = AppType.small)
             }
         }
     }
     Spacer(Modifier.height(16.dp))
-    groups.entries.forEachIndexed { index, group ->
-        val diskEntries = group.value
-        val first = diskEntries.first()
-        val isExternal = first.optBoolean("removable", false) || first.optString("connection") == "USB"
+    disks.forEachIndexed { index, disk ->
+        val usage = if (disk.totalGb > 0.0) (disk.usedGb / disk.totalGb * 100.0).coerceIn(0.0, 100.0) else 0.0
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(9.dp).clip(CircleShape).background(cols[index % cols.size]))
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(first.optString("model").ifBlank { first.optString("disk").ifBlank { group.key } }, color = Txt, fontSize = AppType.body, fontWeight = FontWeight.SemiBold)
-                    Text(if (diskEntries.none { it.optBoolean("mounted", true) }) "Detected · Not mounted" else if (isExternal) "External drive · USB" else first.optString("connection", "Storage device"),
-                        color = Mut, fontSize = AppType.caption)
+                    Text(disk.name, color = Txt, fontSize = AppType.body, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        when {
+                            !disk.mounted -> "Detected · Not mounted"
+                            disk.external -> "External drive · USB"
+                            else -> "Internal · ${disk.connection}"
+                        },
+                        color = Mut, fontSize = AppType.caption
+                    )
                 }
-                Text("${diskEntries.size} volume${if (diskEntries.size == 1) "" else "s"}",
+                Text(
+                    if (disk.mounted) "%.1f GB".format(disk.totalGb) else "Detected",
+                    color = Mut, fontSize = AppType.small, fontWeight = FontWeight.SemiBold
+                )
+            }
+            if (disk.mounted) {
+                Box(Modifier.fillMaxWidth().height(7.dp).clip(CircleShape).background(Track)) {
+                    Box(Modifier.fillMaxWidth((usage / 100.0).toFloat()).fillMaxHeight()
+                        .clip(CircleShape).background(if (usage >= 92.0) Err else Red))
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("%.1f GB used".format(disk.usedGb), color = Txt, fontSize = AppType.small)
+                    Text("%.1f GB free".format(disk.freeGb), color = Mut, fontSize = AppType.small)
+                }
+            } else {
+                Text("Mount this drive on Linux to track used and free space",
                     color = Dim, fontSize = AppType.caption)
             }
-            diskEntries.forEach { volume ->
-                val mounted = volume.optBoolean("mounted", true)
-                val mount = volume.optString("mount", "Unknown mount")
-                val filesystem = volume.optString("filesystem", "Filesystem")
-                val device = volume.optString("device", "")
-                val usedGb = volume.optDouble("used_gb", 0.0)
-                val totalGb = volume.optDouble("total_gb", 0.0)
-                val freeGb = volume.optDouble("free_gb", (totalGb - usedGb).coerceAtLeast(0.0))
-                val usage = volume.optDouble("pct", 0.0).coerceIn(0.0, 100.0)
-                Column(Modifier.fillMaxWidth().padding(start = 17.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (mounted) mount else "Not mounted", color = Txt, fontSize = AppType.small, modifier = Modifier.weight(1f),
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(if (mounted) "%.1f / %.1f GB".format(usedGb, totalGb) else "%.1f GB detected".format(totalGb), color = Mut, fontSize = AppType.small)
-                    }
-                    if (mounted) {
-                        Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(Track)) {
-                            Box(Modifier.fillMaxWidth((usage / 100.0).toFloat()).fillMaxHeight()
-                                .clip(CircleShape).background(if (usage >= 92.0) Err else Red))
-                        }
-                        Text("$filesystem · $device · %.1f GB free".format(freeGb),
-                            color = Dim, fontSize = AppType.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    } else {
-                        Text("Mount this drive on Linux to track used and free space", color = Dim, fontSize = AppType.caption)
-                    }
-                }
-            }
         }
-        if (index != groups.size - 1) Spacer(Modifier.height(13.dp))
+        if (index != disks.lastIndex) Spacer(Modifier.height(15.dp))
     }
 }
+
 @Composable
 fun SystemTab(j: JSONObject) {
     Panel {
