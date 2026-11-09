@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -272,7 +273,7 @@ fun InfrastructurePanel(sv: Server) {
         }
     }
 
-    NetworkTopologyPanel(snapshot.topology, caps.optBoolean("network_topology"))
+    NetworkTopologyPanel(sv, snapshot.topology, caps.optBoolean("network_topology"), caps.optBoolean("network_traffic"))
     NetworkDiagnosticPanel(sv, caps.optBoolean("network_diagnostics"))
     IntegrationTestPanel(sv, snapshot.integrations, caps.optBoolean("webhooks"), caps.optBoolean("telegram"))
 }
@@ -361,9 +362,28 @@ private fun IntegrationTestPanel(sv: Server, integrationStatus: JSONObject?, web
 
 
 @Composable
-private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
+private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boolean, trafficEnabled: Boolean) {
     var unmappedExpanded by remember { mutableStateOf(false) }
     var topologyZoom by remember { mutableStateOf(1f) }
+    val liveTraffic by produceState<JSONObject?>(null, sv.url, sv.token, trafficEnabled) {
+        if (!trafficEnabled) {
+            value = null
+        } else {
+            while (true) {
+                value = withContext(Dispatchers.IO) {
+                    try {
+                        ApiClient.getJson(sv.url, sv.token, "/api/network/traffic",
+                            connectTimeoutMs = 1500, readTimeoutMs = 1500)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                delay(1000)
+            }
+        }
+    }
     Panel {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -398,7 +418,31 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                 GatewayTopologyStat(gateway != null, Modifier.weight(1f))
                 TopologyStat("UNMAPPED", unmappedNodes.size.toString(), if (unmappedNodes.isEmpty()) Mut else Amber, Modifier.weight(1f))
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
+            val trafficAvailable = liveTraffic?.optBoolean("available") == true
+            val trafficStatus = liveTraffic?.optString("status").orEmpty()
+            val rxRate = liveTraffic?.optDouble("rx_bytes_per_sec") ?: 0.0
+            val txRate = liveTraffic?.optDouble("tx_bytes_per_sec") ?: 0.0
+            fun rateLabel(bytes: Double): String = if (bytes >= 1_000_000) "%.1f MB/s".format(bytes / 1_000_000.0)
+                else "%.0f KB/s".format(bytes / 1_000.0)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("LIVE PACKET CAPTURE", color = if (trafficAvailable) Green else Amber,
+                        fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    Text(
+                        when {
+                            trafficAvailable -> "RX " + rateLabel(rxRate) + "  ·  TX " + rateLabel(txRate)
+                            !trafficEnabled -> "Backend capture support not enabled"
+                            trafficStatus == "unavailable" -> liveTraffic?.optString("error")?.takeIf { it.isNotBlank() } ?: "Capture unavailable"
+                            else -> "Starting interface capture…"
+                        },
+                        color = Mut, fontSize = AppType.caption, maxLines = 1
+                    )
+                }
+                Text(if (trafficAvailable) "CAPTURING" else "NO LIVE DATA",
+                    color = if (trafficAvailable) Green else Dim, fontSize = AppType.micro, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("TRACKER VIEW", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
                 Spacer(Modifier.weight(1f))
@@ -419,13 +463,17 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                 val rowStep = 82.dp
                 val diagramHeight = rowStep * linkedNodes.size
                 val reduceMotion = LocalReduceMotion.current
-                val flow = rememberInfiniteTransition(label = "topology-network-flow")
-                val packet by flow.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 1f,
-                    animationSpec = infiniteRepeatable(tween(2600, easing = LinearEasing)),
-                    label = "topology-network-packet"
-                )
+                val activePeer = liveTraffic?.optString("active_peer").orEmpty()
+                val activeIndex = linkedNodes.indexOfFirst { it.optString("ip") == activePeer }
+                val packetCount = liveTraffic?.optLong("packet_count") ?: 0L
+                val packetAge = liveTraffic?.optLong("last_packet_age_ms", Long.MAX_VALUE) ?: Long.MAX_VALUE
+                val packetProgress = remember { Animatable(0f) }
+                LaunchedEffect(packetCount, activeIndex) {
+                    if (packetCount > 0L && activeIndex >= 0) {
+                        packetProgress.snapTo(0f)
+                        packetProgress.animateTo(1f, tween(450, easing = LinearEasing))
+                    }
+                }
                 Box(Modifier.fillMaxWidth().height(diagramHeight)
                     .pointerInput(Unit) {
                         detectTransformGestures { _, _, zoomChange, _ ->
@@ -459,9 +507,12 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                             drawCircle(Green.copy(alpha = 0.75f), 2.5.dp.toPx(), Offset(trunkX, y))
                             drawCircle(Green.copy(alpha = 0.9f), 3.dp.toPx(), Offset(size.width - 2.dp.toPx(), y))
                         }
-                        val packetY = if (reduceMotion) lastY / 2f else lastY * packet
-                        drawCircle(Color(0xFFB8F5D8).copy(alpha = 0.95f), 4.dp.toPx(), Offset(trunkX, packetY))
-                        drawCircle(Color(0xFFB8F5D8).copy(alpha = 0.18f), 8.dp.toPx(), Offset(trunkX, packetY))
+                        if (trafficAvailable && packetAge <= 1500L && activeIndex >= 0) {
+                            val targetY = activeIndex * rowPx + cardCenterOffset
+                            val packetY = if (reduceMotion) targetY else targetY * packetProgress.value
+                            drawCircle(Color(0xFFB8F5D8).copy(alpha = 0.98f), 4.dp.toPx(), Offset(trunkX, packetY))
+                            drawCircle(Color(0xFFB8F5D8).copy(alpha = 0.20f), 8.dp.toPx(), Offset(trunkX, packetY))
+                        }
                     }
                     Column(
                         Modifier.fillMaxSize().padding(start = 30.dp),
@@ -476,7 +527,8 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Animated packet indicators visualize inferred gateway-to-device associations from passive discovery; this is not a live packet capture.",
+                    liveTraffic?.optString("scope")?.takeIf { it.isNotBlank() }
+                        ?: "Only packets visible on the monitoring server's network interface can be tracked; switched LAN traffic may not be visible.",
                     color = Dim, fontSize = AppType.caption
                 )
                 }
