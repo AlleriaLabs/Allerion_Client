@@ -621,9 +621,10 @@ fun DiskPie(d: JSONArray) {
     val groups = entries.groupBy { o ->
         o.optString("disk_id").ifBlank { o.optString("disk").ifBlank { o.optString("device", "Unknown device") } }
     }
-    val total = entries.sumOf { it.optDouble("total_gb", 0.0) }.coerceAtLeast(0.0)
-    val used = entries.sumOf { it.optDouble("used_gb", 0.0) }.coerceAtLeast(0.0)
-    val free = entries.sumOf { it.optDouble("free_gb", (it.optDouble("total_gb", 0.0) - it.optDouble("used_gb", 0.0)).coerceAtLeast(0.0)) }
+    val mountedEntries = entries.filter { it.optBoolean("mounted", true) }
+    val total = mountedEntries.sumOf { it.optDouble("total_gb", 0.0) }.coerceAtLeast(0.0)
+    val used = mountedEntries.sumOf { it.optDouble("used_gb", 0.0) }.coerceAtLeast(0.0)
+    val free = mountedEntries.sumOf { it.optDouble("free_gb", (it.optDouble("total_gb", 0.0) - it.optDouble("used_gb", 0.0)).coerceAtLeast(0.0)) }
     val pct = if (total > 0.0) (used / total * 100.0).coerceIn(0.0, 100.0) else 0.0
     val cols = listOf(Red, Color(0xFFF5F5F1), Color(0xFFB20710), Color(0xFF8C8C8C), Color(0xFFFF6B6B), Color(0xFF5E5E5E))
 
@@ -652,9 +653,14 @@ fun DiskPie(d: JSONArray) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("${groups.size} storage device${if (groups.size == 1) "" else "s"}",
                 color = Txt, fontSize = AppType.body, fontWeight = FontWeight.SemiBold)
-            Text("%.1f GB used".format(used), color = Txt, fontSize = AppType.body)
-            Text("%.1f GB total".format(total), color = Mut, fontSize = AppType.small)
-            Text("%.1f GB available".format(free), color = Mut, fontSize = AppType.small)
+            if (mountedEntries.isEmpty()) {
+                Text("No mounted volumes", color = Amber, fontSize = AppType.body)
+                Text("Detected devices are listed below", color = Mut, fontSize = AppType.small)
+            } else {
+                Text("%.1f GB used".format(used), color = Txt, fontSize = AppType.body)
+                Text("%.1f GB mounted".format(total), color = Mut, fontSize = AppType.small)
+                Text("%.1f GB available".format(free), color = Mut, fontSize = AppType.small)
+            }
         }
     }
     Spacer(Modifier.height(16.dp))
@@ -667,14 +673,15 @@ fun DiskPie(d: JSONArray) {
                 Box(Modifier.size(9.dp).clip(CircleShape).background(cols[index % cols.size]))
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(group.key, color = Txt, fontSize = AppType.body, fontWeight = FontWeight.SemiBold)
-                    Text(if (isExternal) "External drive · USB" else first.optString("connection", "Storage device"),
+                    Text(first.optString("model").ifBlank { first.optString("disk").ifBlank { group.key } }, color = Txt, fontSize = AppType.body, fontWeight = FontWeight.SemiBold)
+                    Text(if (diskEntries.none { it.optBoolean("mounted", true) }) "Detected · Not mounted" else if (isExternal) "External drive · USB" else first.optString("connection", "Storage device"),
                         color = Mut, fontSize = AppType.caption)
                 }
                 Text("${diskEntries.size} volume${if (diskEntries.size == 1) "" else "s"}",
                     color = Dim, fontSize = AppType.caption)
             }
             diskEntries.forEach { volume ->
+                val mounted = volume.optBoolean("mounted", true)
                 val mount = volume.optString("mount", "Unknown mount")
                 val filesystem = volume.optString("filesystem", "Filesystem")
                 val device = volume.optString("device", "")
@@ -684,16 +691,20 @@ fun DiskPie(d: JSONArray) {
                 val usage = volume.optDouble("pct", 0.0).coerceIn(0.0, 100.0)
                 Column(Modifier.fillMaxWidth().padding(start = 17.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(mount, color = Txt, fontSize = AppType.small, modifier = Modifier.weight(1f),
+                        Text(if (mounted) mount else "Not mounted", color = Txt, fontSize = AppType.small, modifier = Modifier.weight(1f),
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("%.1f / %.1f GB".format(usedGb, totalGb), color = Mut, fontSize = AppType.small)
+                        Text(if (mounted) "%.1f / %.1f GB".format(usedGb, totalGb) else "%.1f GB detected".format(totalGb), color = Mut, fontSize = AppType.small)
                     }
-                    Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(Track)) {
-                        Box(Modifier.fillMaxWidth((usage / 100.0).toFloat()).fillMaxHeight()
-                            .clip(CircleShape).background(if (usage >= 92.0) Err else Red))
+                    if (mounted) {
+                        Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(Track)) {
+                            Box(Modifier.fillMaxWidth((usage / 100.0).toFloat()).fillMaxHeight()
+                                .clip(CircleShape).background(if (usage >= 92.0) Err else Red))
+                        }
+                        Text("$filesystem · $device · %.1f GB free".format(freeGb),
+                            color = Dim, fontSize = AppType.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    } else {
+                        Text("Mount this drive on Linux to track used and free space", color = Dim, fontSize = AppType.caption)
                     }
-                    Text("$filesystem · $device · %.1f GB free".format(freeGb),
-                        color = Dim, fontSize = AppType.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
