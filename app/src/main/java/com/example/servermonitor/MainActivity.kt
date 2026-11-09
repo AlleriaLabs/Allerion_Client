@@ -617,53 +617,89 @@ fun InternetPanel(j: JSONObject, sv: Server) {
 
 @Composable
 fun DiskPie(d: JSONArray) {
+    val entries = List(d.length()) { d.getJSONObject(it) }
+    val groups = entries.groupBy { o ->
+        o.optString("disk_id").ifBlank { o.optString("disk").ifBlank { o.optString("device", "Unknown device") } }
+    }
+    val total = entries.sumOf { it.optDouble("total_gb", 0.0) }.coerceAtLeast(0.0)
+    val used = entries.sumOf { it.optDouble("used_gb", 0.0) }.coerceAtLeast(0.0)
+    val free = entries.sumOf { it.optDouble("free_gb", (it.optDouble("total_gb", 0.0) - it.optDouble("used_gb", 0.0)).coerceAtLeast(0.0)) }
+    val pct = if (total > 0.0) (used / total * 100.0).coerceIn(0.0, 100.0) else 0.0
     val cols = listOf(Red, Color(0xFFF5F5F1), Color(0xFFB20710), Color(0xFF8C8C8C), Color(0xFFFF6B6B), Color(0xFF5E5E5E))
-    val names = List(d.length()) { d.getJSONObject(it).optString("mount", "?") }
-    val used = List(d.length()) { d.getJSONObject(it).optDouble("used_gb", 0.0) }
-    val tot = List(d.length()) { d.getJSONObject(it).optDouble("total_gb", 0.0) }
-    val sumTotal = maxOf(tot.sum(), 0.001); val sumUsed = used.sum(); val free = maxOf(sumTotal - sumUsed, 0.0)
+
+    if (entries.isEmpty()) {
+        Text("No host-mounted physical storage detected", color = Mut, fontSize = AppType.body)
+        Spacer(Modifier.height(5.dp))
+        Text("Connect and mount the drive on Linux. Allerion will list it automatically after the next refresh.",
+            color = Dim, fontSize = AppType.small)
+        return
+    }
+
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(132.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(116.dp), contentAlignment = Alignment.Center) {
             Canvas(Modifier.fillMaxSize()) {
-                var start = -90f
-                (used + free).forEachIndexed { i, v ->
-                    val sweep = (v / sumTotal * 360).toFloat()
-                    if (sweep > 0.3f) {
-                        drawArc(color = if (i < used.size) cols[i % cols.size] else Track, startAngle = start, sweepAngle = sweep,
-                            useCenter = true, topLeft = Offset.Zero, size = size)
-                        drawArc(color = Surf, startAngle = start, sweepAngle = sweep, useCenter = true, topLeft = Offset.Zero,
-                            size = size, style = Stroke(2.dp.toPx()))
-                    }
-                    start += sweep
-                }
+                drawArc(color = Track, startAngle = -90f, sweepAngle = 360f, useCenter = true, topLeft = Offset.Zero, size = size)
+                drawArc(color = Red, startAngle = -90f, sweepAngle = (pct / 100.0 * 360.0).toFloat(),
+                    useCenter = true, topLeft = Offset.Zero, size = size)
                 drawCircle(Surf, radius = size.minDimension * 0.27f, center = center)
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("%.0f%%".format(sumUsed / sumTotal * 100), fontSize = AppType.title, fontWeight = FontWeight.Bold, color = Txt)
-                Text("used", fontSize = AppType.caption, color = Dim)
+                Text("%.0f%%".format(pct), fontSize = AppType.title, fontWeight = FontWeight.Bold, color = Txt)
+                Text("in use", fontSize = AppType.caption, color = Dim)
             }
         }
         Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            names.forEachIndexed { i, n ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(10.dp).clip(CircleShape).background(cols[i % cols.size]))
-                    Spacer(Modifier.width(8.dp))
-                    Column {
-                        Text(n, color = Txt, fontSize = AppType.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("%.1f / %.1f GB".format(used[i], tot[i]), fontSize = AppType.small, color = Mut)
-                    }
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).clip(CircleShape).background(Track))
-                Spacer(Modifier.width(8.dp))
-                Text("Free %.1f GB".format(free), fontSize = AppType.small, color = Mut)
-            }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("${groups.size} storage device${if (groups.size == 1) "" else "s"}",
+                color = Txt, fontSize = AppType.body, fontWeight = FontWeight.SemiBold)
+            Text("%.1f GB used".format(used), color = Txt, fontSize = AppType.body)
+            Text("%.1f GB total".format(total), color = Mut, fontSize = AppType.small)
+            Text("%.1f GB available".format(free), color = Mut, fontSize = AppType.small)
         }
     }
+    Spacer(Modifier.height(16.dp))
+    groups.entries.forEachIndexed { index, group ->
+        val diskEntries = group.value
+        val first = diskEntries.first()
+        val isExternal = first.optBoolean("removable", false) || first.optString("connection") == "USB"
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(9.dp).clip(CircleShape).background(cols[index % cols.size]))
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(group.key, color = Txt, fontSize = AppType.body, fontWeight = FontWeight.SemiBold)
+                    Text(if (isExternal) "External drive · USB" else first.optString("connection", "Storage device"),
+                        color = Mut, fontSize = AppType.caption)
+                }
+                Text("${diskEntries.size} volume${if (diskEntries.size == 1) "" else "s"}",
+                    color = Dim, fontSize = AppType.caption)
+            }
+            diskEntries.forEach { volume ->
+                val mount = volume.optString("mount", "Unknown mount")
+                val filesystem = volume.optString("filesystem", "Filesystem")
+                val device = volume.optString("device", "")
+                val usedGb = volume.optDouble("used_gb", 0.0)
+                val totalGb = volume.optDouble("total_gb", 0.0)
+                val freeGb = volume.optDouble("free_gb", (totalGb - usedGb).coerceAtLeast(0.0))
+                val usage = volume.optDouble("pct", 0.0).coerceIn(0.0, 100.0)
+                Column(Modifier.fillMaxWidth().padding(start = 17.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(mount, color = Txt, fontSize = AppType.small, modifier = Modifier.weight(1f),
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("%.1f / %.1f GB".format(usedGb, totalGb), color = Mut, fontSize = AppType.small)
+                    }
+                    Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(Track)) {
+                        Box(Modifier.fillMaxWidth((usage / 100.0).toFloat()).fillMaxHeight()
+                            .clip(CircleShape).background(if (usage >= 92.0) Err else Red))
+                    }
+                    Text("$filesystem · $device · %.1f GB free".format(freeGb),
+                        color = Dim, fontSize = AppType.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+        if (index != groups.size - 1) Spacer(Modifier.height(13.dp))
+    }
 }
-
 @Composable
 fun SystemTab(j: JSONObject) {
     Panel {
