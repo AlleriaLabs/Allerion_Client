@@ -398,7 +398,22 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
             if (gateway != null && linkedNodes.isNotEmpty()) {
                 // Full-width endpoint cards keep IP, MAC and source details readable on narrow phones.
                 GatewayStatusNode(gateway, true)
-                Spacer(Modifier.height(12.dp))
+                // Continue the gateway trunk visually into the discovered-endpoint branch.
+                val reduceMotion = LocalReduceMotion.current
+                val gatewayFlow = rememberInfiniteTransition(label = "gateway-endpoint-link")
+                val gatewayPacket by gatewayFlow.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing)),
+                    label = "gateway-endpoint-packet"
+                )
+                Canvas(Modifier.fillMaxWidth().height(24.dp)) {
+                    val x = 11.dp.toPx()
+                    val stroke = 1.7.dp.toPx()
+                    drawLine(Green.copy(alpha = 0.48f), Offset(x, 0f), Offset(x, size.height), stroke)
+                    val y = if (reduceMotion) size.height / 2f else size.height * gatewayPacket
+                    drawCircle(Color(0xFFB8F5D8).copy(alpha = 0.95f), 3.5.dp.toPx(), Offset(x, y))
+                }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Label("DISCOVERED LAN ENDPOINTS")
                     Spacer(Modifier.weight(1f))
@@ -423,7 +438,8 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                         val stroke = 1.7.dp.toPx()
                         val line = Green.copy(alpha = 0.42f)
                         val lastY = (linkedNodes.size - 1) * rowPx + cardCenterOffset
-                        drawLine(line, Offset(trunkX, cardCenterOffset), Offset(trunkX, lastY), stroke)
+                        // Join the incoming gateway connector to the endpoint trunk.
+                        drawLine(line, Offset(trunkX, 0f), Offset(trunkX, lastY), stroke)
                         linkedNodes.indices.forEach { index ->
                             val y = index * rowPx + cardCenterOffset
                             drawLine(line, Offset(trunkX, y), Offset(size.width, y), stroke)
@@ -507,11 +523,11 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
 @Composable
 private fun GatewayTopologyStat(online: Boolean, modifier: Modifier) {
     val tint = if (online) Green else Dim
-    Box(modifier.clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B2029))
+    Box(modifier.height(76.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B2029))
         .border(1.dp, Color(0xFF303946), RoundedCornerShape(14.dp))) {
         AnimatedSurfaceBackdrop(tint, Modifier.matchParentSize())
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -524,10 +540,13 @@ private fun GatewayTopologyStat(online: Boolean, modifier: Modifier) {
 
 @Composable
 private fun TopologyStat(label: String, value: String, tint: Color, modifier: Modifier) {
-    Box(modifier.clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B2029))
+    Box(modifier.height(76.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFF1B2029))
         .border(1.dp, Color(0xFF303946), RoundedCornerShape(14.dp))) {
         AnimatedSurfaceBackdrop(tint, Modifier.matchParentSize())
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
             Text(value, color = tint, fontSize = AppType.title, fontWeight = FontWeight.Bold)
             Text(label, color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp, maxLines = 1)
         }
