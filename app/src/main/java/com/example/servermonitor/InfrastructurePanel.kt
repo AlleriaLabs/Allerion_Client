@@ -4,6 +4,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -400,10 +402,8 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("TRACKER VIEW", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
                 Spacer(Modifier.weight(1f))
-                Text("−", modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Surf2).clickable { topologyZoom = (topologyZoom - 0.1f).coerceAtLeast(0.8f) }.padding(horizontal = 13.dp, vertical = 5.dp), color = Txt, fontSize = AppType.title)
-                Text("${(topologyZoom * 100).toInt()}%", modifier = Modifier.padding(horizontal = 9.dp), color = Mut, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold)
-                Text("+", modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Surf2).clickable { topologyZoom = (topologyZoom + 0.1f).coerceAtMost(1.5f) }.padding(horizontal = 13.dp, vertical = 5.dp), color = Txt, fontSize = AppType.title)
-                Text("↺", modifier = Modifier.padding(start = 8.dp).clip(RoundedCornerShape(8.dp)).background(Surf2).clickable { topologyZoom = 1f }.padding(horizontal = 10.dp, vertical = 6.dp), color = Mut, fontSize = AppType.caption)
+                Text("PINCH TO ZOOM", color = Mut, fontSize = AppType.micro, fontWeight = FontWeight.Medium)
+                Text("${(topologyZoom * 100).toInt()}%", modifier = Modifier.padding(start = 8.dp), color = Txt, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.height(10.dp))
             if (gateway != null && linkedNodes.isNotEmpty()) {
@@ -442,7 +442,14 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                     animationSpec = infiniteRepeatable(tween(2600, easing = LinearEasing)),
                     label = "topology-network-packet"
                 )
-                Box(Modifier.fillMaxWidth().height(diagramHeight).clip(RoundedCornerShape(14.dp)).background(Color(0xFF101923)).border(1.dp, Color(0xFF263746), RoundedCornerShape(14.dp))) {
+                Box(Modifier.fillMaxWidth().height(diagramHeight)
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, _, zoomChange, _ ->
+                            topologyZoom = (topologyZoom * zoomChange).coerceIn(0.65f, 2.5f)
+                        }
+                    }
+                    .clip(RoundedCornerShape(14.dp)).background(Color(0xFF101923))
+                    .border(1.dp, Color(0xFF263746), RoundedCornerShape(14.dp))) {
                     Canvas(Modifier.fillMaxSize()) {
                         val gridStep = 20.dp.toPx()
                         var gridX = 0f
