@@ -459,6 +459,7 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
                 val packetAge = liveTraffic?.optLong("last_packet_age_ms", Long.MAX_VALUE) ?: Long.MAX_VALUE
                 val packetCount = liveTraffic?.optLong("packet_count") ?: 0L
                 val packetProgress = remember { Animatable(0f) }
+                val reduceMotion = LocalReduceMotion.current
                 LaunchedEffect(packetCount, activeIndex) {
                     if (packetCount > 0L && activeIndex >= 0) {
                         packetProgress.snapTo(0f)
@@ -500,7 +501,7 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
                                 val row = activeIndex / 2
                                 val x = if (linkedNodes.size % 2 == 1 && activeIndex == linkedNodes.lastIndex) centerX else if (activeIndex % 2 == 0) leftX else rightX
                                 val targetY = rowStart + row * rowGap
-                                val y = if (LocalReduceMotion.current) targetY else branchY + (targetY - branchY) * packetProgress.value
+                                val y = if (reduceMotion) targetY else branchY + (targetY - branchY) * packetProgress.value
                                 drawCircle(Color(0xFFB8F5D8), 4.dp.toPx(), Offset(x, y))
                                 drawCircle(Color(0xFFB8F5D8).copy(alpha = 0.2f), 9.dp.toPx(), Offset(x, y))
                             }
