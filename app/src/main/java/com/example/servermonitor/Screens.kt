@@ -309,7 +309,6 @@ private fun EnergyValueChart(cd: ChartData, mode: String, loading: Boolean) {
                     }
                 }
             }
-        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(cd.left, color = Dim, fontSize = AppType.caption)
             Text(if (mode == "Day") "NOW" else "LATEST", color = Dim, fontSize = AppType.caption)
