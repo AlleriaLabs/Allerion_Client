@@ -131,10 +131,19 @@ fun OverviewScreen(sv: Server, j: JSONObject, online: Boolean, onOpen: (String) 
     fun hs(k: String): List<Double?> = h?.s?.get(k) ?: emptyList()
     val cpu = j.getDouble("cpu"); val ram = j.getDouble("ram")
     val temp = j.dbl("temp"); val gpu = j.dbl("gpu"); val disk = diskPct(j)
-    val pw = j.optJSONObject("power"); val watts = pw?.dbl("watts")
+    val up = j.optLong("uptime_s")
     var usedGb = 0.0; var totGb = 0.0
     j.optJSONArray("disks")?.let { for (i in 0 until it.length()) { usedGb += it.getJSONObject(i).optDouble("used_gb", 0.0); totGb += it.getJSONObject(i).optDouble("total_gb", 0.0) } }
     HealthCard(j, online, Modifier.staggerIn(0))
+    Panel {
+        Label("Server details"); Spacer(Modifier.height(6.dp))
+        KV("Host", j.str("host"))
+        KV("System", j.str("os"))
+        KV("Uptime", "${up / 86400}d ${up % 86400 / 3600}h ${up % 3600 / 60}m")
+        KV("Address", j.str("ip").ifEmpty { "-" })
+        KV("CPU cores", "${j.optInt("cores")}")
+        KV("Memory", "${j.optDouble("ram_total_gb")} GB")
+    }
     Row(Modifier.fillMaxWidth().staggerIn(1), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         MetricTile(Ic.Cpu, "CPU", animNum(cpu), "%", "${j.optInt("cores")} cores", listOf(GSeries(hs("cpu"), Red)), 10.0, Modifier.weight(1f)) { onOpen("cpu") }
         MetricTile(Ic.Memory, "Memory", animNum(ram), "%", "${j.optDouble("ram_used_gb")} / ${j.optDouble("ram_total_gb")} GB",
@@ -146,8 +155,6 @@ fun OverviewScreen(sv: Server, j: JSONObject, online: Boolean, onOpen: (String) 
         MetricTile(Ic.Storage, "Storage", animNum(disk), if (disk == null) "" else "%", "%.0f / %.0f GB".format(usedGb, totGb),
             listOf(GSeries(hs("disk"), Mut)), 2.0, Modifier.weight(1f)) { onOpen("disk") }
     }
-    MetricTile(Ic.Zap, "Power", animNum(watts), if (watts == null) "" else "W", if (watts == null) "No power source" else "%.2f kWh today".format(pw?.optDouble("today_kwh", 0.0) ?: 0.0),
-        listOf(GSeries(hs("power"), Red)), 5.0, Modifier.fillMaxWidth().staggerIn(3)) { onOpen("power") }
     if (gpu != null) MetricTile(Ic.Chart, "GPU", animNum(gpu), "%", null, listOf(GSeries(hs("gpu"), Mut)), 10.0, Modifier.fillMaxWidth().staggerIn(4)) { onOpen("gpu") }
 }
 
@@ -358,21 +365,11 @@ fun DiagRow(label: String, value: String, color: Color) {
 
 @Composable
 fun SystemScreen(sv: Server, j: JSONObject, online: Boolean) {
-    val up = j.optLong("uptime_s")
-    Panel {
-        Label("Server"); Spacer(Modifier.height(6.dp))
-        KV("Host", j.str("host")); KV("System", j.str("os")); KV("Uptime", "${up / 86400}d ${up % 86400 / 3600}h ${up % 3600 / 60}m")
-        KV("Address", j.str("ip").ifEmpty { "-" }); KV("CPU cores", "${j.optInt("cores")}"); KV("Memory", "${j.optDouble("ram_total_gb")} GB")
-    }
-    val pw = j.optJSONObject("power")
-    val perr = pw?.str("plug_error") ?: ""
     Panel {
         Label("Diagnostics"); Spacer(Modifier.height(4.dp))
         DiagRow("Monitoring connection", if (online) "Connected" else "Offline", if (online) Green else Err)
         DiagRow("Temperature sensor", if (j.dbl("temp") != null) "Available" else "Not found", if (j.dbl("temp") != null) Green else Dim)
         DiagRow("GPU", if (j.dbl("gpu") != null) "Available" else "Not available", if (j.dbl("gpu") != null) Green else Dim)
-        DiagRow("Power source", when { perr.isNotEmpty() -> "Error"; pw?.dbl("watts") != null -> pw.str("source"); else -> "None" },
-            when { perr.isNotEmpty() -> Amber; pw?.dbl("watts") != null -> Green; else -> Dim })
     }
     SystemTab(j)
     InfrastructurePanel(sv)
@@ -405,10 +402,9 @@ fun ActionRow(title: String, sub: String, onClick: () -> Unit) {
 }
 
 @Composable
-fun SettingsScreen(sv: Server, onEdit: () -> Unit, onPower: () -> Unit) {
+fun SettingsScreen(sv: Server, onEdit: () -> Unit) {
     val ctx = LocalContext.current
     ActionRow("Server connection", sv.name + " · " + sv.url.removePrefix("http://"), onEdit)
-    ActionRow("Power source and electricity rate", "Choose your plug, price per kWh and currency", onPower)
     ReportExportPanel(sv)
     RefreshPanel()
     AboutPanel()
@@ -438,7 +434,7 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                         1 -> NetworkScreen(sv, j!!) { detail = it }
                         2 -> PowerTab(sv, j!!.optJSONObject("power")) { setup = true }
                         3 -> SystemScreen(sv, j!!, online)
-                        else -> SettingsScreen(sv, onEdit) { setup = true }
+                        else -> SettingsScreen(sv, onEdit)
                     }
                 }
             }
