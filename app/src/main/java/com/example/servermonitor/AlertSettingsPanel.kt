@@ -38,7 +38,7 @@ fun AlertSettingsPanel() {
 
     Panel {
         Label("Alert thresholds")
-        Text("Choose when ALLERION should mark a metric as critical. Changes apply to the next background check.", color = Mut, fontSize = 12.sp)
+        Text("Choose when ALLERION should mark a metric as critical. Changes apply to the next background check.", color = Mut, fontSize = AppType.small)
         Spacer(Modifier.height(10.dp))
         ThresholdSlider("CPU", cpu, "%", 50f..100f) {
             cpu = it
@@ -72,19 +72,19 @@ fun AlertSettingsPanel() {
         }
         if (activeAlerts.isEmpty()) {
             Text("No active alerts. ALLERION will list server issues here when a threshold is crossed or a server becomes unreachable.",
-                color = Dim, fontSize = 12.sp)
+                color = Dim, fontSize = AppType.small)
         } else {
             activeAlerts.forEach { alert ->
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
                         alert.severity.uppercase(Locale.getDefault()) + " · " + alert.server,
                         color = if (alert.severity == "critical") Err else Amber,
-                        fontSize = 11.sp,
+                        fontSize = AppType.caption,
                         fontWeight = FontWeight.SemiBold
                     )
-                    Text(alert.message, color = Txt, fontSize = 12.sp)
+                    Text(alert.message, color = Txt, fontSize = AppType.small)
                     Text(SimpleDateFormat("MMM d, yyyy · HH:mm", Locale.getDefault()).format(Date(alert.timestamp)),
-                        color = Dim, fontSize = 10.sp)
+                        color = Dim, fontSize = AppType.caption)
                 }
                 Spacer(Modifier.height(9.dp))
             }
@@ -98,7 +98,7 @@ fun AlertSettingsPanel() {
             TextButton(onClick = { AlertHistoryStore.clear(context); events = emptyList() }) { Text("Clear", color = Mut) }
         }
         if (events.isEmpty()) {
-            Text("No alert events recorded yet. New alerts and recovery events will appear here.", color = Dim, fontSize = 12.sp)
+            Text("No alert events recorded yet. New alerts and recovery events will appear here.", color = Dim, fontSize = AppType.small)
         } else {
             Column(
                 Modifier.fillMaxWidth().heightIn(max = 300.dp).verticalScroll(rememberScrollState()),
@@ -109,11 +109,11 @@ fun AlertSettingsPanel() {
                     Text(
                         (if (event.recovered) "RECOVERED · " else event.severity.uppercase(Locale.getDefault()) + " · ") + event.server,
                         color = if (event.recovered) Green else if (event.severity == "critical") Err else Amber,
-                        fontSize = 11.sp,
+                        fontSize = AppType.caption,
                         fontWeight = FontWeight.SemiBold
                     )
-                    Text(event.message, color = Txt, fontSize = 12.sp)
-                    Text(SimpleDateFormat("MMM d, yyyy · HH:mm", Locale.getDefault()).format(Date(event.timestamp)), color = Dim, fontSize = 10.sp)
+                    Text(event.message, color = Txt, fontSize = AppType.small)
+                    Text(SimpleDateFormat("MMM d, yyyy · HH:mm", Locale.getDefault()).format(Date(event.timestamp)), color = Dim, fontSize = AppType.caption)
                 }
                 Spacer(Modifier.height(9.dp))
                 }
@@ -126,8 +126,8 @@ fun AlertSettingsPanel() {
 private fun ThresholdSlider(label: String, value: Float, unit: String, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(label, color = Txt, fontSize = 13.sp)
-            Text("%.0f".format(value) + unit, color = Txt, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(label, color = Txt, fontSize = AppType.body)
+            Text("%.0f".format(value) + unit, color = Txt, fontSize = AppType.body, fontWeight = FontWeight.SemiBold)
         }
         Slider(value = value, onValueChange = onChange, valueRange = range, steps = 49)
     }
