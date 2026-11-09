@@ -44,8 +44,8 @@ fun netFmt(bps: Double): Pair<String, String> = if (bps >= 1e6) "%.1f".format(bp
 @Composable
 fun KV(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = Mut, fontSize = 14.sp)
-        Text(value, color = Txt, fontSize = 14.sp, textAlign = TextAlign.End, modifier = Modifier.weight(1f).padding(start = 16.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(label, color = Mut, fontSize = AppType.body)
+        Text(value, color = Txt, fontSize = AppType.body, textAlign = TextAlign.End, modifier = Modifier.weight(1f).padding(start = 16.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -58,10 +58,10 @@ fun AppHeader(sv: Server, j: JSONObject?, err: String?, online: Boolean, onBack:
         Image(painterResource(R.drawable.logo_mark), null, Modifier.size(26.dp))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(sv.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(sv.name, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val ts = j?.optLong("ts") ?: 0L
             Text(when { j == null -> err ?: "Connecting…"; !online -> "Offline · last seen ${fmtClock(ts)}"; else -> "ALLERION · updated ${fmtClock(ts)}" },
-                fontSize = 11.sp, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                fontSize = AppType.caption, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Status(online)
         IconBtn(Ic.Refresh, "Refresh", rot) { spin++; onRefresh() }
@@ -103,19 +103,19 @@ fun HealthCard(j: JSONObject, online: Boolean, modifier: Modifier = Modifier) {
             }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
-                Text("GATEWAY", fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                Text("GATEWAY", fontSize = AppType.micro, fontWeight = FontWeight.Bold,
                     color = Mut, letterSpacing = 1.sp)
-                Text(status, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color)
+                Text(status, fontSize = AppType.body, fontWeight = FontWeight.Bold, color = color)
                 Text(
                     if (online) "Uptime · $uptime" else "Cannot reach the monitoring service",
-                    fontSize = 11.sp, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    fontSize = AppType.caption, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
             PulseDot(color, online && warns.isEmpty())
         }
         warns.forEach {
             Spacer(Modifier.height(6.dp))
-            Text("•  $it", fontSize = 12.sp, color = Amber)
+            Text("•  $it", fontSize = AppType.small, color = Amber)
         }
     }
 }
@@ -184,25 +184,25 @@ fun MetricDetail(sv: Server, kind: String, j: JSONObject, onBack: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBtn(Ic.ChevronL, "Back to dashboard", onClick = onBack)
             Icon24(icon, color, 20.dp); Spacer(Modifier.width(8.dp))
-            Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt)
+            Text(title, fontSize = AppType.section, fontWeight = FontWeight.Bold, color = Txt)
         }
-        Text(f(now), fontSize = 44.sp, fontWeight = FontWeight.Bold, color = Txt)
+        Text(f(now), fontSize = AppType.hero, fontWeight = FontWeight.Bold, color = Txt)
         Panel {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("1h", "24h", "7d").forEach { r -> Chip(r, range == r) { range = r } } }
             Spacer(Modifier.height(14.dp))
             Box(Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(16.dp)).background(Surf2)) {
-                if (h == null) Text("Loading history…", color = Dim, fontSize = 13.sp, modifier = Modifier.align(Alignment.Center))
-                else if (ok.isEmpty()) Text("No readings recorded for this range yet.", color = Dim, fontSize = 13.sp, modifier = Modifier.align(Alignment.Center).padding(24.dp), textAlign = TextAlign.Center)
+                if (h == null) Text("Loading history…", color = Dim, fontSize = AppType.body, modifier = Modifier.align(Alignment.Center))
+                else if (ok.isEmpty()) Text("No readings recorded for this range yet.", color = Dim, fontSize = AppType.body, modifier = Modifier.align(Alignment.Center).padding(24.dp), textAlign = TextAlign.Center)
                 else {
                     HistoryGraph(series, Modifier.matchParentSize(), minSpan, 0.95f, 0.22f, 2.dp)
-                    Text(f(ok.max()), fontSize = 11.sp, color = Dim, modifier = Modifier.align(Alignment.TopStart).padding(10.dp))
-                    Text(f(ok.min()), fontSize = 11.sp, color = Dim, modifier = Modifier.align(Alignment.BottomStart).padding(10.dp))
+                    Text(f(ok.max()), fontSize = AppType.caption, color = Dim, modifier = Modifier.align(Alignment.TopStart).padding(10.dp))
+                    Text(f(ok.min()), fontSize = AppType.caption, color = Dim, modifier = Modifier.align(Alignment.BottomStart).padding(10.dp))
                 }
             }
             if (h != null && h.t.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(fmtT(h.t.first(), range), fontSize = 11.sp, color = Dim); Text(fmtT(h.t.last(), range), fontSize = 11.sp, color = Dim)
+                    Text(fmtT(h.t.first(), range), fontSize = AppType.caption, color = Dim); Text(fmtT(h.t.last(), range), fontSize = AppType.caption, color = Dim)
                 }
             }
         }
@@ -262,18 +262,18 @@ fun EnergyPanel(sv: Server, pw: JSONObject) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("Day", "Week", "Month", "Year").forEach { m -> Chip(m, mode == m) { mode = m } } }
         Spacer(Modifier.height(14.dp))
         Box(Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(16.dp)).background(Surf2)) {
-            if (ok.isEmpty()) Text(if (energy == null && mode != "Day") "Loading…" else "No readings recorded for this period yet.", color = Dim, fontSize = 13.sp,
+            if (ok.isEmpty()) Text(if (energy == null && mode != "Day") "Loading…" else "No readings recorded for this period yet.", color = Dim, fontSize = AppType.body,
                 modifier = Modifier.align(Alignment.Center).padding(24.dp), textAlign = TextAlign.Center)
             else HistoryGraph(listOf(GSeries(cd.vals, Red)), Modifier.matchParentSize(), cd.minSpan, 0.95f, 0.24f, 2.dp)
         }
         Spacer(Modifier.height(6.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(cd.left, fontSize = 11.sp, color = Dim); Text(cd.right, fontSize = 11.sp, color = Dim) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(cd.left, fontSize = AppType.caption, color = Dim); Text(cd.right, fontSize = AppType.caption, color = Dim) }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             InfoChip(cd.aLabel, cd.a, Modifier.weight(1f)); InfoChip(cd.bLabel, cd.b, Modifier.weight(1f))
         }
         val since = pw.str("since")
-        if (since.isNotEmpty() && mode != "Day") { Spacer(Modifier.height(8.dp)); Text("Energy tracked since $since", fontSize = 11.sp, color = Dim) }
+        if (since.isNotEmpty() && mode != "Day") { Spacer(Modifier.height(8.dp)); Text("Energy tracked since $since", fontSize = AppType.caption, color = Dim) }
     }
 }
 
@@ -281,8 +281,8 @@ fun EnergyPanel(sv: Server, pw: JSONObject) {
 fun DiagRow(label: String, value: String, color: Color) {
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(color)); Spacer(Modifier.width(10.dp))
-        Text(label, color = Txt, fontSize = 14.sp, modifier = Modifier.weight(1f))
-        Text(value, color = Mut, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, color = Txt, fontSize = AppType.body, modifier = Modifier.weight(1f))
+        Text(value, color = Mut, fontSize = AppType.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -314,8 +314,8 @@ fun SystemScreen(sv: Server, j: JSONObject, online: Boolean) {
 fun ActionRow(title: String, sub: String, onClick: () -> Unit) {
     Panel(onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) { Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Txt); Text(sub, fontSize = 12.sp, color = Mut) }
-            Text("›", fontSize = 26.sp, color = Red)
+            Column(Modifier.weight(1f)) { Text(title, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold, color = Txt); Text(sub, fontSize = AppType.small, color = Mut) }
+            Text("›", fontSize = AppType.section, color = Red)
         }
     }
 }
@@ -348,7 +348,7 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
             Crossfade(tab, animationSpec = tween(220), label = "tabs") { t ->
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (j == null && t != 3) { Text(r.error ?: "Connecting…", color = Amber, fontSize = 13.sp); return@Column }
+                    if (j == null && t != 3) { Text(r.error ?: "Connecting…", color = Amber, fontSize = AppType.body); return@Column }
                     when (t) {
                         0 -> OverviewScreen(sv, j!!, online) { detail = it }
                         1 -> PowerTab(sv, j!!.optJSONObject("power")) { setup = true }
