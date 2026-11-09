@@ -29,6 +29,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -49,6 +51,21 @@ private data class InfrastructureSnapshot(
     val error: String? = null
 )
 
+private object InfrastructureSnapshotCache {
+    private data class Entry(val snapshot: InfrastructureSnapshot, val savedAt: Long)
+    private val entries = mutableMapOf<String, Entry>()
+    private fun key(server: Server) = server.url.trimEnd('/') + "#" + server.token.hashCode()
+    fun get(server: Server): InfrastructureSnapshot? = synchronized(entries) { entries[key(server)]?.snapshot }
+    fun isFresh(server: Server, maxAgeMs: Long = 30_000L): Boolean = synchronized(entries) {
+        val entry = entries[key(server)] ?: return@synchronized false
+        System.currentTimeMillis() - entry.savedAt < maxAgeMs
+    }
+    fun put(server: Server, snapshot: InfrastructureSnapshot) = synchronized(entries) {
+        entries[key(server)] = Entry(snapshot, System.currentTimeMillis())
+        if (entries.size > 12) entries.entries.iterator().let { if (it.hasNext()) { it.next(); it.remove() } }
+    }
+}
+
 @Composable
 private fun CollapsibleSectionHeader(title: String, expanded: Boolean, onToggle: () -> Unit) {
     Row(
@@ -67,45 +84,63 @@ fun InfrastructurePanel(sv: Server) {
     var processesExpanded by remember { mutableStateOf(false) }
     var containersExpanded by remember { mutableStateOf(false) }
     var lanDevicesExpanded by remember { mutableStateOf(false) }
-    val snapshot by produceState(InfrastructureSnapshot(), sv.url, sv.token) {
+    val snapshot by produceState(InfrastructureSnapshotCache.get(sv) ?: InfrastructureSnapshot(), sv.url, sv.token) {
         while (true) {
-            value = withContext(Dispatchers.IO) {
+            if (InfrastructureSnapshotCache.isFresh(sv)) {
+                delay(30_000)
+                continue
+            }
+            val loaded = withContext(Dispatchers.IO) {
                 try {
-                    val caps = ApiClient.getJson(sv.url, sv.token, "/api/capabilities", readTimeoutMs = 5000)
+                    val caps = ApiClient.getJson(sv.url, sv.token, "/api/capabilities", connectTimeoutMs = 2500, readTimeoutMs = 5000)
                     val features = caps.optJSONObject("features") ?: JSONObject()
-                    fun optional(path: String): JSONObject? = try {
+                    suspend fun optional(path: String): JSONObject? = try {
                         ApiClient.getJson(sv.url, sv.token, path, connectTimeoutMs = 2500, readTimeoutMs = 5000)
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {
                         null
                     }
-                    val containerData = if (features.optBoolean("containers")) optional("/api/containers") else null
-                    val containerRows = containerData?.optJSONArray("items")
-                    val statsRows = if (containerRows != null) (0 until minOf(containerRows.length(), 8)).mapNotNull { index ->
-                        val item = containerRows.optJSONObject(index) ?: return@mapNotNull null
-                        val id = item.optString("id")
-                        if (item.optString("state") != "running" || id.isBlank()) return@mapNotNull null
-                        optional("/api/containers/$id/stats")
-                    } else emptyList()
-                    InfrastructureSnapshot(
-                        capabilities = caps,
-                        processes = if (features.optBoolean("processes")) optional("/api/processes?limit=12") else null,
-                        containers = containerData,
-                        containerStats = statsRows,
-                        services = if (features.optBoolean("services")) optional("/api/services") else null,
-                        devices = if (features.optBoolean("network_inventory")) optional("/api/network/devices") else null,
-                        topology = if (features.optBoolean("network_topology")) optional("/api/network/topology") else null,
-                        integrations = optional("/api/integrations"),
-                        forecast = if (features.optBoolean("energy_forecast")) optional("/api/energy/forecast?days=30") else null,
-                        energyBreakdown = if (features.optBoolean("energy_breakdown")) optional("/api/energy/breakdown") else null
-                    )
+                    coroutineScope {
+                        val containersJob = async { if (features.optBoolean("containers")) optional("/api/containers") else null }
+                        val processesJob = async { if (features.optBoolean("processes")) optional("/api/processes?limit=12") else null }
+                        val servicesJob = async { if (features.optBoolean("services")) optional("/api/services") else null }
+                        val devicesJob = async { if (features.optBoolean("network_inventory")) optional("/api/network/devices") else null }
+                        val topologyJob = async { if (features.optBoolean("network_topology")) optional("/api/network/topology") else null }
+                        val integrationsJob = async { optional("/api/integrations") }
+                        val forecastJob = async { if (features.optBoolean("energy_forecast")) optional("/api/energy/forecast?days=30") else null }
+                        val energyJob = async { if (features.optBoolean("energy_breakdown")) optional("/api/energy/breakdown") else null }
+                        val containerData = containersJob.await()
+                        val containerRows = containerData?.optJSONArray("items")
+                        val statsRows = if (containerRows != null) coroutineScope {
+                            (0 until minOf(containerRows.length(), 8)).mapNotNull { index ->
+                                val item = containerRows.optJSONObject(index) ?: return@mapNotNull null
+                                val id = item.optString("id")
+                                if (item.optString("state") != "running" || id.isBlank()) null
+                                else async { optional("/api/containers/$id/stats") }
+                            }.mapNotNull { it.await() }
+                        } else emptyList()
+                        InfrastructureSnapshot(
+                            capabilities = caps,
+                            processes = processesJob.await(),
+                            containers = containerData,
+                            containerStats = statsRows,
+                            services = servicesJob.await(),
+                            devices = devicesJob.await(),
+                            topology = topologyJob.await(),
+                            integrations = integrationsJob.await(),
+                            forecast = forecastJob.await(),
+                            energyBreakdown = energyJob.await()
+                        )
+                    }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
                     InfrastructureSnapshot(error = friendlyError(error))
                 }
             }
+            value = loaded
+            if (loaded.capabilities != null) InfrastructureSnapshotCache.put(sv, loaded)
             delay(60_000)
         }
     }
