@@ -64,11 +64,11 @@ fun Splash(onDone: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally) {
             LogoMark(96.dp)
             Spacer(Modifier.height(22.dp))
-            Text("ALLERION", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 6.sp)
+            Text("ALLERION", fontSize = AppType.displaySmall, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 6.sp)
             Spacer(Modifier.height(6.dp))
-            Text("ALLERIA LABS", fontSize = 10.sp, color = Dim, letterSpacing = 3.sp, fontWeight = FontWeight.Medium)
+            Text("ALLERIA LABS", fontSize = AppType.caption, color = Dim, letterSpacing = 3.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(18.dp))
-            Text(TAGLINE, fontSize = 13.sp, color = Mut)
+            Text(TAGLINE, fontSize = AppType.body, color = Mut)
         }
     }
 }
@@ -79,8 +79,8 @@ fun HubHeader(onSettings: () -> Unit) {
         LogoMark(38.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text("ALLERION", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 2.sp)
-            Text("ALLERIA LABS", fontSize = 9.sp, color = Dim, fontWeight = FontWeight.Medium, letterSpacing = 2.2.sp)
+            Text("ALLERION", fontSize = AppType.title, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 2.sp)
+            Text("ALLERIA LABS", fontSize = AppType.micro, color = Dim, fontWeight = FontWeight.Medium, letterSpacing = 2.2.sp)
         }
         IconBtn(Ic.Gear, "Settings", onClick = onSettings)
     }
@@ -92,8 +92,8 @@ fun SummaryStat(label: String, value: String, color: Color, modifier: Modifier) 
     Box(modifier.clip(shape).background(Surf).border(1.dp, Line, shape)) {
         AnimatedSurfaceBackdrop(color, Modifier.matchParentSize())
         Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
-            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
-            Text(label, fontSize = 11.sp, color = Dim)
+            Text(value, fontSize = AppType.title, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
+            Text(label, fontSize = AppType.caption, color = Dim)
         }
     }
 }
@@ -103,7 +103,7 @@ fun StatusLabel(code: Int) {
     val (c, t) = when (code) { 1 -> Green to "Online"; 2 -> Err to "Offline"; else -> Amber to "Connecting" }
     Row(verticalAlignment = Alignment.CenterVertically) {
         PulseDot(c, code == 1, 7.dp)
-        Text(t, fontSize = 12.sp, color = c, fontWeight = FontWeight.Medium)
+        Text(t, fontSize = AppType.small, color = c, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -111,7 +111,7 @@ fun StatusLabel(code: Int) {
 fun StateMessage(text: String, warn: Boolean) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Surf2).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(if (warn) Amber else Dim)); Spacer(Modifier.width(10.dp))
-        Text(text, fontSize = 13.sp, color = Mut)
+        Text(text, fontSize = AppType.body, color = Mut)
     }
 }
 
@@ -130,8 +130,8 @@ fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, o
         else {
             if (err != null) StateMessage("$err Showing the last readings received.", true)
             val up = j.optLong("uptime_s")
-            Text("Updated ${fmtClock(j.optLong("ts"))}  ·  Up ${up / 86400}d ${up % 86400 / 3600}h", fontSize = 12.sp, color = Dim)
-            Text("API response · ${ApiClient.lastRequestDurationMs} ms", fontSize = 11.sp, color = Dim)
+            Text("Updated ${fmtClock(j.optLong("ts"))}  ·  Up ${up / 86400}d ${up % 86400 / 3600}h", fontSize = AppType.small, color = Dim)
+            Text("API response · ${ApiClient.lastRequestDurationMs} ms", fontSize = AppType.caption, color = Dim)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedButton(
@@ -164,9 +164,9 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
             Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Surf2), contentAlignment = Alignment.Center) { Icon24(Ic.Server, Mut, 22.dp) }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(sv.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(sv.url.removePrefix("http://").removePrefix("https://"), fontSize = 12.sp, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(sv.group, fontSize = 10.sp, color = Red, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sv.name, fontSize = AppType.titleSmall, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sv.url.removePrefix("http://").removePrefix("https://"), fontSize = AppType.small, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sv.group, fontSize = AppType.caption, color = Red, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.width(10.dp))
             StatusLabel(code)
@@ -196,7 +196,7 @@ fun AddFab(onClick: () -> Unit, modifier: Modifier) {
     ) {
         Icon24(Ic.Plus, Txt, 18.dp, desc = "Add server")
         Spacer(Modifier.width(8.dp))
-        Text("Add server", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Txt)
+        Text("Add server", fontSize = AppType.body, fontWeight = FontWeight.SemiBold, color = Txt)
     }
 }
 
@@ -214,17 +214,17 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
             HubHeader(onSettings)
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.padding(top = 8.dp, bottom = 2.dp).staggerIn(0)) {
-                    Text("Servers", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt)
-                    Text("Your connected infrastructure", fontSize = 13.sp, color = Mut)
+                    Text("Servers", fontSize = AppType.display, fontWeight = FontWeight.Bold, color = Txt)
+                    Text("Your connected infrastructure", fontSize = AppType.body, color = Mut)
                 }
                 if (servers.isEmpty()) {
                     Panel(Modifier.staggerIn(1)) {
                         Column(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(Surf2), contentAlignment = Alignment.Center) { Icon24(Ic.Server, Mut, 26.dp) }
                             Spacer(Modifier.height(14.dp))
-                            Text("No servers yet", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Txt)
+                            Text("No servers yet", fontSize = AppType.titleSmall, fontWeight = FontWeight.SemiBold, color = Txt)
                             Spacer(Modifier.height(4.dp))
-                            Text("Add the ALLERION monitoring service running on your home server to start watching it.", fontSize = 13.sp, color = Mut, textAlign = TextAlign.Center)
+                            Text("Add the ALLERION monitoring service running on your home server to start watching it.", fontSize = AppType.body, color = Mut, textAlign = TextAlign.Center)
                             Spacer(Modifier.height(18.dp))
                             AddFab(onAdd, Modifier)
                         }
@@ -278,7 +278,7 @@ fun RefreshPanel() {
                 }
             }
         }
-        Spacer(Modifier.height(8.dp)); Text("How often live readings update. Graph history is recorded by the server regardless.", fontSize = 12.sp, color = Dim)
+        Spacer(Modifier.height(8.dp)); Text("How often live readings update. Graph history is recorded by the server regardless.", fontSize = AppType.small, color = Dim)
     }
 }
 
@@ -288,12 +288,12 @@ fun AboutPanel() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             LogoMark(54.dp); Spacer(Modifier.width(14.dp))
             Column {
-                Text("ALLERION", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 2.sp)
-                Text("by ALLERIA LABS", fontSize = 12.sp, color = Mut)
+                Text("ALLERION", fontSize = AppType.title, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 2.sp)
+                Text("by ALLERIA LABS", fontSize = AppType.small, color = Mut)
             }
         }
         Spacer(Modifier.height(12.dp))
-        Text(TAGLINE, fontSize = 13.sp, color = Mut)
+        Text(TAGLINE, fontSize = AppType.body, color = Mut)
         Spacer(Modifier.height(8.dp))
         KV("Category", "Home & Server Monitoring")
         KV("Version", BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ")")
@@ -363,7 +363,7 @@ fun ReportExportPanel(sv: Server) {
     Panel {
         Label("Monitoring report")
         Spacer(Modifier.height(6.dp))
-        Text("Export seven days of timestamped CPU, memory, temperature, network, power, GPU and storage readings, plus daily energy totals when available.", color = Mut, fontSize = 12.sp)
+        Text("Export seven days of timestamped CPU, memory, temperature, network, power, GPU and storage readings, plus daily energy totals when available.", color = Mut, fontSize = AppType.small)
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { prepareReport(false) }, Modifier.weight(1f).height(48.dp).border(1.dp, Line, RoundedCornerShape(15.dp)), enabled = !busy,
@@ -379,7 +379,7 @@ fun ReportExportPanel(sv: Server) {
                 Text("Export PDF", color = Txt)
             }
         }
-        status?.let { Text(it, color = if (it.contains("saved successfully")) Green else Amber, fontSize = 12.sp) }
+        status?.let { Text(it, color = if (it.contains("saved successfully")) Green else Amber, fontSize = AppType.small) }
     }
 }
 
@@ -432,7 +432,7 @@ fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBtn(Ic.ChevronL, "Back to servers", onClick = onBack)
-            Text("Settings", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt)
+            Text("Settings", fontSize = AppType.section, fontWeight = FontWeight.Bold, color = Txt)
         }
         RefreshPanel()
         Panel {
@@ -440,7 +440,7 @@ fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
                 Column(Modifier.weight(1f)) {
                     Label("Smart health alerts")
                     Spacer(Modifier.height(4.dp))
-                    Text("Check registered servers every 15 minutes and notify when a server goes offline or CPU, memory, temperature or disk usage crosses a critical threshold.", color = Mut, fontSize = 12.sp)
+                    Text("Check registered servers every 15 minutes and notify when a server goes offline or CPU, memory, temperature or disk usage crosses a critical threshold.", color = Mut, fontSize = AppType.small)
                 }
                 Switch(checked = alertsEnabled, onCheckedChange = { enabled ->
                     if (!enabled) {
@@ -456,13 +456,13 @@ fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
                 })
             }
             Spacer(Modifier.height(8.dp))
-            Text("Alerts are transition-based and include recovery notifications. Customize thresholds and review recent events below.", color = Dim, fontSize = 11.sp)
+            Text("Alerts are transition-based and include recovery notifications. Customize thresholds and review recent events below.", color = Dim, fontSize = AppType.caption)
         }
         AlertSettingsPanel()
         Panel {
             Label("Server backup and restore")
             Spacer(Modifier.height(6.dp))
-            Text("Create a password-protected backup of your server names, addresses and access tokens. The backup can be restored on another ALLERION installation.", color = Mut, fontSize = 13.sp)
+            Text("Create a password-protected backup of your server names, addresses and access tokens. The backup can be restored on another ALLERION installation.", color = Mut, fontSize = AppType.body)
             Spacer(Modifier.height(12.dp))
             Button({ backupPassword = ""; backupAction = "export" }, Modifier.fillMaxWidth().height(48.dp).border(1.dp, Line, RoundedCornerShape(15.dp)),
                 shape = RoundedCornerShape(15.dp),
@@ -476,8 +476,8 @@ fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
                 border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
                 Text("Restore from backup", color = Txt)
             }
-            Text("Keep the backup password safe. It cannot be recovered if lost. Exported backup files contain encrypted credentials.", color = Dim, fontSize = 11.sp)
-            message?.let { Spacer(Modifier.height(8.dp)); Text(it, color = if (it.startsWith("Encrypted")) Green else Amber, fontSize = 12.sp) }
+            Text("Keep the backup password safe. It cannot be recovered if lost. Exported backup files contain encrypted credentials.", color = Dim, fontSize = AppType.caption)
+            message?.let { Spacer(Modifier.height(8.dp)); Text(it, color = if (it.startsWith("Encrypted")) Green else Amber, fontSize = AppType.small) }
         }
         AboutPanel()
     }
@@ -559,9 +559,9 @@ fun EditServer(sv: Server?, onSave: (Server) -> Unit, onDelete: () -> Unit, onCa
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBtn(Ic.ChevronL, "Back", onClick = onCancel)
-            Text(if (sv == null) "Add server" else "Edit server", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Txt)
+            Text(if (sv == null) "Add server" else "Edit server", fontSize = AppType.section, fontWeight = FontWeight.Bold, color = Txt)
         }
-        Text("Use the address shown when the monitoring service starts, for example 192.168.1.50:8080.", color = Mut, fontSize = 13.sp)
+        Text("Use the address shown when the monitoring service starts, for example 192.168.1.50:8080.", color = Mut, fontSize = AppType.body)
         Panel {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
