@@ -380,31 +380,24 @@ private fun IntegrationTestPanel(sv: Server, integrationStatus: JSONObject?, web
 @Composable
 private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boolean, trafficEnabled: Boolean) {
     var unmappedExpanded by remember { mutableStateOf(false) }
+    var selectedNode by remember { mutableStateOf<JSONObject?>(null) }
     var topologyZoom by remember { mutableStateOf(1f) }
     val liveTraffic by produceState<JSONObject?>(null, sv.url, sv.token, trafficEnabled) {
-        if (!trafficEnabled) {
-            value = null
-        } else {
-            while (true) {
-                value = withContext(Dispatchers.IO) {
-                    try {
-                        ApiClient.getJson(sv.url, sv.token, "/api/network/traffic",
-                            connectTimeoutMs = 1500, readTimeoutMs = 1500)
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (_: Exception) {
-                        null
-                    }
-                }
-                delay(1000)
+        if (!trafficEnabled) value = null
+        else while (true) {
+            value = withContext(Dispatchers.IO) {
+                try { ApiClient.getJson(sv.url, sv.token, "/api/network/traffic", connectTimeoutMs = 1500, readTimeoutMs = 1500) }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { null }
             }
+            delay(1000)
         }
     }
     Panel {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Label("Network topology")
-                Text("LAN packet tracker", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text("Live network map", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.SemiBold)
             }
             Box(Modifier.clip(RoundedCornerShape(50)).background(Green.copy(alpha = 0.12f)).padding(horizontal = 10.dp, vertical = 6.dp)) {
                 Text("PASSIVE DISCOVERY", color = Green, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
@@ -416,10 +409,8 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
         } else {
             val nodes = topology?.optJSONArray("nodes")
             val links = topology?.optJSONArray("links")
-            val nodeItems = if (nodes == null) emptyList() else
-                (0 until minOf(nodes.length(), 40)).mapNotNull { nodes.optJSONObject(it) }
-            val linkItems = if (links == null) emptyList() else
-                (0 until minOf(links.length(), 40)).mapNotNull { links.optJSONObject(it) }
+            val nodeItems = if (nodes == null) emptyList() else (0 until minOf(nodes.length(), 40)).mapNotNull { nodes.optJSONObject(it) }
+            val linkItems = if (links == null) emptyList() else (0 until minOf(links.length(), 40)).mapNotNull { links.optJSONObject(it) }
             val linkedIps = linkItems.map { it.optString("target") }.toSet()
             val linkedNodes = nodeItems.filter { it.optString("ip") in linkedIps }
             val unmappedNodes = nodeItems.filter { it.optString("topology_status") == "unmapped" }
@@ -427,145 +418,156 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
             val sourceIp = topology?.optString("source_ip").orEmpty().takeIf { it.isNotBlank() && it != "null" }
             val routeInterface = topology?.optString("interface").orEmpty().takeIf { it.isNotBlank() && it != "null" }
             val subnet = topology?.optString("subnet").orEmpty().takeIf { it.isNotBlank() && it != "null" }
+            val trafficAvailable = liveTraffic?.optBoolean("available") == true
+            val rxRate = liveTraffic?.optDouble("rx_bytes_per_sec") ?: 0.0
+            val txRate = liveTraffic?.optDouble("tx_bytes_per_sec") ?: 0.0
+            fun rateLabel(bytes: Double): String = if (bytes >= 1_000_000) "%.1f MB/s".format(bytes / 1_000_000.0) else "%.0f KB/s".format(bytes / 1_000.0)
 
             Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TopologyStat("LAN ENDPOINTS", linkedNodes.size.toString(), Blue, Modifier.weight(1f))
+                TopologyStat("ENDPOINTS", linkedNodes.size.toString(), Blue, Modifier.weight(1f))
                 GatewayTopologyStat(gateway != null, Modifier.weight(1f))
                 TopologyStat("UNMAPPED", unmappedNodes.size.toString(), if (unmappedNodes.isEmpty()) Mut else Amber, Modifier.weight(1f))
             }
-            Spacer(Modifier.height(10.dp))
-            val trafficAvailable = liveTraffic?.optBoolean("available") == true
-            val trafficStatus = liveTraffic?.optString("status").orEmpty()
-            val rxRate = liveTraffic?.optDouble("rx_bytes_per_sec") ?: 0.0
-            val txRate = liveTraffic?.optDouble("tx_bytes_per_sec") ?: 0.0
-            fun rateLabel(bytes: Double): String = if (bytes >= 1_000_000) "%.1f MB/s".format(bytes / 1_000_000.0)
-                else "%.0f KB/s".format(bytes / 1_000.0)
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(Color(0xFF19242A)).border(1.dp, Green.copy(alpha = 0.22f), RoundedCornerShape(13.dp)).padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                PulseDot(if (trafficAvailable) Green else Dim, trafficAvailable, 6.dp)
+                Spacer(Modifier.width(9.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("LIVE INTERFACE TRAFFIC", color = if (trafficAvailable) Green else Mut, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+                    Text(if (trafficAvailable) "↓ " + rateLabel(rxRate) + "   ↑ " + rateLabel(txRate) else "Capture unavailable or waiting for data", color = Txt, fontSize = AppType.caption, fontWeight = FontWeight.Medium)
+                }
+                Text(if (trafficAvailable) "LIVE" else "IDLE", color = if (trafficAvailable) Green else Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("LIVE PACKET CAPTURE", color = if (trafficAvailable) Green else Amber,
-                        fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                    Text(
-                        when {
-                            trafficAvailable -> "RX " + rateLabel(rxRate) + "  ·  TX " + rateLabel(txRate)
-                            !trafficEnabled -> "Backend capture support not enabled"
-                            trafficStatus == "unavailable" -> liveTraffic?.optString("error")?.takeIf { it.isNotBlank() } ?: "Capture unavailable"
-                            else -> "Starting interface capture…"
-                        },
-                        color = Mut, fontSize = AppType.caption, maxLines = 1
-                    )
+                    Text("NETWORK MAP", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                    Text("Select a device to inspect it", color = Mut, fontSize = AppType.caption)
                 }
-                Text(if (trafficAvailable) "CAPTURING" else "NO LIVE DATA",
-                    color = if (trafficAvailable) Green else Dim, fontSize = AppType.micro, fontWeight = FontWeight.SemiBold)
+                Text("−", modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { topologyZoom = (topologyZoom - 0.1f).coerceAtLeast(0.75f) }.padding(horizontal = 10.dp, vertical = 4.dp), color = Txt, fontSize = AppType.title)
+                Text("${(topologyZoom * 100).toInt()}%", color = Mut, fontSize = AppType.caption)
+                Text("+", modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { topologyZoom = (topologyZoom + 0.1f).coerceAtMost(1.2f) }.padding(horizontal = 10.dp, vertical = 4.dp), color = Txt, fontSize = AppType.title)
             }
             Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("TRACKER VIEW", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
-                Spacer(Modifier.weight(1f))
-                Text("PINCH TO ZOOM", color = Mut, fontSize = AppType.micro, fontWeight = FontWeight.Medium)
-                Text("${(topologyZoom * 100).toInt()}%", modifier = Modifier.padding(start = 8.dp), color = Txt, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold)
-            }
-            Spacer(Modifier.height(10.dp))
-            if (gateway != null && linkedNodes.isNotEmpty()) {
-                Column(Modifier.fillMaxWidth().graphicsLayer { scaleX = topologyZoom; scaleY = topologyZoom }) {
-                // Full-width endpoint cards keep IP, MAC and source details readable on narrow phones.
-                GatewayStatusNode(gateway, true)
-                // Continue the gateway trunk visually into the discovered-endpoint branch.
-                // Static continuation joins the gateway card to the single animated endpoint trunk.
-                Canvas(Modifier.fillMaxWidth().height(24.dp)) {
-                    val x = 11.dp.toPx()
-                    drawLine(Green.copy(alpha = 0.48f), Offset(x, 0f), Offset(x, size.height), 1.7.dp.toPx())
-                }
-                val rowStep = 82.dp
-                val diagramHeight = rowStep * linkedNodes.size
-                val reduceMotion = LocalReduceMotion.current
+            if (gateway != null || sourceIp != null || linkedNodes.isNotEmpty()) {
+                val rows = linkedNodes.chunked(2)
+                val mapHeight = 190.dp + rows.size * 104.dp
                 val activePeer = liveTraffic?.optString("active_peer").orEmpty()
                 val activeIndex = linkedNodes.indexOfFirst { it.optString("ip") == activePeer }
-                val packetCount = liveTraffic?.optLong("packet_count") ?: 0L
                 val packetAge = liveTraffic?.optLong("last_packet_age_ms", Long.MAX_VALUE) ?: Long.MAX_VALUE
+                val packetCount = liveTraffic?.optLong("packet_count") ?: 0L
                 val packetProgress = remember { Animatable(0f) }
                 LaunchedEffect(packetCount, activeIndex) {
                     if (packetCount > 0L && activeIndex >= 0) {
                         packetProgress.snapTo(0f)
-                        packetProgress.animateTo(1f, tween(450, easing = LinearEasing))
+                        packetProgress.animateTo(1f, tween(520, easing = LinearEasing))
                     }
                 }
-                Box(Modifier.fillMaxWidth().height(diagramHeight)
-                    .pointerInput(Unit) {
-                        detectTransformGestures { _, _, zoomChange, _ ->
-                            topologyZoom = (topologyZoom * zoomChange).coerceIn(0.65f, 1.0f)
-                        }
-                    }
-                    ) {
+                Box(Modifier.fillMaxWidth().height(mapHeight).clip(RoundedCornerShape(16.dp))
+                    .background(Color(0xFF141B23)).border(1.dp, Color(0xFF2B3945), RoundedCornerShape(16.dp))
+                    .pointerInput(Unit) { detectTransformGestures { _, _, zoomChange, _ -> topologyZoom = (topologyZoom * zoomChange).coerceIn(0.75f, 1.2f) } }) {
                     Canvas(Modifier.fillMaxSize()) {
-                        val gridStep = 20.dp.toPx()
-                        var gridX = 0f
-                        while (gridX < size.width) {
-                            drawLine(Color(0xFF263746).copy(alpha = 0.22f), Offset(gridX, 0f), Offset(gridX, size.height), 0.6.dp.toPx())
-                            gridX += gridStep
-                        }
-                        var gridY = 0f
-                        while (gridY < size.height) {
-                            drawLine(Color(0xFF263746).copy(alpha = 0.22f), Offset(0f, gridY), Offset(size.width, gridY), 0.6.dp.toPx())
-                            gridY += gridStep
-                        }
-                        val trunkX = 11.dp.toPx()
-                        val rowPx = rowStep.toPx()
-                        val cardCenterOffset = 37.dp.toPx()
-                        val stroke = 1.7.dp.toPx()
-                        val line = Green.copy(alpha = 0.42f)
-                        val lastY = (linkedNodes.size - 1) * rowPx + cardCenterOffset
-                        // Join the incoming gateway connector to the endpoint trunk.
-                        drawLine(line, Offset(trunkX, 0f), Offset(trunkX, lastY), stroke)
-                        linkedNodes.indices.forEach { index ->
-                            val y = index * rowPx + cardCenterOffset
-                            drawLine(line, Offset(trunkX, y), Offset(size.width, y), stroke)
-                            drawCircle(Green.copy(alpha = 0.75f), 2.5.dp.toPx(), Offset(trunkX, y))
-                            drawCircle(Green.copy(alpha = 0.9f), 3.dp.toPx(), Offset(size.width - 2.dp.toPx(), y))
-                        }
-                        if (trafficAvailable && packetAge <= 1500L && activeIndex >= 0) {
-                            val targetY = activeIndex * rowPx + cardCenterOffset
-                            val packetY = if (reduceMotion) targetY else targetY * packetProgress.value
-                            drawCircle(Color(0xFFB8F5D8).copy(alpha = 0.98f), 4.dp.toPx(), Offset(trunkX, packetY))
-                            drawCircle(Color(0xFFB8F5D8).copy(alpha = 0.20f), 8.dp.toPx(), Offset(trunkX, packetY))
+                        val centerX = size.width / 2f
+                        val topY = 48.dp.toPx()
+                        val hostY = 137.dp.toPx()
+                        val branchY = 177.dp.toPx()
+                        val rowStart = 226.dp.toPx()
+                        val rowGap = 104.dp.toPx()
+                        val stroke = 1.6.dp.toPx()
+                        val link = Green.copy(alpha = 0.48f)
+                        // Fine map grid.
+                        var gx = 0f
+                        while (gx < size.width) { drawLine(Color(0xFF344454).copy(alpha = 0.16f), Offset(gx, 0f), Offset(gx, size.height), 0.6.dp.toPx()); gx += 24.dp.toPx() }
+                        var gy = 0f
+                        while (gy < size.height) { drawLine(Color(0xFF344454).copy(alpha = 0.16f), Offset(0f, gy), Offset(size.width, gy), 0.6.dp.toPx()); gy += 24.dp.toPx() }
+                        drawLine(link, Offset(centerX, topY), Offset(centerX, hostY - 24.dp.toPx()), stroke)
+                        drawLine(link, Offset(centerX, hostY + 24.dp.toPx()), Offset(centerX, branchY), stroke)
+                        if (rows.isNotEmpty()) {
+                            val leftX = size.width * 0.25f
+                            val rightX = size.width * 0.75f
+                            drawLine(link, Offset(leftX, branchY), Offset(rightX, branchY), stroke)
+                            rows.forEachIndexed { row, pair ->
+                                val y = rowStart + row * rowGap
+                                val firstX = if (pair.size == 1) centerX else leftX
+                                drawLine(link, Offset(firstX, branchY), Offset(firstX, y), stroke)
+                                if (pair.size > 1) drawLine(link, Offset(rightX, branchY), Offset(rightX, y), stroke)
+                                drawCircle(Green.copy(alpha = 0.8f), 3.dp.toPx(), Offset(firstX, y))
+                                if (pair.size > 1) drawCircle(Green.copy(alpha = 0.8f), 3.dp.toPx(), Offset(rightX, y))
+                            }
+                            if (trafficAvailable && packetAge <= 1500L && activeIndex >= 0) {
+                                val row = activeIndex / 2
+                                val x = if (linkedNodes.size % 2 == 1 && activeIndex == linkedNodes.lastIndex) centerX else if (activeIndex % 2 == 0) leftX else rightX
+                                val targetY = rowStart + row * rowGap
+                                val y = if (LocalReduceMotion.current) targetY else branchY + (targetY - branchY) * packetProgress.value
+                                drawCircle(Color(0xFFB8F5D8), 4.dp.toPx(), Offset(x, y))
+                                drawCircle(Color(0xFFB8F5D8).copy(alpha = 0.2f), 9.dp.toPx(), Offset(x, y))
+                            }
                         }
                     }
-                    Column(
-                        Modifier.fillMaxSize().padding(start = 30.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        linkedNodes.forEach { node ->
-                            Box(Modifier.fillMaxWidth().height(74.dp)) {
-                                TopologyDevice(node, Green, Modifier.fillMaxSize())
+                    Column(Modifier.fillMaxSize().graphicsLayer { scaleX = topologyZoom; scaleY = topologyZoom }) {
+                        Spacer(Modifier.height(12.dp))
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                            TopologyMapNode("GATEWAY", gateway ?: "Not detected", "ROUTER", Green, true, Modifier.width(190.dp))
+                        }
+                        Spacer(Modifier.height(34.dp))
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                            TopologyMapNode("MONITORING HOST", sourceIp ?: "Host address unavailable", routeInterface ?: "SERVER", Blue, true, Modifier.width(220.dp))
+                        }
+                        Spacer(Modifier.height(77.dp))
+                        rows.forEachIndexed { row, pair ->
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                pair.forEach { node ->
+                                    val isSelected = selectedNode?.optString("ip") == node.optString("ip")
+                                    Box(Modifier.weight(1f)) {
+                                        TopologyMapDevice(node, isSelected, Modifier.fillMaxWidth()) { selectedNode = node }
+                                    }
+                                }
+                                if (pair.size == 1) Spacer(Modifier.weight(1f))
                             }
+                            Spacer(Modifier.height(14.dp))
                         }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    liveTraffic?.optString("scope")?.takeIf { it.isNotBlank() }
-                        ?: "Only packets visible on the monitoring server's network interface can be tracked; switched LAN traffic may not be visible.",
-                    color = Dim, fontSize = AppType.caption
-                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically) { PulseDot(Green, true, 5.dp); Spacer(Modifier.width(5.dp)); Text("Discovered", color = Mut, fontSize = AppType.micro) }
+                    Row(verticalAlignment = Alignment.CenterVertically) { PulseDot(Blue, true, 5.dp); Spacer(Modifier.width(5.dp)); Text("Monitoring host", color = Mut, fontSize = AppType.micro) }
+                    Row(verticalAlignment = Alignment.CenterVertically) { PulseDot(Amber, false, 5.dp); Spacer(Modifier.width(5.dp)); Text("Unmapped", color = Mut, fontSize = AppType.micro) }
+                }
+                selectedNode?.let { node ->
+                    Spacer(Modifier.height(10.dp))
+                    Panel {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Label("Selected device")
+                                Text(node.optString("ip", "Unknown IP"), color = Txt, fontSize = AppType.section, fontWeight = FontWeight.Bold)
+                            }
+                            Text("CLOSE", Modifier.clip(RoundedCornerShape(8.dp)).clickable { selectedNode = null }.padding(8.dp), color = Mut, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        DiagRow("Status", node.optString("state", "Discovered"), Green)
+                        DiagRow("MAC address", node.optString("mac", "Unavailable"), Mut)
+                        DiagRow("Source", node.optString("source", "Passive neighbor cache"), Mut)
+                        DiagRow("Interface", node.optString("interface", routeInterface ?: "Unknown"), Mut)
+                        node.optString("hostname").takeIf { it.isNotBlank() && it != "null" }?.let { DiagRow("Hostname", it, Txt) }
+                        node.optString("topology_reason").takeIf { it.isNotBlank() && it != "null" }?.let { Text(it, color = Dim, fontSize = AppType.caption) }
+                    }
                 }
             } else {
                 GatewayStatusNode(gateway ?: "Not detected", gateway != null)
                 Spacer(Modifier.height(10.dp))
                 Text("No discovered LAN endpoints can currently be associated with this gateway.", color = Dim, fontSize = AppType.caption)
             }
-
             if (unmappedNodes.isNotEmpty()) {
-                Spacer(Modifier.height(16.dp))
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { unmappedExpanded = !unmappedExpanded }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Spacer(Modifier.height(14.dp))
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { unmappedExpanded = !unmappedExpanded }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Label("Unmapped observations")
                     Spacer(Modifier.width(8.dp))
                     Text(unmappedNodes.size.toString(), color = Amber, fontSize = AppType.caption, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.weight(1f))
-                    Text(if (unmappedExpanded) "−" else "+", color = Mut, fontSize = AppType.title, fontWeight = FontWeight.Medium)
+                    Text(if (unmappedExpanded) "−" else "+", color = Mut, fontSize = AppType.title)
                 }
                 if (unmappedExpanded) {
                     Spacer(Modifier.height(7.dp))
@@ -579,24 +581,48 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
             val bridgeCount = topology?.optInt("bridge_mac_count", 0) ?: 0
             if (bridgeCount > 0) {
                 Spacer(Modifier.height(8.dp))
-                Text("Additional bridge observations: $bridgeCount MAC addresses; ${bridgeMacs?.length() ?: 0} are not currently mapped to an IP address.",
-                    color = Mut, fontSize = AppType.caption)
-                if (bridgeMacs != null && bridgeMacs.length() > 0) {
-                    for (i in 0 until minOf(bridgeMacs.length(), 8)) {
-                        val entry = bridgeMacs.optJSONObject(i) ?: continue
-                        Text(entry.optString("mac") + "  ·  " +
-                            (entry.optJSONArray("interfaces")?.let { arr ->
-                                (0 until arr.length()).joinToString { arr.optString(it) }
-                            } ?: "bridge interface unknown"), color = Dim, fontSize = AppType.caption)
-                    }
+                Text("Additional bridge observations: $bridgeCount MAC addresses; ${bridgeMacs?.length() ?: 0} are not currently mapped to an IP address.", color = Mut, fontSize = AppType.caption)
+                if (bridgeMacs != null) for (i in 0 until minOf(bridgeMacs.length(), 8)) {
+                    val entry = bridgeMacs.optJSONObject(i) ?: continue
+                    Text(entry.optString("mac") + "  ·  " + (entry.optJSONArray("interfaces")?.let { arr -> (0 until arr.length()).joinToString { arr.optString(it) } } ?: "bridge interface unknown"), color = Dim, fontSize = AppType.caption)
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text("Host: ${sourceIp ?: "unknown"} · Interface: ${routeInterface ?: "unknown"} · Subnet: ${subnet ?: "unknown"}",
-                color = Mut, fontSize = AppType.caption)
-            Text(topology?.optString("note").orEmpty().ifBlank {
-                "Connections are inferred from the active gateway route and local subnet; physical links are not verified."
-            }, color = Dim, fontSize = AppType.caption)
+            Text("Host: ${sourceIp ?: "unknown"} · Interface: ${routeInterface ?: "unknown"} · Subnet: ${subnet ?: "unknown"}", color = Mut, fontSize = AppType.caption)
+            Text(topology?.optString("note").orEmpty().ifBlank { "Connections are inferred from the active gateway route and local subnet; physical links are not verified." }, color = Dim, fontSize = AppType.caption)
+        }
+    }
+}
+
+@Composable
+private fun TopologyMapNode(title: String, address: String, detail: String, tint: Color, online: Boolean, modifier: Modifier = Modifier) {
+    Row(modifier.clip(RoundedCornerShape(13.dp)).background(Color(0xFF202B34)).border(1.dp, tint.copy(alpha = 0.38f), RoundedCornerShape(13.dp)).padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(tint.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+            PulseDot(tint, online, 7.dp)
+        }
+        Spacer(Modifier.width(9.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = tint, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.55.sp)
+            Text(address, color = Txt, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(detail, color = Mut, fontSize = AppType.micro, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun TopologyMapDevice(node: JSONObject, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val tint = if (selected) Blue else Green
+    Row(modifier.clip(RoundedCornerShape(12.dp)).background(if (selected) Blue.copy(alpha = 0.12f) else Color(0xFF1B242C))
+        .border(1.dp, tint.copy(alpha = if (selected) 0.75f else 0.28f), RoundedCornerShape(12.dp))
+        .clickable(onClick = onClick).padding(horizontal = 9.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(27.dp).clip(RoundedCornerShape(8.dp)).background(tint.copy(alpha = 0.13f)), contentAlignment = Alignment.Center) {
+            PulseDot(tint, true, 6.dp)
+        }
+        Spacer(Modifier.width(7.dp))
+        Column(Modifier.weight(1f)) {
+            Text(node.optString("ip", "Unknown IP"), color = Txt, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(node.optString("state", "DISCOVERED").uppercase(), color = tint, fontSize = AppType.micro, fontWeight = FontWeight.Bold, maxLines = 1)
         }
     }
 }
