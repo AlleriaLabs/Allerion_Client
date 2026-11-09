@@ -510,6 +510,7 @@ fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
             listOf(GSeries(yearEnergy, Green)))
     }
     EnergyPanel(sv, pw)
+    PowerInsightsPanel(sv)
 }
 
 @Composable
