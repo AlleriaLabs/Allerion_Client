@@ -455,7 +455,11 @@ fun LineChart(values: List<Double>, days: Int) {
 
 @Composable
 fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
-    if (pw == null) { Text("This server does not report power yet. Update the server program.", color = Amber); return }
+    if (pw == null) {
+        Text("This server does not report power yet. Update the server program.", color = Amber)
+        PowerInsightsPanel(sv)
+        return
+    }
     val watts = pw.dbl("watts")
     val volts = pw.dbl("voltage")
     val today = pw.optDouble("today_kwh", 0.0)
