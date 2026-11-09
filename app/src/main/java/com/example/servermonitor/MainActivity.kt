@@ -148,12 +148,12 @@ fun App(p: SharedPreferences) {
     if (storageError != null) {
         Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().padding(24.dp),
             verticalArrangement = Arrangement.Center) {
-            Text("Server settings need attention", color = Txt, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("Server settings need attention", color = Txt, fontSize = AppType.section, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
             Text("ALLERION could not unlock or save its encrypted server settings. Your saved credentials have not been replaced. Do not clear app data or reinstall until the Android Keystore issue is resolved.",
-                color = Mut, fontSize = 14.sp)
+                color = Mut, fontSize = AppType.body)
             Spacer(Modifier.height(12.dp))
-            Text(storageError ?: "Secure storage error", color = Amber, fontSize = 12.sp)
+            Text(storageError ?: "Secure storage error", color = Amber, fontSize = AppType.small)
         }
         return
     }
@@ -197,7 +197,7 @@ fun Panel(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content:
 }
 
 @Composable
-fun Label(text: String) = Text(text.uppercase(), fontSize = 11.sp, color = Dim, fontWeight = FontWeight.Bold,
+fun Label(text: String) = Text(text.uppercase(), fontSize = AppType.caption, color = Dim, fontWeight = FontWeight.Bold,
     letterSpacing = 1.1.sp)
 
 @Composable
@@ -226,8 +226,8 @@ fun StatTile(title: String, value: String, sub: String, pct: Double?, modifier: 
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(value, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
-                Text(sub, fontSize = 12.sp, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(value, fontSize = AppType.displaySmall, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
+                Text(sub, fontSize = AppType.small, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Gauge(pct)
         }
@@ -240,7 +240,7 @@ fun Status(online: Boolean) {
         verticalAlignment = Alignment.CenterVertically) {
         PulseDot(if (online) Green else Err, online)
         Spacer(Modifier.width(4.dp))
-        Text(if (online) "Online" else "Offline", fontSize = 12.sp, color = Txt)
+        Text(if (online) "Online" else "Offline", fontSize = AppType.small, color = Txt)
     }
 }
 
@@ -267,7 +267,7 @@ val PLUGS = listOf(
 
 @Composable
 fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
-    Text(text, color = if (selected) Txt else Mut, fontSize = 14.sp,
+    Text(text, color = if (selected) Txt else Mut, fontSize = AppType.body,
         modifier = Modifier.clip(RoundedCornerShape(50)).background(if (selected) Red else Track)
             .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp))
 }
@@ -321,9 +321,9 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
 
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        TextButton(onClose) { Text("‹ Back", color = Red, fontSize = 16.sp) }
-        Text("ENERGY CONFIGURATION", fontSize = 11.sp, color = Red, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
-        Text("Power source", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt)
+        TextButton(onClose) { Text("‹ Back", color = Red, fontSize = AppType.bodyStrong) }
+        Text("ENERGY CONFIGURATION", fontSize = AppType.caption, color = Red, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
+        Text("Power source", fontSize = AppType.display, fontWeight = FontWeight.Bold, color = Txt)
         Text("Choose how ${sv.name} measures its power use.", color = Mut)
         PLUGS.forEach { (id, label) ->
             Panel(modifier = Modifier.border(if (source == id) 1.5.dp else 1.dp,
@@ -332,7 +332,7 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = source == id, onClick = { source = id },
                         colors = RadioButtonDefaults.colors(selectedColor = Red, unselectedColor = Dim))
-                    Text(label, color = Txt, fontSize = 16.sp)
+                    Text(label, color = Txt, fontSize = AppType.bodyStrong)
                 }
             }
         }
@@ -343,13 +343,13 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
             OutlinedTextField(tpass, { tpass = it }, label = { Text(if (hasPass) "Password (saved, leave empty to keep)" else "TP-Link account password") },
                 singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
             Text("Use the same email and password as the Tapo app. Give the plug a fixed IP in your router. If the test fails, in the Tapo app open " +
-                "Me > Tapo Lab > Third-Party Compatibility and turn it on.", color = Dim, fontSize = 12.sp)
+                "Me > Tapo Lab > Third-Party Compatibility and turn it on.", color = Dim, fontSize = AppType.small)
         }
         if (source == "tuya") {
             OutlinedTextField(tid, { tid = it }, label = { Text("Device ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(tkey, { tkey = it }, label = { Text(if (hasKey) "Local key (saved, leave empty to keep)" else "Local key") },
                 singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-            Text("Protocol version", color = Mut, fontSize = 13.sp)
+            Text("Protocol version", color = Mut, fontSize = AppType.body)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("3.3", "3.4", "3.5").forEach { v -> Chip(v, tver == v) { tver = v } }
             }
@@ -359,7 +359,7 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
             }
             OutlinedTextField(tvdp, { tvdp = it }, label = { Text("Voltage data point (usually 20)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Text("Most Meegoo plugs report watts on data point 19 in tenths of a watt (scale 0.1). " +
-                "Press Test to see what your plug sends. Find the Device ID and Local Key with: python -m tinytuya wizard", color = Dim, fontSize = 12.sp)
+                "Press Test to see what your plug sends. Find the Device ID and Local Key with: python -m tinytuya wizard", color = Dim, fontSize = AppType.small)
         }
         if (source == "cpu") OutlinedTextField(base, { base = it }, label = { Text("Base watts (board, drives, fans)") },
             singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -367,7 +367,7 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
             OutlinedTextField(price, { price = it }, label = { Text("Price per kWh") }, singleLine = true, modifier = Modifier.weight(1f))
             OutlinedTextField(cur, { cur = it }, label = { Text("Currency") }, singleLine = true, modifier = Modifier.weight(1f))
         }
-        msg?.let { Text(it, color = if (it.startsWith("Reading") || it.startsWith("Saved") || it.startsWith("Using")) Green else Amber, fontSize = 13.sp) }
+        msg?.let { Text(it, color = if (it.startsWith("Reading") || it.startsWith("Saved") || it.startsWith("Using")) Green else Amber, fontSize = AppType.body) }
         OutlinedButton({ call("/api/power/test") { j ->
             if (j.optBoolean("ok")) (if (j.isNull("watts")) j.optString("note") else "Reading: ${j.getDouble("watts")} W" + (if (j.isNull("voltage")) "" else ", ${j.getDouble("voltage")} V") + "\nData: ${j.optString("raw")}")
             else "Failed: " + j.optString("error") } },
@@ -402,7 +402,7 @@ fun PowerStatTile(
         ))
         Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
             Text((if (showAlternate) alternate?.first else label)?.uppercase().orEmpty(),
-                fontSize = 12.sp, color = Mut, fontWeight = FontWeight.Medium, letterSpacing = 0.8.sp,
+                fontSize = AppType.small, color = Mut, fontWeight = FontWeight.Medium, letterSpacing = 0.8.sp,
                 maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
             val displayValue = if (showAlternate) alternate?.second ?: value else value
             Text(displayValue,
@@ -479,14 +479,14 @@ fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Label("Power source")
-                    Text(pw.str("source").ifEmpty { "No sensor" }, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Txt)
+                    Text(pw.str("source").ifEmpty { "No sensor" }, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold, color = Txt)
                 }
                 Status(watts != null)
             }
             Spacer(Modifier.height(14.dp))
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(if (watts == null) "N/A" else "%.0f".format(watts), fontSize = 54.sp, fontWeight = FontWeight.Bold, color = Txt)
-                Text(" W", fontSize = 20.sp, color = Mut, modifier = Modifier.padding(bottom = 11.dp))
+                Text(if (watts == null) "N/A" else "%.0f".format(watts), fontSize = AppType.heroLarge, fontWeight = FontWeight.Bold, color = Txt)
+                Text(" W", fontSize = AppType.title, color = Mut, modifier = Modifier.padding(bottom = 11.dp))
             }
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -495,10 +495,10 @@ fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
                 ToggleMetric("Today", "%.2f kWh".format(today), "Today cost", cost(today), Modifier.weight(1f),
                     listOf(GSeries(todayHistory, Red)))
             }
-            TextButton(onSetup, contentPadding = PaddingValues(0.dp)) { Text("Configure power source ›", color = Red, fontSize = 13.sp) }
+            TextButton(onSetup, contentPadding = PaddingValues(0.dp)) { Text("Configure power source ›", color = Red, fontSize = AppType.body) }
             val perr = pw.str("plug_error")
-            if (perr.isNotEmpty()) Text("Plug: $perr", fontSize = 12.sp, color = Amber)
-            else if (watts == null) Text("No power reading found. Tap Configure to pick your plug.", fontSize = 12.sp, color = Dim)
+            if (perr.isNotEmpty()) Text("Plug: $perr", fontSize = AppType.small, color = Amber)
+            else if (watts == null) Text("No power reading found. Tap Configure to pick your plug.", fontSize = AppType.small, color = Dim)
         }
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -514,9 +514,9 @@ fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
 @Composable
 fun Speed3(label: String, value: String, unit: String, modifier: Modifier = Modifier) {
     Column(modifier) {
-        Text(label, fontSize = 12.sp, color = Mut)
-        Text(value, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
-        Text(unit, fontSize = 11.sp, color = Dim)
+        Text(label, fontSize = AppType.small, color = Mut)
+        Text(value, fontSize = AppType.display, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
+        Text(unit, fontSize = AppType.caption, color = Dim)
     }
 }
 
@@ -541,10 +541,10 @@ fun InternetPanel(j: JSONObject, sv: Server) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Label("Internet · Speedtest by Ookla")
-                Text("SERVER · SMART", color = Mut, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Text("SERVER · SMART", color = Mut, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
             }
             Text(if (running) when (sp.str("phase")) { "ping" -> "Testing latency"; "download" -> "Testing download"; "upload" -> "Testing upload"; else -> "Testing" } else "SPEEDTEST",
-                fontSize = 10.sp, color = if (running) Red else Dim, fontWeight = FontWeight.Bold)
+                fontSize = AppType.caption, color = if (running) Red else Dim, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -574,23 +574,23 @@ fun InternetPanel(j: JSONObject, sv: Server) {
             Speed3("Ping", ping?.let { "%.0f".format(it) } ?: "–", "ms", Modifier.weight(1f))
         }
         val srv = sp.str("server")
-        if (srv.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Text("Last result · $srv", fontSize = 11.sp, color = Dim) }
+        if (srv.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Text("Last result · $srv", fontSize = AppType.caption, color = Dim) }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("LIVE BANDWIDTH · LAST HOUR", color = Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            Text("↓ Download   ↑ Upload", color = Mut, fontSize = 10.sp)
+            Text("LIVE BANDWIDTH · LAST HOUR", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+            Text("↓ Download   ↑ Upload", color = Mut, fontSize = AppType.caption)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(7.dp).clip(CircleShape).background(Blue)); Spacer(Modifier.width(5.dp))
-                Text("Download", color = Blue, fontSize = 10.sp)
+                Text("Download", color = Blue, fontSize = AppType.caption)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(7.dp).clip(CircleShape).background(Amber)); Spacer(Modifier.width(5.dp))
-                Text("Upload", color = Amber, fontSize = 10.sp)
+                Text("Upload", color = Amber, fontSize = AppType.caption)
             }
         }
-        Text("Live network throughput recorded by the server, not speed-test samples.", color = Dim, fontSize = 9.sp)
+        Text("Live network throughput recorded by the server, not speed-test samples.", color = Dim, fontSize = AppType.micro)
         }
     }
 }
@@ -619,8 +619,8 @@ fun DiskPie(d: JSONArray) {
                 drawCircle(Surf, radius = size.minDimension * 0.27f, center = center)
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("%.0f%%".format(sumUsed / sumTotal * 100), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Txt)
-                Text("used", fontSize = 11.sp, color = Dim)
+                Text("%.0f%%".format(sumUsed / sumTotal * 100), fontSize = AppType.title, fontWeight = FontWeight.Bold, color = Txt)
+                Text("used", fontSize = AppType.caption, color = Dim)
             }
         }
         Spacer(Modifier.width(16.dp))
@@ -630,15 +630,15 @@ fun DiskPie(d: JSONArray) {
                     Box(Modifier.size(10.dp).clip(CircleShape).background(cols[i % cols.size]))
                     Spacer(Modifier.width(8.dp))
                     Column {
-                        Text(n, color = Txt, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("%.1f / %.1f GB".format(used[i], tot[i]), fontSize = 12.sp, color = Mut)
+                        Text(n, color = Txt, fontSize = AppType.body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("%.1f / %.1f GB".format(used[i], tot[i]), fontSize = AppType.small, color = Mut)
                     }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(10.dp).clip(CircleShape).background(Track))
                 Spacer(Modifier.width(8.dp))
-                Text("Free %.1f GB".format(free), fontSize = 12.sp, color = Mut)
+                Text("Free %.1f GB".format(free), fontSize = AppType.small, color = Mut)
             }
         }
     }
@@ -668,14 +668,14 @@ fun SystemTab(j: JSONObject) {
         ) {
             Label("Applications")
             Spacer(Modifier.weight(1f))
-            Text(if (applicationsExpanded) "−" else "+", color = Mut, fontSize = 20.sp, fontWeight = FontWeight.Medium)
+            Text(if (applicationsExpanded) "−" else "+", color = Mut, fontSize = AppType.title, fontWeight = FontWeight.Medium)
         }
         if (applicationsExpanded) {
         Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-            Text("Name", color = Dim, modifier = Modifier.weight(2f), fontSize = 12.sp)
-            Text("CPU", color = Dim, modifier = Modifier.weight(0.8f), textAlign = TextAlign.End, fontSize = 12.sp)
-            Text("Memory", color = Dim, modifier = Modifier.weight(1.1f), textAlign = TextAlign.End, fontSize = 12.sp)
+            Text("Name", color = Dim, modifier = Modifier.weight(2f), fontSize = AppType.small)
+            Text("CPU", color = Dim, modifier = Modifier.weight(0.8f), textAlign = TextAlign.End, fontSize = AppType.small)
+            Text("Memory", color = Dim, modifier = Modifier.weight(1.1f), textAlign = TextAlign.End, fontSize = AppType.small)
         }
         for (i in 0 until procs.length()) {
             val o = procs.getJSONObject(i)
