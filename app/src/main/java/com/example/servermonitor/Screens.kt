@@ -39,7 +39,7 @@ fun fmtClock(ts: Long): String =
 fun diskPct(j: JSONObject): Double? {
     val d = j.optJSONArray("disks") ?: return null
     var u = 0.0; var t = 0.0
-    for (i in 0 until d.length()) { u += d.getJSONObject(i).optDouble("used_gb", 0.0); t += d.getJSONObject(i).optDouble("total_gb", 0.0) }
+    for (i in 0 until d.length()) { val o = d.getJSONObject(i); if (o.optBoolean("mounted", true)) { u += o.optDouble("used_gb", 0.0); t += o.optDouble("total_gb", 0.0) } }
     return if (t > 0) u / t * 100 else null
 }
 
@@ -141,7 +141,7 @@ fun OverviewScreen(sv: Server, j: JSONObject, online: Boolean, onOpen: (String) 
         }
     }
     var usedGb = 0.0; var totGb = 0.0
-    j.optJSONArray("disks")?.let { for (i in 0 until it.length()) { usedGb += it.getJSONObject(i).optDouble("used_gb", 0.0); totGb += it.getJSONObject(i).optDouble("total_gb", 0.0) } }
+    j.optJSONArray("disks")?.let { for (i in 0 until it.length()) { val disk = it.getJSONObject(i); if (disk.optBoolean("mounted", true)) { usedGb += disk.optDouble("used_gb", 0.0); totGb += disk.optDouble("total_gb", 0.0) } } }
     Panel {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) { Label("Server details"); Text(j.str("host").ifEmpty { sv.name }, color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
