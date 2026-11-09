@@ -206,7 +206,7 @@ fun parseHistory(j: JSONObject): History {
     val ta = j.optJSONArray("t") ?: throw ApiException("History response is missing timestamps.")
     val timestamps = List(ta.length()) { ta.optLong(it) }
     val m = HashMap<String, List<Double?>>()
-    for (k in listOf("cpu", "ram", "temp", "down", "up", "power", "gpu", "disk")) {
+    for (k in listOf("cpu", "ram", "temp", "down", "up", "power", "voltage", "gpu", "disk")) {
         val a = j.optJSONArray(k) ?: continue
         // Keep every series aligned to the timestamp axis. Missing or invalid values become gaps.
         m[k] = List(timestamps.size) { index ->
