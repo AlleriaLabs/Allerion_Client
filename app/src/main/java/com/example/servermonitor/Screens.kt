@@ -284,7 +284,7 @@ private fun EnergyValueChart(cd: ChartData, mode: String, loading: Boolean) {
                 Text(axis((high + low) / 2.0), color = Dim, fontSize = 10.sp, maxLines = 1)
                 Text(axis(low), color = Dim, fontSize = 10.sp, maxLines = 1)
             }
-            Box(Modifier.weight(1f).fillMaxHeight().clip(plotShape).background(Surf2)
+            BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().clip(plotShape).background(Surf2)
                 .border(1.dp, Line.copy(alpha = 0.75f), plotShape)) {
                 Canvas(Modifier.matchParentSize()) {
                     for (i in 0..2) {
@@ -303,6 +303,20 @@ private fun EnergyValueChart(cd: ChartData, mode: String, loading: Boolean) {
                 } else {
                     HistoryGraph(listOf(GSeries(cd.vals, Red)), Modifier.matchParentSize(),
                         cd.minSpan, 0.98f, 0.20f, 2.2.dp)
+                    val valid = cd.vals.mapIndexedNotNull { index, value -> value?.let { index to it } }
+                    val valueLabels = if (valid.size <= 5) valid else
+                        listOf(valid.first(), valid[valid.size / 4], valid[valid.size / 2],
+                            valid[(valid.size * 3) / 4], valid.last()).distinct()
+                    valueLabels.forEach { (index, value) ->
+                        val xFraction = if (cd.vals.size <= 1) 0f else index.toFloat() / (cd.vals.size - 1)
+                        val yFraction = ((high - value) / (high - low)).toFloat().coerceIn(0f, 1f)
+                        Text(axis(value), color = Txt, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                            modifier = Modifier.offset(
+                                x = (maxWidth * xFraction - 16.dp).coerceIn(0.dp, (maxWidth - 32.dp).coerceAtLeast(0.dp)),
+                                y = (maxHeight * yFraction - 10.dp).coerceIn(0.dp, (maxHeight - 20.dp).coerceAtLeast(0.dp))
+                            ).clip(RoundedCornerShape(5.dp)).background(Bg.copy(alpha = 0.88f))
+                                .padding(horizontal = 4.dp, vertical = 2.dp))
+                    }
                 }
             }
         }
