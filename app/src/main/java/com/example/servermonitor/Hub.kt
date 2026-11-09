@@ -122,37 +122,13 @@ fun ActionIcon(ic: Ic, desc: String, tint: Color = Mut, onClick: () -> Unit) {
         contentAlignment = Alignment.Center) { Icon24(ic, tint, 20.dp, desc = desc) }
 }
 
-class TileSpec(val icon: Ic, val name: String, val value: Double?, val unit: String, val sub: String?, val series: List<GSeries>,
-               val minSpan: Double, val text: String? = null)
-
 @Composable
 fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
-    val hist by rememberHistory(sv, "1h", 15_000)          // only fetched while the card is open
-    val h = hist
-    fun hs(k: String): List<Double?> = h?.s?.get(k) ?: emptyList()
     Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(Line))
         if (j == null) StateMessage(err ?: "Connecting to the monitoring service…", err != null)
         else {
             if (err != null) StateMessage("$err Showing the last readings received.", true)
-            val pw = j.optJSONObject("power"); val watts = pw?.dbl("watts"); val temp = j.dbl("temp"); val gpu = j.dbl("gpu"); val disk = diskPct(j)
-            val (dv, du) = netFmt(j.getDouble("net_down_bps")); val (uv, uu) = netFmt(j.getDouble("net_up_bps"))
-            var usedGb = 0.0; var totGb = 0.0
-            j.optJSONArray("disks")?.let { for (i in 0 until it.length()) { usedGb += it.getJSONObject(i).optDouble("used_gb", 0.0); totGb += it.getJSONObject(i).optDouble("total_gb", 0.0) } }
-            val specs = mutableListOf(
-                TileSpec(Ic.Cpu, "CPU", j.getDouble("cpu"), "%", "${j.optInt("cores")} cores", listOf(GSeries(hs("cpu"), Red)), 10.0),
-                TileSpec(Ic.Memory, "Memory", j.getDouble("ram"), "%", "${j.optDouble("ram_used_gb")} / ${j.optDouble("ram_total_gb")} GB", listOf(GSeries(hs("ram"), Blue)), 10.0))
-            if (temp != null) specs += TileSpec(Ic.Thermo, "Temperature", temp, "°C", null, listOf(GSeries(hs("temp"), Amber)), 4.0)
-            if (disk != null) specs += TileSpec(Ic.Storage, "Storage", disk, "%", "%.0f / %.0f GB".format(usedGb, totGb), listOf(GSeries(hs("disk"), Mut)), 2.0)
-            specs += TileSpec(Ic.Activity, "Network", null, du, "↑ $uv $uu", listOf(GSeries(hs("down"), Green), GSeries(hs("up"), GreenLight, true)), 200_000.0, dv)
-            if (gpu != null) specs += TileSpec(Ic.Chart, "GPU", gpu, "%", null, listOf(GSeries(hs("gpu"), Mut)), 10.0)
-            if (watts != null) specs += TileSpec(Ic.Zap, "Power", watts, "W", "%.2f kWh today".format(pw?.optDouble("today_kwh", 0.0) ?: 0.0), listOf(GSeries(hs("power"), Red)), 5.0)
-            specs.chunked(2).forEach { pair ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    pair.forEach { s -> key(s.name) { MetricTile(s.icon, s.name, s.text ?: animNum(s.value), s.unit, s.sub, s.series, s.minSpan, Modifier.weight(1f), centerValue = s.name == "Temperature", onClick = onOpen) } }
-                    if (pair.size == 1) Spacer(Modifier.weight(1f))
-                }
-            }
             val up = j.optLong("uptime_s")
             Text("Updated ${fmtClock(j.optLong("ts"))}  ·  Up ${up / 86400}d ${up % 86400 / 3600}h", fontSize = 12.sp, color = Dim)
             Text("API response · ${ApiClient.lastRequestDurationMs} ms", fontSize = 11.sp, color = Dim)
