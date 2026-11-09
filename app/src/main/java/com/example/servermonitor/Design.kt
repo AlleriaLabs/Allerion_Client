@@ -199,20 +199,21 @@ fun IconBtn(ic: Ic, desc: String, rotate: Float = 0f, plain: Boolean = false, on
 @Composable
 fun BottomBar(tab: Int, onTab: (Int) -> Unit) {
     val items = listOf(Ic.Dash to "Overview", Ic.Globe to "Network", Ic.Zap to "Power", Ic.Server to "System", Ic.Gear to "Settings")
-    Column(Modifier.fillMaxWidth().background(Surf)) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Line))
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val seg = maxWidth / items.size
-            val x by animateDpAsState(seg * tab, tween(280, easing = FastOutSlowInEasing), label = "indicator")
-            Box(Modifier.offset(x = x + seg / 2 - 14.dp).width(28.dp).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Red))
-            Row(Modifier.fillMaxWidth()) {
-                items.forEachIndexed { i, (ic, label) ->
-                    val c by animateColorAsState(if (tab == i) Txt else Dim, tween(220), label = "nav")
-                    Column(Modifier.weight(1f).tap { onTab(i) }.padding(top = 11.dp, bottom = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon24(ic, c, 22.dp, desc = label)
-                        Spacer(Modifier.height(3.dp))
-                        Text(label, fontSize = AppType.caption, color = c, fontWeight = FontWeight.Medium)
+    Column(Modifier.fillMaxWidth().background(Bg)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.8f)))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 7.dp)) {
+            items.forEachIndexed { i, (ic, label) ->
+                val selected = tab == i
+                val tint by animateColorAsState(if (selected) Red else Dim, tween(220), label = "nav-icon")
+                Column(Modifier.weight(1f).tap { onTab(i) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.width(52.dp).height(31.dp).clip(RoundedCornerShape(11.dp))
+                        .background(if (selected) Red.copy(alpha = 0.13f) else Color.Transparent),
+                        contentAlignment = Alignment.Center) {
+                        Icon24(ic, tint, 21.dp, desc = label)
                     }
+                    Spacer(Modifier.height(3.dp))
+                    Text(label, fontSize = AppType.micro, color = if (selected) Txt else Dim,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
                 }
             }
         }
@@ -374,7 +375,7 @@ fun HistoryGraph(series: List<GSeries>, modifier: Modifier = Modifier, minSpan: 
 @Composable
 fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?, series: List<GSeries>, minSpan: Double,
                modifier: Modifier = Modifier, centerContent: Boolean = false, centerValue: Boolean = false, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(19.dp)
     val accent = when (icon) {
         Ic.Cpu -> Red
         Ic.Memory -> Blue
@@ -384,25 +385,29 @@ fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?
         Ic.Zap -> Red
         else -> Blue
     }
-    Box(modifier.tap(onClick).height(116.dp).clip(shape).background(Surf).border(1.dp, Line, shape)
+    Box(modifier.tap(onClick).height(122.dp).clip(shape).background(Surf)
+        .border(1.dp, Line, shape)
         .semantics(mergeDescendants = true) { contentDescription = "$name $value $unit" }) {
-        AnimatedSurfaceBackdrop(accent, Modifier.matchParentSize())
-        HistoryGraph(series, Modifier.matchParentSize(), minSpan)                                   // layer 2: full-card graph
-        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Surf.copy(alpha = 0.82f), 0.72f to Color.Transparent)))
+        HistoryGraph(series, Modifier.matchParentSize(), minSpan, lineAlpha = 0.30f, fillAlpha = 0.07f, stroke = 1.4.dp)
+        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(
+            0f to Surf.copy(alpha = 0.88f), 0.68f to Surf.copy(alpha = 0.42f), 1f to Color.Transparent
+        )))
         Box(Modifier.fillMaxSize().padding(14.dp)) {
             Row(Modifier.align(Alignment.TopStart), verticalAlignment = Alignment.CenterVertically) {
-                Icon24(icon, Mut, 16.dp); Spacer(Modifier.width(7.dp))
+                Box(Modifier.size(25.dp).clip(RoundedCornerShape(8.dp)).background(accent.copy(alpha = 0.13f)),
+                    contentAlignment = Alignment.Center) {
+                    Icon24(icon, accent, 14.dp)
+                }
+                Spacer(Modifier.width(8.dp))
                 Text(name, fontSize = AppType.small, color = Mut, fontWeight = FontWeight.Medium)
             }
-            // Keep every metric's primary reading on the same vertical centerline.
-            // Supporting text stays at the bottom so it cannot push the value down.
-            Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.align(Alignment.CenterStart).padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(value, fontSize = AppType.displaySmall, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
                 if (unit.isNotEmpty()) Text(" $unit", fontSize = AppType.body, color = Mut)
             }
             if (sub != null) {
                 Text(sub, modifier = Modifier.align(Alignment.BottomStart),
-                    fontSize = AppType.caption, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    fontSize = AppType.caption, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
