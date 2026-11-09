@@ -160,9 +160,9 @@ fun Modifier.tap(onClick: () -> Unit): Modifier {
 fun Modifier.staggerIn(index: Int): Modifier {
     val rm = LocalReduceMotion.current
     var go by remember { mutableStateOf(rm) }
-    LaunchedEffect(Unit) { if (!go) { delay(index * 70L); go = true } }
-    val a by animateFloatAsState(if (go) 1f else 0f, if (rm) snap() else tween(420, easing = FastOutSlowInEasing), label = "in")
-    return this.graphicsLayer { alpha = a; translationY = (1f - a) * 24.dp.toPx() }
+    LaunchedEffect(Unit) { if (!go) { delay(index * 55L); go = true } }
+    val a by animateFloatAsState(if (go) 1f else 0f, if (rm) snap() else tween(360, easing = FastOutSlowInEasing), label = "in")
+    return this.graphicsLayer { alpha = a; translationY = (1f - a) * 18.dp.toPx() }
 }
 
 @Composable
@@ -328,7 +328,7 @@ fun HistoryGraph(series: List<GSeries>, modifier: Modifier = Modifier, minSpan: 
     val shown = rememberMorph(series.map { it.values })
     val hasData = shown.any { l -> l.any { it != null } }
     val intro = remember { Animatable(if (rm) 1f else 0f) }
-    LaunchedEffect(hasData) { if (hasData && intro.value < 1f) intro.animateTo(1f, tween(900, easing = FastOutSlowInEasing)) }
+    LaunchedEffect(hasData) { if (hasData && intro.value < 1f) intro.animateTo(1f, tween(700, easing = FastOutSlowInEasing)) }
     Canvas(modifier) {
         val all = shown.flatMap { it }.filterNotNull()
         if (all.isEmpty()) return@Canvas
@@ -370,7 +370,7 @@ fun HistoryGraph(series: List<GSeries>, modifier: Modifier = Modifier, minSpan: 
 @Composable
 fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?, series: List<GSeries>, minSpan: Double,
                modifier: Modifier = Modifier, centerContent: Boolean = false, centerValue: Boolean = false, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(20.dp)
     val accent = when (icon) {
         Ic.Cpu -> Red
         Ic.Memory -> Blue
@@ -380,12 +380,12 @@ fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?
         Ic.Zap -> Red
         else -> Blue
     }
-    Box(modifier.tap(onClick).height(124.dp).clip(shape).background(Surf).border(1.dp, Line, shape)
+    Box(modifier.tap(onClick).height(116.dp).clip(shape).background(Surf).border(1.dp, Line, shape)
         .semantics(mergeDescendants = true) { contentDescription = "$name $value $unit" }) {
         AnimatedSurfaceBackdrop(accent, Modifier.matchParentSize())
         HistoryGraph(series, Modifier.matchParentSize(), minSpan)                                   // layer 2: full-card graph
         Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Surf.copy(alpha = 0.82f), 0.72f to Color.Transparent)))
-        Box(Modifier.fillMaxSize().padding(16.dp)) {
+        Box(Modifier.fillMaxSize().padding(14.dp)) {
             Row(Modifier.align(Alignment.TopStart), verticalAlignment = Alignment.CenterVertically) {
                 Icon24(icon, Mut, 16.dp); Spacer(Modifier.width(7.dp))
                 Text(name, fontSize = AppType.small, color = Mut, fontWeight = FontWeight.Medium)
@@ -393,7 +393,7 @@ fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?
             // Keep every metric's primary reading on the same vertical centerline.
             // Supporting text stays at the bottom so it cannot push the value down.
             Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically) {
-                Text(value, fontSize = AppType.display, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
+                Text(value, fontSize = AppType.displaySmall, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
                 if (unit.isNotEmpty()) Text(" $unit", fontSize = AppType.body, color = Mut)
             }
             if (sub != null) {
