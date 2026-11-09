@@ -40,6 +40,22 @@ val Err = Color(0xFFF04452)
 val Blue = Color(0xFF648BFF)
 val GreenLight = Color(0xFF9BE5C4)
 
+// Shared type scale tuned for compact mobile cards and readable supporting text.
+object AppType {
+    val micro = 10.sp
+    val caption = 11.sp
+    val small = 12.sp
+    val body = 14.sp
+    val bodyStrong = 16.sp
+    val titleSmall = 18.sp
+    val title = 20.sp
+    val section = 24.sp
+    val displaySmall = 28.sp
+    val display = 30.sp
+    val hero = 42.sp
+    val heroLarge = 48.sp
+}
+
 val LocalReduceMotion = compositionLocalOf { false }
 
 object AppSettings { var refreshMs by mutableLongStateOf(2000L) }
@@ -191,7 +207,7 @@ fun BottomBar(tab: Int, onTab: (Int) -> Unit) {
                     Column(Modifier.weight(1f).tap { onTab(i) }.padding(top = 11.dp, bottom = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon24(ic, c, 22.dp, desc = label)
                         Spacer(Modifier.height(3.dp))
-                        Text(label, fontSize = 11.sp, color = c, fontWeight = FontWeight.Medium)
+                        Text(label, fontSize = AppType.caption, color = c, fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -372,17 +388,17 @@ fun MetricTile(icon: Ic, name: String, value: String, unit: String, sub: String?
         Box(Modifier.fillMaxSize().padding(16.dp)) {
             Row(Modifier.align(Alignment.TopStart), verticalAlignment = Alignment.CenterVertically) {
                 Icon24(icon, Mut, 16.dp); Spacer(Modifier.width(7.dp))
-                Text(name, fontSize = 12.sp, color = Mut, fontWeight = FontWeight.Medium)
+                Text(name, fontSize = AppType.small, color = Mut, fontWeight = FontWeight.Medium)
             }
             // Keep every metric's primary reading on the same vertical centerline.
             // Supporting text stays at the bottom so it cannot push the value down.
             Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically) {
-                Text(value, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
-                if (unit.isNotEmpty()) Text(" $unit", fontSize = 13.sp, color = Mut)
+                Text(value, fontSize = AppType.display, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1)
+                if (unit.isNotEmpty()) Text(" $unit", fontSize = AppType.body, color = Mut)
             }
             if (sub != null) {
                 Text(sub, modifier = Modifier.align(Alignment.BottomStart),
-                    fontSize = 11.sp, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    fontSize = AppType.caption, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
