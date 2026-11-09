@@ -442,8 +442,19 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                     animationSpec = infiniteRepeatable(tween(2600, easing = LinearEasing)),
                     label = "topology-network-packet"
                 )
-                Box(Modifier.fillMaxWidth().height(diagramHeight)) {
+                Box(Modifier.fillMaxWidth().height(diagramHeight).clip(RoundedCornerShape(14.dp)).background(Color(0xFF101923)).border(1.dp, Color(0xFF263746), RoundedCornerShape(14.dp))) {
                     Canvas(Modifier.fillMaxSize()) {
+                        val gridStep = 20.dp.toPx()
+                        var gridX = 0f
+                        while (gridX < size.width) {
+                            drawLine(Color(0xFF263746).copy(alpha = 0.22f), Offset(gridX, 0f), Offset(gridX, size.height), 0.6.dp.toPx())
+                            gridX += gridStep
+                        }
+                        var gridY = 0f
+                        while (gridY < size.height) {
+                            drawLine(Color(0xFF263746).copy(alpha = 0.22f), Offset(0f, gridY), Offset(size.width, gridY), 0.6.dp.toPx())
+                            gridY += gridStep
+                        }
                         val trunkX = 11.dp.toPx()
                         val rowPx = rowStep.toPx()
                         val cardCenterOffset = 37.dp.toPx()
@@ -578,7 +589,17 @@ private fun GatewayStatusNode(address: String, online: Boolean) {
     ) {
         Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp))
             .background(tint.copy(alpha = 0.13f)), contentAlignment = Alignment.Center) {
-            Icon24(Ic.Globe, tint, 19.dp)
+            Canvas(Modifier.size(22.dp)) {
+                val c = tint
+                val w = size.width
+                val h = size.height
+                drawLine(c, Offset(w * 0.22f, h * 0.24f), Offset(w * 0.22f, h * 0.08f), 1.5.dp.toPx())
+                drawLine(c, Offset(w * 0.78f, h * 0.24f), Offset(w * 0.78f, h * 0.08f), 1.5.dp.toPx())
+                drawRoundRect(c, topLeft = Offset(w * 0.08f, h * 0.28f), size = androidx.compose.ui.geometry.Size(w * 0.84f, h * 0.48f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(1.6.dp.toPx()))
+                drawCircle(c, 1.5.dp.toPx(), Offset(w * 0.28f, h * 0.52f))
+                drawCircle(c, 1.5.dp.toPx(), Offset(w * 0.43f, h * 0.52f))
+                drawLine(c, Offset(w * 0.2f, h * 0.86f), Offset(w * 0.8f, h * 0.86f), 1.5.dp.toPx())
+            }
         }
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
@@ -665,6 +686,17 @@ private fun TopologyDevice(node: JSONObject, tint: Color, modifier: Modifier, re
         verticalArrangement = Arrangement.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            Canvas(Modifier.size(30.dp)) {
+                val c = tint
+                val w = size.width
+                val h = size.height
+                drawRoundRect(c.copy(alpha = 0.18f), topLeft = Offset(w * 0.08f, h * 0.10f), size = androidx.compose.ui.geometry.Size(w * 0.84f, h * 0.62f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()))
+                drawRoundRect(c, topLeft = Offset(w * 0.08f, h * 0.10f), size = androidx.compose.ui.geometry.Size(w * 0.84f, h * 0.62f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+                drawLine(c, Offset(w * 0.5f, h * 0.72f), Offset(w * 0.5f, h * 0.86f), 1.5.dp.toPx())
+                drawLine(c, Offset(w * 0.28f, h * 0.88f), Offset(w * 0.72f, h * 0.88f), 1.5.dp.toPx())
+                drawCircle(c, 1.4.dp.toPx(), Offset(w * 0.5f, h * 0.42f))
+            }
+            Spacer(Modifier.width(8.dp))
             PulseDot(tint, tint == Green, 4.dp)
             Spacer(Modifier.width(8.dp))
             Text(
