@@ -652,13 +652,6 @@ fun SystemTab(j: JSONObject) {
         Spacer(Modifier.height(14.dp))
         DiskPie(j.optJSONArray("disks") ?: JSONArray())
     }
-    Panel {
-        Label("Network")
-        Spacer(Modifier.height(8.dp))
-        Legend(Red, "Download", rate(j.getDouble("net_down_bps") / 8))
-        Legend(Txt, "Upload", rate(j.getDouble("net_up_bps") / 8))
-        Legend(Dim, "IPv4", j.str("ip").ifEmpty { "-" })
-    }
     val procs = j.optJSONArray("procs") ?: JSONArray()
     var applicationsExpanded by rememberSaveable { mutableStateOf(false) }
     Panel {
