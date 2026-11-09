@@ -453,7 +453,7 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
             Spacer(Modifier.height(8.dp))
             if (gateway != null || sourceIp != null || linkedNodes.isNotEmpty()) {
                 val rows = linkedNodes.chunked(2)
-                val mapHeight = 190.dp + rows.size * 104.dp
+                val mapHeight = 190.dp + (rows.size * 104f).dp
                 val activePeer = liveTraffic?.optString("active_peer").orEmpty()
                 val activeIndex = linkedNodes.indexOfFirst { it.optString("ip") == activePeer }
                 val packetAge = liveTraffic?.optLong("last_packet_age_ms", Long.MAX_VALUE) ?: Long.MAX_VALUE
