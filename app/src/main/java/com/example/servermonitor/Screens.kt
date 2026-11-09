@@ -131,7 +131,6 @@ fun OverviewScreen(sv: Server, j: JSONObject, online: Boolean, onOpen: (String) 
     val cpu = j.getDouble("cpu"); val ram = j.getDouble("ram")
     val temp = j.dbl("temp"); val gpu = j.dbl("gpu"); val disk = diskPct(j)
     val pw = j.optJSONObject("power"); val watts = pw?.dbl("watts")
-    val (dv, du) = netFmt(j.getDouble("net_down_bps")); val (uv, uu) = netFmt(j.getDouble("net_up_bps"))
     var usedGb = 0.0; var totGb = 0.0
     j.optJSONArray("disks")?.let { for (i in 0 until it.length()) { usedGb += it.getJSONObject(i).optDouble("used_gb", 0.0); totGb += it.getJSONObject(i).optDouble("total_gb", 0.0) } }
     HealthCard(j, online, Modifier.staggerIn(0))
@@ -143,17 +142,12 @@ fun OverviewScreen(sv: Server, j: JSONObject, online: Boolean, onOpen: (String) 
     Row(Modifier.fillMaxWidth().staggerIn(2), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         MetricTile(Ic.Thermo, "Temperature", animNum(temp), if (temp == null) "" else "°C", if (temp == null) "No sensor found" else null,
             listOf(GSeries(hs("temp"), Amber)), 4.0, Modifier.weight(1f), centerValue = true) { onOpen("temp") }
-        MetricTile(Ic.Activity, "Network", dv, du, "↑ $uv $uu", listOf(GSeries(hs("down"), Green), GSeries(hs("up"), GreenLight, true)), 200_000.0,
-            Modifier.weight(1f)) { onOpen("net") }
-    }
-    Row(Modifier.fillMaxWidth().staggerIn(3), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         MetricTile(Ic.Storage, "Storage", animNum(disk), if (disk == null) "" else "%", "%.0f / %.0f GB".format(usedGb, totGb),
             listOf(GSeries(hs("disk"), Mut)), 2.0, Modifier.weight(1f)) { onOpen("disk") }
-        MetricTile(Ic.Zap, "Power", animNum(watts), if (watts == null) "" else "W", if (watts == null) "No power source" else "%.2f kWh today".format(pw?.optDouble("today_kwh", 0.0) ?: 0.0),
-            listOf(GSeries(hs("power"), Red)), 5.0, Modifier.weight(1f)) { onOpen("power") }
     }
+    MetricTile(Ic.Zap, "Power", animNum(watts), if (watts == null) "" else "W", if (watts == null) "No power source" else "%.2f kWh today".format(pw?.optDouble("today_kwh", 0.0) ?: 0.0),
+        listOf(GSeries(hs("power"), Red)), 5.0, Modifier.fillMaxWidth().staggerIn(3)) { onOpen("power") }
     if (gpu != null) MetricTile(Ic.Chart, "GPU", animNum(gpu), "%", null, listOf(GSeries(hs("gpu"), Mut)), 10.0, Modifier.fillMaxWidth().staggerIn(4)) { onOpen("gpu") }
-    Box(Modifier.staggerIn(5)) { InternetPanel(j, sv) }
 }
 
 @Composable
@@ -369,7 +363,7 @@ fun SystemScreen(sv: Server, j: JSONObject, online: Boolean) {
         KV("Host", j.str("host")); KV("System", j.str("os")); KV("Uptime", "${up / 86400}d ${up % 86400 / 3600}h ${up % 3600 / 60}m")
         KV("Address", j.str("ip").ifEmpty { "-" }); KV("CPU cores", "${j.optInt("cores")}"); KV("Memory", "${j.optDouble("ram_total_gb")} GB")
     }
-    val pw = j.optJSONObject("power"); val sp = j.optJSONObject("speed") ?: JSONObject()
+    val pw = j.optJSONObject("power")
     val perr = pw?.str("plug_error") ?: ""
     Panel {
         Label("Diagnostics"); Spacer(Modifier.height(4.dp))
@@ -378,11 +372,25 @@ fun SystemScreen(sv: Server, j: JSONObject, online: Boolean) {
         DiagRow("GPU", if (j.dbl("gpu") != null) "Available" else "Not available", if (j.dbl("gpu") != null) Green else Dim)
         DiagRow("Power source", when { perr.isNotEmpty() -> "Error"; pw?.dbl("watts") != null -> pw.str("source"); else -> "None" },
             when { perr.isNotEmpty() -> Amber; pw?.dbl("watts") != null -> Green; else -> Dim })
-        DiagRow("Speed test", when { sp.optBoolean("running") -> "Testing…"; sp.dbl("down_mbps") != null -> "Last ${fmtClock(sp.optLong("ts"))}"; sp.str("error").isNotEmpty() -> "Failed"; else -> "Waiting" },
-            when { sp.dbl("down_mbps") != null -> Green; sp.str("error").isNotEmpty() -> Amber; else -> Dim })
     }
     SystemTab(j)
     InfrastructurePanel(sv)
+}
+
+@Composable
+fun NetworkScreen(sv: Server, j: JSONObject, onOpen: (String) -> Unit) {
+    val (downValue, downUnit) = netFmt(j.getDouble("net_down_bps"))
+    val (upValue, upUnit) = netFmt(j.getDouble("net_up_bps"))
+    Panel {
+        Label("Network status")
+        Spacer(Modifier.height(8.dp))
+        DiagRow("IPv4 address", j.str("ip").ifEmpty { "Not reported" }, Green)
+        DiagRow("Download", "$downValue $downUnit", Blue)
+        DiagRow("Upload", "$upValue $upUnit", Amber)
+        TextButton(onClick = { onOpen("net") }) { Text("View traffic details", color = Red) }
+    }
+    InternetPanel(j, sv)
+    InfrastructurePanel(sv, networkOnly = true)
 }
 
 @Composable
@@ -418,16 +426,17 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
     val d = detail
     if (d != null && j != null) { MetricDetail(sv, d, j) { detail = null }; return }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
-        AppHeader(sv, j, r.error, online, onBack, { refreshKey++ }, { tab = 3 })
+        AppHeader(sv, j, r.error, online, onBack, { refreshKey++ }, { tab = 4 })
         Box(Modifier.weight(1f)) {
             Crossfade(tab, animationSpec = tween(220), label = "tabs") { t ->
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (j == null && t != 3) { Text(r.error ?: "Connecting…", color = Amber, fontSize = AppType.body); return@Column }
+                    if (j == null && t != 4) { Text(r.error ?: "Connecting…", color = Amber, fontSize = AppType.body); return@Column }
                     when (t) {
                         0 -> OverviewScreen(sv, j!!, online) { detail = it }
-                        1 -> PowerTab(sv, j!!.optJSONObject("power")) { setup = true }
-                        2 -> SystemScreen(sv, j!!, online)
+                        1 -> NetworkScreen(sv, j!!) { detail = it }
+                        2 -> PowerTab(sv, j!!.optJSONObject("power")) { setup = true }
+                        3 -> SystemScreen(sv, j!!, online)
                         else -> SettingsScreen(sv, onEdit) { setup = true }
                     }
                 }
