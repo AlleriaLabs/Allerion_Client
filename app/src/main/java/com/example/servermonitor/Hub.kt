@@ -88,11 +88,10 @@ fun HubHeader(onSettings: () -> Unit) {
 
 @Composable
 fun SummaryStat(label: String, value: String, color: Color, modifier: Modifier) {
-    val shape = RoundedCornerShape(16.dp)
-    Box(modifier.clip(shape).background(Surf).border(1.dp, Line, shape)) {
-        AnimatedSurfaceBackdrop(color, Modifier.matchParentSize())
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
-            Text(value, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
+    val shape = RoundedCornerShape(17.dp)
+    Box(modifier.clip(shape).background(Surf).border(1.dp, Line.copy(alpha = 0.82f), shape)) {
+        Column(Modifier.padding(horizontal = 13.dp, vertical = 13.dp)) {
+            Text(value, fontSize = AppType.title, fontWeight = FontWeight.ExtraBold, color = color, maxLines = 1)
             Text(label, fontSize = AppType.caption, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -161,12 +160,12 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
     var confirm by remember { mutableStateOf(false) }
     Panel(modifier) {
         Row(Modifier.fillMaxWidth().tap(onToggle), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Surf2), contentAlignment = Alignment.Center) { Icon24(Ic.Server, Mut, 20.dp) }
+            Box(Modifier.size(46.dp).clip(RoundedCornerShape(15.dp)).background(Surf2), contentAlignment = Alignment.Center) { Icon24(Ic.Server, Mut, 20.dp) }
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
                 Text(sv.name, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sv.url.removePrefix("http://").removePrefix("https://"), fontSize = AppType.small, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(sv.group, fontSize = AppType.caption, color = Red, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sv.group.uppercase(), fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = Red, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.width(10.dp))
             StatusLabel(code)
@@ -212,10 +211,11 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
         val wideLayout = maxWidth >= 720.dp
         Column(Modifier.widthIn(max = 1100.dp).fillMaxHeight().fillMaxWidth().align(Alignment.TopCenter).verticalScroll(rememberScrollState())) {
             HubHeader(onSettings)
-            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column(Modifier.padding(top = 6.dp, bottom = 1.dp).staggerIn(0)) {
-                    Text("Servers", fontSize = AppType.displaySmall, fontWeight = FontWeight.Bold, color = Txt)
-                    Text("Your connected infrastructure", fontSize = AppType.small, color = Mut)
+            Column(Modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                Column(Modifier.padding(top = 10.dp, bottom = 3.dp).staggerIn(0), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("ALLERIA LABS · INFRASTRUCTURE", fontSize = AppType.micro, fontWeight = FontWeight.Bold, color = Red, letterSpacing = 1.55.sp)
+                    Text("Servers", fontSize = AppType.displaySmall, fontWeight = FontWeight.ExtraBold, color = Txt, letterSpacing = (-0.5).sp)
+                    Text("Your connected infrastructure at a glance", fontSize = AppType.small, color = Mut)
                 }
                 if (servers.isEmpty()) {
                     Panel(Modifier.staggerIn(1)) {
