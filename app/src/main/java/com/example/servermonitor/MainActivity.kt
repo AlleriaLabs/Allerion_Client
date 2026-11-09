@@ -114,7 +114,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             var showSplash by rememberSaveable { mutableStateOf(true) }
             CompositionLocalProvider(LocalReduceMotion provides reduce) {
-            MaterialTheme(colorScheme = darkColorScheme(primary = Red, background = Bg, surface = Bg, onSurface = Txt, outline = Color(0xFF3A3B41), onSurfaceVariant = Mut, surfaceVariant = Surf)) {
+            MaterialTheme(colorScheme = darkColorScheme(primary = Red, onPrimary = Color.White, primaryContainer = DeepRed.copy(alpha = 0.32f), onPrimaryContainer = Txt, secondary = Blue, onSecondary = Bg, background = Bg, onBackground = Txt, surface = Surf, onSurface = Txt, surfaceVariant = Surf2, onSurfaceVariant = Mut, outline = Line, outlineVariant = Line.copy(alpha = 0.72f), error = Err, onError = Color.White)) {
                 Surface(Modifier.fillMaxSize(), color = Bg) { Box { App(prefs); AnimatedVisibility(visible = showSplash, enter = EnterTransition.None, exit = fadeOut(tween(350))) { Splash { showSplash = false } } } }
             }
             }
@@ -187,17 +187,17 @@ fun JSONObject.dbl(k: String): Double? = if (!has(k) || isNull(k)) null else opt
 
 @Composable
 fun Panel(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(20.dp)
     Box(
         Modifier.then(modifier).fillMaxWidth().clip(shape).background(Surf)
-            .border(1.dp, Line.copy(alpha = 0.92f), shape)
+            .border(1.dp, Line.copy(alpha = 0.78f), shape)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
     ) {
         // A quiet top-edge highlight gives the surface depth without washing out its content.
         Box(Modifier.fillMaxWidth().height(1.dp).background(
             Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.075f), Color.Transparent))
         ))
-        Column(Modifier.fillMaxWidth().padding(18.dp), content = content)
+        Column(Modifier.fillMaxWidth().padding(17.dp), content = content)
     }
 }
 
