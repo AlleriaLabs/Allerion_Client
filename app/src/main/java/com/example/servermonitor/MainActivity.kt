@@ -187,7 +187,7 @@ fun JSONObject.dbl(k: String): Double? = if (!has(k) || isNull(k)) null else opt
 
 @Composable
 fun Panel(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(21.dp)
     Box(
         Modifier.then(modifier).fillMaxWidth().clip(shape).background(Surf)
             .border(1.dp, Line.copy(alpha = 0.78f), shape)
@@ -197,7 +197,7 @@ fun Panel(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content:
         Box(Modifier.fillMaxWidth().height(1.dp).background(
             Brush.horizontalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.075f), Color.Transparent))
         ))
-        Column(Modifier.fillMaxWidth().padding(17.dp), content = content)
+        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(2.dp), content = content)
     }
 }
 
@@ -281,7 +281,7 @@ fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
     Text(text, color = if (selected) Txt else Mut, fontSize = AppType.body,
         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
         modifier = Modifier.clip(shape)
-            .background(if (selected) Red.copy(alpha = 0.16f) else Surf2)
+            .background(if (selected) Red.copy(alpha = 0.17f) else Surf2)
             .border(1.dp, if (selected) Red.copy(alpha = 0.42f) else Line, shape)
             .clickable(onClick = onClick).padding(horizontal = 15.dp, vertical = 9.dp))
 }
@@ -582,7 +582,7 @@ fun InternetPanel(j: JSONObject, sv: Server) {
                 colors = ButtonDefaults.buttonColors(containerColor = Surf2, contentColor = Txt, disabledContainerColor = Surf2, disabledContentColor = Dim),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                Text(if (running) "Testing…" else "Run speedtest", maxLines = 1, fontWeight = FontWeight.SemiBold, color = if (running) Mut else Txt)
+                Text(if (running) "Testing…" else "Run speedtest", maxLines = 1, fontWeight = FontWeight.Bold, color = if (running) Mut else Txt)
             }
         }
         Spacer(Modifier.height(12.dp))
