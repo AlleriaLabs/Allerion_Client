@@ -84,7 +84,7 @@ private fun CollapsibleSectionHeader(title: String, expanded: Boolean, onToggle:
 }
 
 @Composable
-fun InfrastructurePanel(sv: Server) {
+fun InfrastructurePanel(sv: Server, networkOnly: Boolean = false) {
     var processesExpanded by remember { mutableStateOf(false) }
     var containersExpanded by remember { mutableStateOf(false) }
     var lanDevicesExpanded by remember { mutableStateOf(false) }
@@ -152,7 +152,7 @@ fun InfrastructurePanel(sv: Server) {
     val caps = snapshot.capabilities?.optJSONObject("features")
     if (caps == null) {
         Panel {
-            Label("Infrastructure intelligence")
+            Label(if (networkOnly) "Network intelligence" else "Infrastructure intelligence")
             Text(snapshot.error ?: "Checking backend capabilities…", color = Mut, fontSize = AppType.small)
             Text("This section requires ServerMonitor API v2.", color = Dim, fontSize = AppType.caption)
         }
@@ -160,18 +160,24 @@ fun InfrastructurePanel(sv: Server) {
     }
 
     Panel {
-        Label("Infrastructure intelligence")
+        Label(if (networkOnly) "Network capabilities" else "Infrastructure intelligence")
         Text("Live data from the ServerMonitor backend. Optional collectors appear only when enabled and available.", color = Mut, fontSize = AppType.small)
         Spacer(Modifier.height(8.dp))
         DiagRow("API version", snapshot.capabilities?.optInt("api_version", 1)?.toString() ?: "Unknown", Green)
-        DiagRow("Containers", if (caps.optBoolean("containers")) "Available" else "Not configured", if (caps.optBoolean("containers")) Green else Dim)
-        DiagRow("Service checks", if (caps.optBoolean("services")) "Enabled" else "Not configured", if (caps.optBoolean("services")) Green else Dim)
-        DiagRow("LAN inventory", if (caps.optBoolean("network_inventory")) "Enabled" else "Opt-in disabled", if (caps.optBoolean("network_inventory")) Green else Dim)
-        DiagRow("Webhook", if (caps.optBoolean("webhooks")) "Configured" else "Not configured", if (caps.optBoolean("webhooks")) Green else Dim)
-        DiagRow("Telegram", if (caps.optBoolean("telegram")) "Configured" else "Not configured", if (caps.optBoolean("telegram")) Green else Dim)
+        if (networkOnly) {
+            DiagRow("LAN inventory", if (caps.optBoolean("network_inventory")) "Enabled" else "Opt-in disabled", if (caps.optBoolean("network_inventory")) Green else Dim)
+            DiagRow("Network topology", if (caps.optBoolean("network_topology")) "Available" else "Not configured", if (caps.optBoolean("network_topology")) Green else Dim)
+            DiagRow("Live packet capture", if (caps.optBoolean("network_traffic")) "Enabled" else "Not configured", if (caps.optBoolean("network_traffic")) Green else Dim)
+            DiagRow("LAN diagnostics", if (caps.optBoolean("network_diagnostics")) "Available" else "Not configured", if (caps.optBoolean("network_diagnostics")) Green else Dim)
+        } else {
+            DiagRow("Containers", if (caps.optBoolean("containers")) "Available" else "Not configured", if (caps.optBoolean("containers")) Green else Dim)
+            DiagRow("Service checks", if (caps.optBoolean("services")) "Enabled" else "Not configured", if (caps.optBoolean("services")) Green else Dim)
+            DiagRow("Webhook", if (caps.optBoolean("webhooks")) "Configured" else "Not configured", if (caps.optBoolean("webhooks")) Green else Dim)
+            DiagRow("Telegram", if (caps.optBoolean("telegram")) "Configured" else "Not configured", if (caps.optBoolean("telegram")) Green else Dim)
+        }
     }
 
-    if (caps.optBoolean("processes")) {
+    if (!networkOnly && caps.optBoolean("processes")) {
         val rows = snapshot.processes?.optJSONArray("items")
         Panel {
             CollapsibleSectionHeader("Top processes", processesExpanded) { processesExpanded = !processesExpanded }
@@ -191,7 +197,7 @@ fun InfrastructurePanel(sv: Server) {
         }
     }
 
-    if (caps.optBoolean("containers")) {
+    if (!networkOnly && caps.optBoolean("containers")) {
         val rows = snapshot.containers?.optJSONArray("items")
         Panel {
             CollapsibleSectionHeader("Docker containers", containersExpanded) { containersExpanded = !containersExpanded }
@@ -220,7 +226,7 @@ fun InfrastructurePanel(sv: Server) {
         }
     }
 
-    if (caps.optBoolean("services")) {
+    if (networkOnly && caps.optBoolean("services")) {
         val rows = snapshot.services?.optJSONArray("items")
         Panel {
             Label("Service health")
@@ -233,7 +239,7 @@ fun InfrastructurePanel(sv: Server) {
         }
     }
 
-    if (caps.optBoolean("network_inventory")) {
+    if (networkOnly && caps.optBoolean("network_inventory")) {
         val rows = snapshot.devices?.optJSONArray("items")
         Panel {
             CollapsibleSectionHeader("LAN devices", lanDevicesExpanded) { lanDevicesExpanded = !lanDevicesExpanded }
@@ -248,7 +254,7 @@ fun InfrastructurePanel(sv: Server) {
         }
     }
 
-    if (snapshot.forecast?.optBoolean("available") == true) {
+    if (!networkOnly && snapshot.forecast?.optBoolean("available") == true) {
         val forecast = snapshot.forecast!!
         Panel {
             Label("Energy forecast")
@@ -258,6 +264,7 @@ fun InfrastructurePanel(sv: Server) {
         }
     }
 
+    if (!networkOnly) {
     val energyDays = snapshot.energyBreakdown?.optJSONArray("days")
     val latestEnergyDay = if (energyDays != null && energyDays.length() > 0) energyDays.optJSONObject(energyDays.length() - 1) else null
     val energySources = latestEnergyDay?.optJSONArray("sources")
@@ -272,10 +279,14 @@ fun InfrastructurePanel(sv: Server) {
             Text("Older energy totals recorded before this backend update cannot be attributed retroactively.", color = Dim, fontSize = AppType.caption)
         }
     }
+    }
 
-    NetworkTopologyPanel(sv, snapshot.topology, caps.optBoolean("network_topology"), caps.optBoolean("network_traffic"))
-    NetworkDiagnosticPanel(sv, caps.optBoolean("network_diagnostics"))
-    IntegrationTestPanel(sv, snapshot.integrations, caps.optBoolean("webhooks"), caps.optBoolean("telegram"))
+    if (networkOnly) {
+        NetworkTopologyPanel(sv, snapshot.topology, caps.optBoolean("network_topology"), caps.optBoolean("network_traffic"))
+        NetworkDiagnosticPanel(sv, caps.optBoolean("network_diagnostics"))
+    } else {
+        IntegrationTestPanel(sv, snapshot.integrations, caps.optBoolean("webhooks"), caps.optBoolean("telegram"))
+    }
 }
 
 @Composable
