@@ -201,18 +201,18 @@ fun BottomBar(tab: Int, onTab: (Int) -> Unit) {
     val items = listOf(Ic.Dash to "Overview", Ic.Globe to "Network", Ic.Zap to "Power", Ic.Server to "System", Ic.Gear to "Settings")
     Column(Modifier.fillMaxWidth().background(Bg)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.8f)))
-        Row(Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 7.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 8.dp)) {
             items.forEachIndexed { i, (ic, label) ->
                 val selected = tab == i
                 val tint by animateColorAsState(if (selected) Red else Dim, tween(220), label = "nav-icon")
-                Column(Modifier.weight(1f).tap { onTab(i) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.width(54.dp).height(32.dp).clip(RoundedCornerShape(12.dp))
+                Column(Modifier.weight(1f).tap { onTab(i) }.padding(vertical = 1.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.width(56.dp).height(34.dp).clip(RoundedCornerShape(13.dp))
                         .background(if (selected) Red.copy(alpha = 0.13f) else Color.Transparent),
                         contentAlignment = Alignment.Center) {
                         Icon24(ic, tint, 21.dp, desc = label)
                     }
                     Spacer(Modifier.height(3.dp))
-                    Text(label, fontSize = AppType.micro, color = if (selected) Txt else Dim,
+                    Text(label, fontSize = AppType.caption, color = if (selected) Txt else Dim,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
                 }
             }
