@@ -198,7 +198,7 @@ fun IconBtn(ic: Ic, desc: String, rotate: Float = 0f, plain: Boolean = false, on
 
 @Composable
 fun BottomBar(tab: Int, onTab: (Int) -> Unit) {
-    val items = listOf(Ic.Dash to "Overview", Ic.Zap to "Power", Ic.Server to "System", Ic.Gear to "Settings")
+    val items = listOf(Ic.Dash to "Overview", Ic.Globe to "Network", Ic.Zap to "Power", Ic.Server to "System", Ic.Gear to "Settings")
     Column(Modifier.fillMaxWidth().background(Surf)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(Line))
         BoxWithConstraints(Modifier.fillMaxWidth()) {
