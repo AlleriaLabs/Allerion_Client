@@ -466,6 +466,8 @@ fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
     fun cost(k: Double) = if (price > 0) cur + "%.2f".format(k * price) else "Set price"
     val shape = RoundedCornerShape(22.dp)
     Box(Modifier.fillMaxWidth().clip(shape).background(Surf).border(1.dp, Line, shape)) {
+        // Match the Energy section's subtle red ambient accent without restoring its live graph.
+        AnimatedSurfaceBackdrop(accent = Red, modifier = Modifier.matchParentSize())
         Column(Modifier.fillMaxWidth().padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
