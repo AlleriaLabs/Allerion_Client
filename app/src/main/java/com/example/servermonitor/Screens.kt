@@ -57,12 +57,12 @@ fun KV(label: String, value: String) {
 fun AppHeader(sv: Server, j: JSONObject?, err: String?, online: Boolean, onBack: () -> Unit, onRefresh: () -> Unit, onSettings: () -> Unit) {
     var spin by remember { mutableStateOf(0) }
     val rot by animateFloatAsState(spin * 360f, tween(700, easing = FastOutSlowInEasing), label = "spin")
-    Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 8.dp, top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 9.dp, top = 8.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
         IconBtn(Ic.ChevronL, "Back to servers", plain = true, onClick = onBack)
-        Image(painterResource(R.drawable.logo_mark), null, Modifier.size(26.dp))
+        Image(painterResource(R.drawable.logo_mark), null, Modifier.size(29.dp))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(sv.name, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(sv.name, fontSize = AppType.titleSmall, fontWeight = FontWeight.ExtraBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val ts = j?.optLong("ts") ?: 0L
             Text(when { j == null -> err ?: "Connecting…"; !online -> "Offline · last seen ${fmtClock(ts)}"; else -> "ALLERION · updated ${fmtClock(ts)}" },
                 fontSize = AppType.caption, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis)
