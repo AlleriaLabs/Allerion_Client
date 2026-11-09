@@ -466,8 +466,6 @@ fun PowerTab(sv: Server, pw: JSONObject?, onSetup: () -> Unit) {
     fun cost(k: Double) = if (price > 0) cur + "%.2f".format(k * price) else "Set price"
     val shape = RoundedCornerShape(22.dp)
     Box(Modifier.fillMaxWidth().clip(shape).background(Surf).border(1.dp, Line, shape)) {
-        HistoryGraph(listOf(GSeries(todayHistory, Red)), Modifier.matchParentSize(), 5.0, 0.48f, 0.12f, 2.dp)
-        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(0f to Surf.copy(alpha = 0.90f), 0.78f to Color.Transparent)))
         Column(Modifier.fillMaxWidth().padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
