@@ -114,7 +114,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             var showSplash by rememberSaveable { mutableStateOf(true) }
             CompositionLocalProvider(LocalReduceMotion provides reduce) {
-            MaterialTheme(colorScheme = darkColorScheme(primary = Red, onPrimary = Color.White, primaryContainer = DeepRed.copy(alpha = 0.32f), onPrimaryContainer = Txt, secondary = Blue, onSecondary = Bg, background = Bg, onBackground = Txt, surface = Surf, onSurface = Txt, surfaceVariant = Surf2, onSurfaceVariant = Mut, outline = Line, outlineVariant = Line.copy(alpha = 0.72f), error = Err, onError = Color.White)) {
+            MaterialTheme(colorScheme = darkColorScheme(primary = Red, onPrimary = Color.White, primaryContainer = DeepRed.copy(alpha = 0.32f), onPrimaryContainer = Txt, secondary = Blue, onSecondary = Bg, background = Bg, onBackground = Txt, surface = Surf, onSurface = Txt, surfaceVariant = Surf2, onSurfaceVariant = Mut, outline = Line, outlineVariant = Line.copy(alpha = 0.72f), error = Err, onError = Color.White), shapes = Shapes(small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(16.dp), large = RoundedCornerShape(22.dp))) {
                 Surface(Modifier.fillMaxSize(), color = Bg) { Box { App(prefs); AnimatedVisibility(visible = showSplash, enter = EnterTransition.None, exit = fadeOut(tween(350))) { Splash { showSplash = false } } } }
             }
             }
@@ -202,8 +202,8 @@ fun Panel(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content:
 }
 
 @Composable
-fun Label(text: String) = Text(text.uppercase(), fontSize = AppType.caption, color = Mut, fontWeight = FontWeight.SemiBold,
-    letterSpacing = 1.35.sp)
+fun Label(text: String) = Text(text.uppercase(), fontSize = AppType.caption, color = Dim, fontWeight = FontWeight.Bold,
+    letterSpacing = 1.5.sp)
 
 @Composable
 fun Bar(frac: Float, h: Dp = 8.dp) {
