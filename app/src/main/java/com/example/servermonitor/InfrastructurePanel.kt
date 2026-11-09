@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
@@ -360,11 +361,12 @@ private fun IntegrationTestPanel(sv: Server, integrationStatus: JSONObject?, web
 @Composable
 private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
     var unmappedExpanded by remember { mutableStateOf(false) }
+    var topologyZoom by remember { mutableStateOf(1f) }
     Panel {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Label("Network topology")
-                Text("Gateway-to-endpoint map", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text("LAN packet tracker", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.SemiBold)
             }
             Box(Modifier.clip(RoundedCornerShape(50)).background(Green.copy(alpha = 0.12f)).padding(horizontal = 10.dp, vertical = 6.dp)) {
                 Text("PASSIVE DISCOVERY", color = Green, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
@@ -394,12 +396,22 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                 GatewayTopologyStat(gateway != null, Modifier.weight(1f))
                 TopologyStat("UNMAPPED", unmappedNodes.size.toString(), if (unmappedNodes.isEmpty()) Mut else Amber, Modifier.weight(1f))
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("TRACKER VIEW", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                Spacer(Modifier.weight(1f))
+                Text("−", modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Surf2).clickable { topologyZoom = (topologyZoom - 0.1f).coerceAtLeast(0.8f) }.padding(horizontal = 13.dp, vertical = 5.dp), color = Txt, fontSize = AppType.title)
+                Text("${(topologyZoom * 100).toInt()}%", modifier = Modifier.padding(horizontal = 9.dp), color = Mut, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold)
+                Text("+", modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Surf2).clickable { topologyZoom = (topologyZoom + 0.1f).coerceAtMost(1.5f) }.padding(horizontal = 13.dp, vertical = 5.dp), color = Txt, fontSize = AppType.title)
+                Text("↺", modifier = Modifier.padding(start = 8.dp).clip(RoundedCornerShape(8.dp)).background(Surf2).clickable { topologyZoom = 1f }.padding(horizontal = 10.dp, vertical = 6.dp), color = Mut, fontSize = AppType.caption)
+            }
+            Spacer(Modifier.height(10.dp))
             if (gateway != null && linkedNodes.isNotEmpty()) {
+                Column(Modifier.fillMaxWidth().graphicsLayer { scaleX = topologyZoom; scaleY = topologyZoom }) {
                 // Full-width endpoint cards keep IP, MAC and source details readable on narrow phones.
                 GatewayStatusNode(gateway, true)
                 // Continue the gateway trunk visually into the discovered-endpoint branch.
-                val reduceMotion = LocalReduceMotion.current
+                val gatewayReduceMotion = LocalReduceMotion.current
                 val gatewayFlow = rememberInfiniteTransition(label = "gateway-endpoint-link")
                 val gatewayPacket by gatewayFlow.animateFloat(
                     initialValue = 0f,
@@ -411,7 +423,7 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                     val x = 11.dp.toPx()
                     val stroke = 1.7.dp.toPx()
                     drawLine(Green.copy(alpha = 0.48f), Offset(x, 0f), Offset(x, size.height), stroke)
-                    val y = if (reduceMotion) size.height / 2f else size.height * gatewayPacket
+                    val y = if (gatewayReduceMotion) size.height / 2f else size.height * gatewayPacket
                     drawCircle(Color(0xFFB8F5D8).copy(alpha = 0.95f), 3.5.dp.toPx(), Offset(x, y))
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -464,9 +476,10 @@ private fun NetworkTopologyPanel(topology: JSONObject?, enabled: Boolean) {
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Animated links show inferred gateway-to-device associations from passive neighbor records. They do not represent verified physical cables or live traffic paths.",
+                    "Animated packet indicators visualize inferred gateway-to-device associations from passive discovery; this is not a live packet capture.",
                     color = Dim, fontSize = AppType.caption
                 )
+                }
             } else {
                 GatewayStatusNode(gateway ?: "Not detected", gateway != null)
                 Spacer(Modifier.height(10.dp))
