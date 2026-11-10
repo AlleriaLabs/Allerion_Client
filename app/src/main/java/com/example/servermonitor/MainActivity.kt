@@ -717,7 +717,7 @@ fun DiskPie(d: JSONArray) {
                         when {
                             !disk.mounted -> "Detected · Not mounted"
                             disk.external -> "External drive · USB"
-                            else -> "Internal · ${disk.connection}"
+                            else -> if (disk.connection.equals("Internal", ignoreCase = true)) "Internal" else "Internal · ${disk.connection}"
                         },
                         color = Mut, fontSize = AppType.caption
                     )
