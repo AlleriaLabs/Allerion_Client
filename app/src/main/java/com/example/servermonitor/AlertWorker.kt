@@ -104,6 +104,7 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
                 // Optional inventories are isolated: a disabled or unavailable Docker/LAN
                 // feature must never turn a healthy server into an offline alert.
                 if (rules.containers) checkContainers(server, prefix)
+                else clearActiveAlertsWithPrefix(prefix + "_container_")
                 if (rules.newDevices) checkNewDevices(server, prefix)
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -112,6 +113,10 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
                 // that a server is offline. Avoid raising a false critical alert.
                 if (error.hasUnknownHostCause()) {
                     if (rules.serverAvailability) clearUnverifiedOfflineAlert(prefix + "_offline")
+                    else {
+                        clearAlertSilently(prefix + "_offline")
+                        clearAlertSilently(prefix + "_api_error")
+                    }
                 } else {
                     val apiFailure = monitoringApiFailureMessage(error)
                     if (rules.serverAvailability) {
@@ -141,6 +146,11 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
             .edit().putBoolean(key, false).apply()
     }
 
+    private fun clearActiveAlertsWithPrefix(prefix: String) {
+        ActiveAlertStore.load(applicationContext).filter { it.key.startsWith(prefix) }
+            .forEach { clearAlertSilently(it.key) }
+    }
+
     private fun checkContainers(server: Server, prefix: String) {
         val inventory = try {
             ApiClient.getJson(server.url, server.token, "/api/containers", connectTimeoutMs = 3_000, readTimeoutMs = 5_000)
@@ -158,10 +168,13 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
             val name = item.optString("name").ifBlank { id }
             val state = item.optString("state", "unknown").lowercase()
             val status = item.optString("status").ifBlank { state }
+            val exitCode = Regex("Exited \\((\\d+)\\)").find(status)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            val failed = state == "dead" || state == "restarting" || (state == "exited" && exitCode != null && exitCode != 0)
             val key = prefix + "_container_" + id.hashCode()
             presentKeys.add(key)
-            updateAlert(key, state != "running", server.name,
-                "Container $name is $status.", if (state == "dead" || state == "exited") "critical" else "warning")
+            updateAlert(key, failed, server.name,
+                if (failed) "Container $name failed: $status." else "Container $name is running normally.",
+                if (state == "dead" || (exitCode != null && exitCode != 0)) "critical" else "warning")
         }
         // A removed container is no longer a failure condition for this host.
         ActiveAlertStore.load(applicationContext).filter {
