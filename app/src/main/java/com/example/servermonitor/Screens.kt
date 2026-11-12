@@ -467,16 +467,21 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
     val d = detail
     if (d != null && j != null) { MetricDetail(sv, d, j) { detail = null }; return }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
-        AppHeader(sv, j, r.error, online, onBack, { refreshKey++ }, {
-            tab = 4
-            morePage = "activity"
-        })
+        // Full-page tools provide their own back/title row; avoid stacking the server header above them.
+        if (!(tab == 4 && (morePage == "activity" || morePage == "diagnostics"))) {
+            AppHeader(sv, j, r.error, online, onBack, { refreshKey++ }, {
+                tab = 4
+                morePage = "activity"
+            })
+        }
         Box(Modifier.weight(1f)) {
             Crossfade("$tab:$morePage", animationSpec = tween(220), label = "tabs") { targetState ->
                 key(targetState) {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    DashboardSectionHeader(tab, sv.name, morePage)
+                    if (!(tab == 4 && (morePage == "activity" || morePage == "diagnostics"))) {
+                        DashboardSectionHeader(tab, sv.name, morePage)
+                    }
                     when (tab) {
                         0 -> if (j == null) Panel { Label("Connecting to server"); Text(r.error ?: "Establishing a secure monitoring connection…", color = Amber, fontSize = AppType.body) }
                              else OverviewScreen(sv, j, online) { detail = it }
