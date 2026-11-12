@@ -136,7 +136,8 @@ fun App(p: SharedPreferences) {
     var open by remember { mutableStateOf<Int?>(null) }
     var edit by remember { mutableStateOf<Int?>(null) } // -1 = new server
     var expanded by remember { mutableStateOf<Int?>(null) }   // every server card starts collapsed
-    var hubSettings by remember { mutableStateOf(false) }\n    var showIntegrations by remember { mutableStateOf(false) }
+    var hubSettings by remember { mutableStateOf(false) }
+    var showIntegrations by remember { mutableStateOf(false) }
     fun commit(l: List<Server>) {
         try {
             saveServers(p, l)
@@ -167,9 +168,10 @@ fun App(p: SharedPreferences) {
             onDelete = { commit(servers.filterIndexed { i, _ -> i != e }); edit = null; open = null; expanded = null },
             onCancel = { edit = null })
         o != null && o in servers.indices -> Dashboard(servers[o], { open = null }, { edit = o })
-        hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })\n        showIntegrations -> IntegrationCenterScreen(servers, onBack = { showIntegrations = false })
+        hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })
+        showIntegrations -> IntegrationCenterScreen(servers, onBack = { showIntegrations = false })
         else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
-            { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true })
+            { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true }, { showIntegrations = true })
     }
     availableUpdate?.let { update ->
         AllerionUpdateDialog(update) {
@@ -383,7 +385,8 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
         }
         msg?.let { Text(it, color = if (it.startsWith("Reading") || it.startsWith("Saved") || it.startsWith("Using")) Green else Amber, fontSize = AppType.body) }
         OutlinedButton({ call("/api/power/test") { j ->
-            if (j.optBoolean("ok")) (if (j.isNull("watts")) j.optString("note") else "Reading: ${j.getDouble("watts")} W" + (if (j.isNull("voltage")) "" else ", ${j.getDouble("voltage")} V") + "\nData: ${j.optString("raw")}")
+            if (j.optBoolean("ok")) (if (j.isNull("watts")) j.optString("note") else "Reading: ${j.getDouble("watts")} W" + (if (j.isNull("voltage")) "" else ", ${j.getDouble("voltage")} V") + "
+Data: ${j.optString("raw")}")
             else "Failed: " + j.optString("error") } },
             Modifier.fillMaxWidth().height(48.dp).border(1.dp, Line, RoundedCornerShape(15.dp)),
             enabled = !busy, shape = RoundedCornerShape(15.dp),
