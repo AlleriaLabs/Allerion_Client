@@ -496,7 +496,7 @@ fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
                 Column(Modifier.weight(1f)) {
                     Label("Smart health alerts")
                     Spacer(Modifier.height(4.dp))
-                    Text("Check registered servers every 15 minutes and notify when a server goes offline or CPU, memory, temperature or disk usage crosses a critical threshold.", color = Mut, fontSize = AppType.small)
+                    Text("Check registered servers every 15 minutes. Choose alert categories below for availability, resource thresholds, Docker container failures and newly detected LAN devices.", color = Mut, fontSize = AppType.small)
                 }
                 Switch(checked = alertsEnabled, onCheckedChange = { enabled ->
                     if (!enabled) {
