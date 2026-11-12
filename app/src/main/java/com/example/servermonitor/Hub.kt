@@ -213,10 +213,21 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
          onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit, onIntegrations: () -> Unit) {
     val context = LocalContext.current
     val status = remember { mutableStateMapOf<String, Int>() }
-    var selectedGroup by remember { mutableStateOf("All groups") }
+    val groupPreferences = remember(context) {
+        context.getSharedPreferences("fleet_preferences", android.content.Context.MODE_PRIVATE)
+    }
+    var selectedGroup by remember(groupPreferences) {
+        mutableStateOf(groupPreferences.getString("selected_group", "All groups") ?: "All groups")
+    }
     var groupMenuExpanded by remember { mutableStateOf(false) }
     fun keyOf(i: Int, sv: Server) = "$i|${sv.url}"
     val groups = servers.map { it.group.trim().ifEmpty { "Ungrouped" } }.distinct().sorted()
+    LaunchedEffect(selectedGroup) {
+        groupPreferences.edit().putString("selected_group", selectedGroup).apply()
+    }
+    LaunchedEffect(groups) {
+        if (selectedGroup != "All groups" && selectedGroup !in groups) selectedGroup = "All groups"
+    }
     val visibleServers = servers.mapIndexed { index, server -> index to server }
         .filter { (_, server) -> selectedGroup == "All groups" || server.group.trim().ifEmpty { "Ungrouped" } == selectedGroup }
     val codes = servers.mapIndexed { i, sv -> status[keyOf(i, sv)] ?: 0 }
