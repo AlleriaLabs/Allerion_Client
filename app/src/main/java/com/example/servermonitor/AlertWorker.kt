@@ -126,11 +126,14 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
                     val identity = diskAlertIdentity(disk.optString("id"), disk.optString("device"), mount)
                     val diskKey = prefix + "_disk_" + identity.hashCode()
                     presentDiskKeys.add(diskKey)
+                    presentDiskKeys.add(diskKey + "_sensor")
                     val pct = disk.optDouble("pct", Double.NaN)
                     if (rules.disk) {
-                        if (!pct.isNaN()) updateAlert(diskKey, pct >= thresholds.disk, server.name,
-                            "$mount is ${pct.roundToInt()}% full (threshold ${thresholds.disk.roundToInt()}%).")
-                        else updateAlert(diskKey + "_sensor", true, server.name,
+                        if (!pct.isNaN()) {
+                            updateAlert(diskKey + "_sensor", false, server.name, "Disk usage data is available for $mount.")
+                            updateAlert(diskKey, pct >= thresholds.disk, server.name,
+                                "$mount is ${pct.roundToInt()}% full (threshold ${thresholds.disk.roundToInt()}%).")
+                        } else updateAlert(diskKey + "_sensor", true, server.name,
                             "Disk usage data is unavailable for $mount.", "warning")
                     } else {
                         clearAlertSilently(diskKey)
