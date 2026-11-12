@@ -198,7 +198,7 @@ fun IconBtn(ic: Ic, desc: String, rotate: Float = 0f, plain: Boolean = false, on
 
 @Composable
 fun BottomBar(tab: Int, onTab: (Int) -> Unit) {
-    val items = listOf(Ic.Dash to "Overview", Ic.Globe to "Network", Ic.Zap to "Power", Ic.Server to "System", Ic.Gear to "Settings", Ic.Activity to "Activity")
+    val items = listOf(Ic.Dash to "Overview", Ic.Globe to "Network", Ic.Zap to "Power", Ic.Server to "System", Ic.Plus to "More")
     Column(Modifier.fillMaxWidth().background(Bg)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.8f)))
         Row(Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
