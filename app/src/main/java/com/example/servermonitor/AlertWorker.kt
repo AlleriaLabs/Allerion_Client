@@ -58,55 +58,172 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
         if (servers.isEmpty()) return@withContext Result.success()
         createChannel()
         val thresholds = AlertPreferences.load(applicationContext)
+        val rules = AlertRulePreferences.load(applicationContext)
         servers.forEach { server ->
             val prefix = (server.url + "|" + server.name).hashCode().toString()
             try {
                 val stats = fetch(server.url, server.token)
-                updateAlert(prefix + "_offline", false, server.name, "Server connection restored.", "critical")
-                updateAlert(prefix + "_api_error", false, server.name, "Monitoring API recovered.")
+                if (rules.serverAvailability) {
+                    updateAlert(prefix + "_offline", false, server.name, "Server connection restored.", "critical")
+                    updateAlert(prefix + "_api_error", false, server.name, "Monitoring API recovered.")
+                } else {
+                    clearAlertSilently(prefix + "_offline")
+                    clearAlertSilently(prefix + "_api_error")
+                }
                 val cpu = stats.optDouble("cpu", Double.NaN)
                 val ram = stats.optDouble("ram", Double.NaN)
                 val temp = stats.optDouble("temp", Double.NaN)
-                updateAlert(prefix + "_temp_sensor", temp.isNaN(), server.name,
-                    "Temperature sensor data is unavailable. Temperature threshold alerts cannot run until the backend reports a sensor reading.",
-                    "warning")
-                if (!cpu.isNaN()) updateAlert(prefix + "_cpu", cpu >= thresholds.cpu, server.name,
+                if (rules.temperature) {
+                    updateAlert(prefix + "_temp_sensor", temp.isNaN(), server.name,
+                        "Temperature sensor data is unavailable. Temperature threshold alerts cannot run until the backend reports a sensor reading.",
+                        "warning")
+                    if (!temp.isNaN()) updateAlert(prefix + "_temp", temp >= thresholds.temperature, server.name,
+                        "Temperature is ${temp.roundToInt()} °C (threshold ${thresholds.temperature.roundToInt()} °C).")
+                } else {
+                    clearAlertSilently(prefix + "_temp_sensor")
+                    clearAlertSilently(prefix + "_temp")
+                }
+                if (rules.cpu && !cpu.isNaN()) updateAlert(prefix + "_cpu", cpu >= thresholds.cpu, server.name,
                     "CPU usage is ${cpu.roundToInt()}% (threshold ${thresholds.cpu.roundToInt()}%).")
-                if (!ram.isNaN()) updateAlert(prefix + "_ram", ram >= thresholds.memory, server.name,
+                else if (!rules.cpu) clearAlertSilently(prefix + "_cpu")
+                if (rules.memory && !ram.isNaN()) updateAlert(prefix + "_ram", ram >= thresholds.memory, server.name,
                     "Memory usage is ${ram.roundToInt()}% (threshold ${thresholds.memory.roundToInt()}%).")
-                if (!temp.isNaN()) updateAlert(prefix + "_temp", temp >= thresholds.temperature, server.name,
-                    "Temperature is ${temp.roundToInt()} °C (threshold ${thresholds.temperature.roundToInt()} °C).")
+                else if (!rules.memory) clearAlertSilently(prefix + "_ram")
                 val disks = stats.optJSONArray("disks") ?: JSONArray()
                 for (index in 0 until disks.length()) {
                     val disk = disks.optJSONObject(index) ?: JSONObject()
                     val mount = disk.optString("mount", "Disk " + (index + 1))
+                    val identity = diskAlertIdentity(disk.optString("id"), disk.optString("device"), mount)
+                    val diskKey = prefix + "_disk_" + identity.hashCode()
                     val pct = disk.optDouble("pct", Double.NaN)
-                    if (!pct.isNaN()) updateAlert(prefix + "_disk_" + index, pct >= thresholds.disk, server.name,
+                    if (rules.disk && !pct.isNaN()) updateAlert(diskKey, pct >= thresholds.disk, server.name,
                         "$mount is ${pct.roundToInt()}% full (threshold ${thresholds.disk.roundToInt()}%).")
+                    else if (!rules.disk) clearAlertSilently(diskKey)
                 }
+
+                // Optional inventories are isolated: a disabled or unavailable Docker/LAN
+                // feature must never turn a healthy server into an offline alert.
+                if (rules.containers) checkContainers(server, prefix)
+                else clearActiveAlertsWithPrefix(prefix + "_container_")
+                if (rules.newDevices) checkNewDevices(server, prefix)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
                 // Scheduled background DNS failures can be transient and do not prove
                 // that a server is offline. Avoid raising a false critical alert.
                 if (error.hasUnknownHostCause()) {
-                    clearUnverifiedOfflineAlert(prefix + "_offline")
+                    if (rules.serverAvailability) clearUnverifiedOfflineAlert(prefix + "_offline")
+                    else {
+                        clearAlertSilently(prefix + "_offline")
+                        clearAlertSilently(prefix + "_api_error")
+                    }
                 } else {
                     val apiFailure = monitoringApiFailureMessage(error)
-                    if (apiFailure != null) {
-                        updateAlert(prefix + "_offline", false, server.name, "Monitoring server is reachable.")
-                        updateAlert(prefix + "_api_error", true, server.name, apiFailure, "warning")
+                    if (rules.serverAvailability) {
+                        if (apiFailure != null) {
+                            updateAlert(prefix + "_offline", false, server.name, "Monitoring server is reachable.")
+                            updateAlert(prefix + "_api_error", true, server.name, apiFailure, "warning")
+                        } else {
+                            updateAlert(prefix + "_api_error", false, server.name, "Monitoring API recovered.")
+                            val detail = error.message?.takeIf { it.isNotBlank() }
+                            updateAlert(prefix + "_offline", true, server.name,
+                                "Monitoring server is unreachable from the background check" +
+                                    (detail?.let { ": $it" } ?: "."), "critical")
+                        }
                     } else {
-                        updateAlert(prefix + "_api_error", false, server.name, "Monitoring API recovered.")
-                        val detail = error.message?.takeIf { it.isNotBlank() }
-                        updateAlert(prefix + "_offline", true, server.name,
-                            "Monitoring server is unreachable from the background check" +
-                                (detail?.let { ": $it" } ?: "."), "critical")
+                        clearAlertSilently(prefix + "_offline")
+                        clearAlertSilently(prefix + "_api_error")
                     }
                 }
             }
         }
         Result.success()
+    }
+
+    private fun clearAlertSilently(key: String) {
+        ActiveAlertStore.set(applicationContext, key, null)
+        applicationContext.getSharedPreferences("alert_state", Context.MODE_PRIVATE)
+            .edit().putBoolean(key, false).apply()
+    }
+
+    private fun clearActiveAlertsWithPrefix(prefix: String) {
+        ActiveAlertStore.load(applicationContext).filter { it.key.startsWith(prefix) }
+            .forEach { clearAlertSilently(it.key) }
+    }
+
+    private fun checkContainers(server: Server, prefix: String) {
+        val inventory = try {
+            ApiClient.getJson(server.url, server.token, "/api/containers", connectTimeoutMs = 3_000, readTimeoutMs = 5_000)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return // Docker may be unavailable or disabled; do not infer container failures.
+        }
+        val items = inventory.optJSONArray("items") ?: return
+        val presentKeys = HashSet<String>()
+        for (index in 0 until items.length()) {
+            val item = items.optJSONObject(index) ?: continue
+            val id = item.optString("id").ifBlank { item.optString("name") }
+            if (id.isBlank()) continue
+            val name = item.optString("name").ifBlank { id }
+            val state = item.optString("state", "unknown").lowercase()
+            val status = item.optString("status").ifBlank { state }
+            val exitCode = Regex("Exited \\((\\d+)\\)").find(status)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            val failed = state == "dead" || state == "restarting" || (state == "exited" && exitCode != null && exitCode != 0)
+            val key = prefix + "_container_" + id.hashCode()
+            presentKeys.add(key)
+            updateAlert(key, failed, server.name,
+                if (failed) "Container $name failed: $status." else "Container $name is running normally.",
+                if (state == "dead" || (exitCode != null && exitCode != 0)) "critical" else "warning")
+        }
+        // A removed container is no longer a failure condition for this host.
+        ActiveAlertStore.load(applicationContext).filter {
+            it.key.startsWith(prefix + "_container_") && it.key !in presentKeys
+        }.forEach { clearAlertSilently(it.key) }
+    }
+
+    private fun checkNewDevices(server: Server, prefix: String) {
+        val inventory = try {
+            ApiClient.getJson(server.url, server.token, "/api/network/devices", connectTimeoutMs = 3_000, readTimeoutMs = 5_000)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return // LAN discovery is optional and may be disabled on the backend.
+        }
+        val items = inventory.optJSONArray("items") ?: return
+        val current = LinkedHashMap<String, String>()
+        for (index in 0 until items.length()) {
+            val item = items.optJSONObject(index) ?: continue
+            val ip = item.optString("ip")
+            val mac = item.optString("mac").lowercase()
+            val identity = lanDeviceIdentity(mac, ip)
+            if (identity.isNotBlank()) current[identity] = buildString {
+                append(ip.ifBlank { "Unknown IP" })
+                if (mac.isNotBlank()) append(" · ").append(mac)
+            }
+        }
+        val prefs = applicationContext.getSharedPreferences("alert_device_baseline", Context.MODE_PRIVATE)
+        val storageKey = prefix
+        val baseline = try {
+            org.json.JSONArray(prefs.getString(storageKey, "[]") ?: "[]")
+                .let { array -> (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }.toSet() }
+        } catch (_: Exception) { emptySet() }
+
+        // First successful snapshot establishes a baseline; it is not a new-device event.
+        if (!prefs.contains(storageKey)) {
+            prefs.edit().putString(storageKey, org.json.JSONArray(current.keys.toList()).toString()).apply()
+            return
+        }
+        val newlySeen = current.keys.filterNot { it in baseline }
+        for (identity in newlySeen) {
+            val detail = current[identity] ?: continue
+            val message = "New LAN device detected: $detail"
+            val now = System.currentTimeMillis()
+            val eventKey = prefix + "_new_device_" + identity.hashCode()
+            AlertHistoryStore.append(applicationContext, AlertEvent(now, server.name, "warning", message, false))
+            postNotification(eventKey, server.name, message, false)
+        }
+        prefs.edit().putString(storageKey, org.json.JSONArray((baseline + current.keys).toList()).toString()).apply()
     }
 
     private fun Exception.hasUnknownHostCause(): Boolean {
