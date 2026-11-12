@@ -203,7 +203,12 @@ fun AddFab(onClick: () -> Unit, modifier: Modifier) {
 fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit,
          onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit) {
     val status = remember { mutableStateMapOf<String, Int>() }
+    var selectedGroup by remember { mutableStateOf("All groups") }
+    var groupMenuExpanded by remember { mutableStateOf(false) }
     fun keyOf(i: Int, sv: Server) = "$i|${sv.url}"
+    val groups = servers.map { it.group.trim().ifEmpty { "Ungrouped" } }.distinct().sorted()
+    val visibleServers = servers.mapIndexed { index, server -> index to server }
+        .filter { (_, server) -> selectedGroup == "All groups" || server.group.trim().ifEmpty { "Ungrouped" } == selectedGroup }
     val codes = servers.mapIndexed { i, sv -> status[keyOf(i, sv)] ?: 0 }
     val online = codes.count { it == 1 }; val offline = codes.count { it == 2 }
     val availability = if (online + offline == 0) "–" else "${(online * 100f / (online + offline)).roundToInt()}%"
@@ -236,21 +241,50 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                         SummaryStat("Offline", "$offline", if (offline > 0) Err else Txt, Modifier.weight(1f))
                         SummaryStat("Availability", availability, Txt, Modifier.weight(1.25f))
                     }
-                    if (wideLayout) {
-                        servers.chunked(2).forEachIndexed { rowIndex, pair ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Fleet view", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                            Text("${visibleServers.size} of ${servers.size} servers", color = Dim, fontSize = AppType.caption)
+                        }
+                        Box {
+                            OutlinedButton(onClick = { groupMenuExpanded = true }, shape = RoundedCornerShape(12.dp)) {
+                                Text(selectedGroup, color = Txt, fontSize = AppType.small)
+                                Spacer(Modifier.width(6.dp))
+                                Icon24(Ic.ChevronD, Mut, 16.dp)
+                            }
+                            DropdownMenu(expanded = groupMenuExpanded, onDismissRequest = { groupMenuExpanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("All groups") },
+                                    onClick = { selectedGroup = "All groups"; groupMenuExpanded = false }
+                                )
+                                groups.forEach { group ->
+                                    DropdownMenuItem(
+                                        text = { Text(group) },
+                                        onClick = { selectedGroup = group; groupMenuExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (visibleServers.isEmpty()) {
+                        Panel {
+                            Text("No servers in this group", color = Mut, fontSize = AppType.body)
+                        }
+                    } else if (wideLayout) {
+                        visibleServers.chunked(2).forEachIndexed { rowIndex, pair ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                pair.forEachIndexed { columnIndex, sv ->
-                                    val i = rowIndex * 2 + columnIndex
+                                pair.forEachIndexed { columnIndex, entry ->
+                                    val (i, sv) = entry
                                     key(keyOf(i, sv)) {
                                         ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
-                                            { status[keyOf(i, sv)] = it }, Modifier.weight(1f).staggerIn(i + 2))
+                                            { status[keyOf(i, sv)] = it }, Modifier.weight(1f).staggerIn(rowIndex * 2 + columnIndex + 2))
                                     }
                                 }
                                 if (pair.size == 1) Spacer(Modifier.weight(1f))
                             }
                         }
                     } else {
-                        servers.forEachIndexed { i, sv ->
+                        visibleServers.forEach { (i, sv) ->
                             key(keyOf(i, sv)) {
                                 ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
                                     { status[keyOf(i, sv)] = it }, Modifier.staggerIn(i + 2))
