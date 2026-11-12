@@ -1,0 +1,168 @@
+package com.example.servermonitor
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+private fun eventTime(timestamp: Long): String =
+    SimpleDateFormat("MMM d · HH:mm", Locale.getDefault()).format(Date(timestamp))
+
+@Composable
+fun ActivityCenterScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    var revision by remember { mutableIntStateOf(0) }
+    var filter by remember { mutableStateOf("All") }
+    var confirmClear by remember { mutableStateOf(false) }
+    val events = remember(revision) { AlertHistoryStore.load(context, 200) }
+    val active = remember(revision) { ActiveAlertStore.load(context) }
+    val visible = when (filter) {
+        "Alerts" -> events.filter { !it.recovered }
+        "Recovery" -> events.filter { it.recovered }
+        else -> events
+    }
+
+    Column(
+        Modifier.fillMaxSize().background(Bg).systemBarsPadding()
+            .verticalScroll(rememberScrollState()).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBtn(Ic.ChevronL, "Back to dashboard", onClick = onBack)
+            Column(Modifier.weight(1f)) {
+                Text("ACTIVITY CENTER", color = Red, fontSize = AppType.micro,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                Text("Events & alerts", color = Txt, fontSize = AppType.section, fontWeight = FontWeight.Bold)
+            }
+            TextButton(onClick = { confirmClear = true }, enabled = events.isNotEmpty()) {
+                Text("Clear", color = if (events.isNotEmpty()) Mut else Dim)
+            }
+        }
+
+        Panel {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Label("Active conditions")
+                    Text("${active.size} active", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
+                }
+                Box(Modifier.size(9.dp).clip(CircleShape).background(if (active.isEmpty()) Green else Amber))
+            }
+            if (active.isEmpty()) {
+                Text("No active alerts. Your registered servers are currently clear of recorded alert conditions.",
+                    color = Mut, fontSize = AppType.small)
+            } else active.forEach { alert ->
+                Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(7.dp).clip(CircleShape).background(if (alert.severity == "critical") Err else Amber))
+                        Spacer(Modifier.width(8.dp))
+                        Text(alert.server, color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f))
+                        Text(eventTime(alert.timestamp), color = Dim, fontSize = AppType.micro)
+                    }
+                    Text(alert.message, color = Mut, fontSize = AppType.small, modifier = Modifier.padding(start = 15.dp, top = 3.dp))
+                }
+            }
+        }
+
+        Panel {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                listOf("All", "Alerts", "Recovery").forEach { item ->
+                    Chip(item, filter == item) { filter = item }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Label("Event history · newest first")
+            if (visible.isEmpty()) {
+                Text(if (events.isEmpty()) "No events recorded yet. Enable Smart health alerts in Settings to record server warnings and recoveries."
+                    else "No events match this filter.", color = Mut, fontSize = AppType.small,
+                    modifier = Modifier.padding(vertical = 12.dp))
+            } else visible.forEachIndexed { index, event ->
+                if (index > 0) Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.Top) {
+                    Box(Modifier.padding(top = 5.dp).size(8.dp).clip(CircleShape).background(
+                        when {
+                            event.recovered -> Green
+                            event.severity == "critical" -> Err
+                            else -> Amber
+                        }
+                    ))
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(event.server, color = Txt, fontSize = AppType.bodyStrong,
+                                fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Text(eventTime(event.timestamp), color = Dim, fontSize = AppType.micro)
+                        }
+                        Text(event.message, color = Mut, fontSize = AppType.small)
+                        Text(if (event.recovered) "RECOVERED" else event.severity.uppercase(),
+                            color = if (event.recovered) Green else if (event.severity == "critical") Err else Amber,
+                            fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+
+    if (confirmClear) AlertDialog(
+        onDismissRequest = { confirmClear = false },
+        title = { Text("Clear activity history?", color = Txt) },
+        text = { Text("This removes recorded alert and recovery events from this device. Active alerts are not changed.", color = Mut) },
+        confirmButton = {
+            TextButton(onClick = {
+                AlertHistoryStore.clear(context)
+                revision++
+                confirmClear = false
+            }) { Text("Clear history", color = Err) }
+        },
+        dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel", color = Mut) } },
+        containerColor = Surf
+    )
+}
+
+@Composable
+fun DashboardPreferencesPanel() {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("cfg", android.content.Context.MODE_PRIVATE) }
+    var showCpu by remember { mutableStateOf(prefs.getBoolean("dashboard_show_cpu", true)) }
+    var showMemory by remember { mutableStateOf(prefs.getBoolean("dashboard_show_memory", true)) }
+    var showTemperature by remember { mutableStateOf(prefs.getBoolean("dashboard_show_temperature", true)) }
+    var showStorage by remember { mutableStateOf(prefs.getBoolean("dashboard_show_storage", true)) }
+    var showGpu by remember { mutableStateOf(prefs.getBoolean("dashboard_show_gpu", true)) }
+
+    fun save(key: String, value: Boolean) { prefs.edit().putBoolean(key, value).apply() }
+    Panel {
+        Label("Dashboard customization")
+        Text("Choose which resource widgets appear on the Overview screen. Changes are saved on this device.",
+            color = Mut, fontSize = AppType.small)
+        Spacer(Modifier.height(8.dp))
+        PreferenceSwitch("CPU", showCpu) { showCpu = it; save("dashboard_show_cpu", it) }
+        PreferenceSwitch("Memory", showMemory) { showMemory = it; save("dashboard_show_memory", it) }
+        PreferenceSwitch("Temperature", showTemperature) { showTemperature = it; save("dashboard_show_temperature", it) }
+        PreferenceSwitch("Storage", showStorage) { showStorage = it; save("dashboard_show_storage", it) }
+        PreferenceSwitch("GPU", showGpu) { showGpu = it; save("dashboard_show_gpu", it) }
+    }
+}
+
+@Composable
+private fun PreferenceSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = Txt, fontSize = AppType.body, modifier = Modifier.weight(1f))
+        androidx.compose.material3.Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
