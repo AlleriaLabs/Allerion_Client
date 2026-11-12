@@ -14,6 +14,7 @@ import java.util.Locale
 
 data class AlertCheckStatus(val timestamp: Long, val status: String, val detail: String)
 
+/** Local observability for scheduled checks and a user-triggered notification smoke test. */
 object AlertDiagnostics {
     private const val PREFS = "alert_diagnostics"
 
