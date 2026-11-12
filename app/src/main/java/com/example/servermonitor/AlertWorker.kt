@@ -141,9 +141,7 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
                     }
                 }
                 ActiveAlertStore.load(applicationContext).filter {
-                    it.key.startsWith(prefix + "_disk_") &&
-                        !it.key.endsWith("_sensor") &&
-                        it.key !in presentDiskKeys
+                    it.key.startsWith(prefix + "_disk_") && it.key !in presentDiskKeys
                 }.forEach { clearAlertSilently(it.key) }
                 // Optional inventories are isolated: a disabled or unavailable Docker/LAN
                 // feature must never turn a healthy server into an offline alert.
