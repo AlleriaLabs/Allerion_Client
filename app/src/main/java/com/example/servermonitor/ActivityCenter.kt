@@ -39,27 +39,15 @@ fun ActivityCenterScreen(onBack: () -> Unit) {
         else -> events
     }
 
-    Column(
-        Modifier.fillMaxSize().background(Bg).systemBarsPadding().padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconBtn(Ic.ChevronL, "Back to dashboard", plain = true, onClick = onBack)
-            Column(Modifier.weight(1f)) {
-                Text("ACTIVITY CENTER", color = Red, fontSize = AppType.micro,
-                    fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
-                Text("Events & alerts", color = Txt, fontSize = AppType.section, fontWeight = FontWeight.Bold)
-            }
-            TextButton(onClick = { confirmClear = true }, enabled = events.isNotEmpty()) {
-                Text("Clear", color = if (events.isNotEmpty()) Mut else Dim)
-            }
-        }
-
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Panel {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Label("Active conditions")
                     Text("${active.size} active", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = { confirmClear = true }, enabled = events.isNotEmpty()) {
+                    Text("Clear history", color = if (events.isNotEmpty()) Mut else Dim)
                 }
                 Box(Modifier.size(9.dp).clip(CircleShape).background(if (active.isEmpty()) Green else Amber))
             }
@@ -204,15 +192,7 @@ fun CrashDiagnosticsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var revision by remember { mutableIntStateOf(0) }
     val report = remember(revision) { CrashReportStore.load(context) }
-    Column(Modifier.fillMaxSize().background(Bg).padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
-            Column(Modifier.weight(1f)) {
-                Text("DIAGNOSTICS", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
-                Text("Crash reports", color = Txt, fontSize = AppType.section, fontWeight = FontWeight.Bold)
-            }
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Panel {
             Label("Automatic crash capture")
             Text("Uncaught app crashes are saved locally on this device before Android closes Allerion. No server credentials or tokens are included.",
