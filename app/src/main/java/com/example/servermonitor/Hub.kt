@@ -155,7 +155,7 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
     val r by rememberStats(sv, if (expanded) 3_000L else 10_000L)       // collapsed cards only need status, so they poll slowly
     val j = r.json
     val code = when { j != null && r.error == null -> 1; r.error != null -> 2; else -> 0 }
-    LaunchedEffect(statusKey, code) { onStatus(code) }
+    LaunchedEffect(statusKey, code, j) { onStatus(code) }
     val rot by animateFloatAsState(if (expanded) 180f else 0f, tween(260, easing = FastOutSlowInEasing), label = "chevron")
     var confirm by remember { mutableStateOf(false) }
     Panel(modifier) {
