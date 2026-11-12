@@ -38,8 +38,9 @@ fun IntegrationCenterScreen(servers: List<Server>, onBack: () -> Unit) {
                         val integrations = ApiClient.getJson(server.url, server.token, "/api/integrations",
                             connectTimeoutMs = 2500, readTimeoutMs = 5000)
                         val items = integrations.optJSONArray("items")
-                        var webhook = caps.optBoolean("webhooks")
-                        var telegram = caps.optBoolean("telegram")
+                        val features = caps.optJSONObject("features")
+                        var webhook = features?.optBoolean("webhooks") ?: false
+                        var telegram = features?.optBoolean("telegram") ?: false
                         if (items != null) for (i in 0 until items.length()) {
                             val item = items.optJSONObject(i) ?: continue
                             val name = item.optString("name").lowercase()
