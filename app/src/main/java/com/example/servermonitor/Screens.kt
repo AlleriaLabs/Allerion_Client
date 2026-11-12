@@ -428,7 +428,6 @@ fun SettingsScreen(sv: Server, onEdit: () -> Unit) {
     DashboardPreferencesPanel()
     ReportExportPanel(sv)
     RefreshPanel()
-    AboutPanel()
 }
 
 @Composable
@@ -443,6 +442,7 @@ private fun DashboardSectionHeader(tab: Int, server: String, morePage: String) {
             "settings" -> Triple("PREFERENCES", "Settings", "Manage your Allerion experience")
             "connection" -> Triple("SERVER CONFIGURATION", "Connection", "Manage this server's connection details")
             "diagnostics" -> Triple("APP DIAGNOSTICS", "Crash reports", "Inspect and share locally captured crash details")
+            "appinfo" -> Triple("ALLERIA LABS", "App info", "About Allerion and its software environment")
             else -> Triple("WORKSPACE", "More", "Tools and configuration")
         }
     }
@@ -492,6 +492,7 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                             "activity" -> ActivityCenterScreen(onBack = { morePage = "menu" })
                             "settings" -> SettingsScreen(sv, onEdit)
                             "diagnostics" -> CrashDiagnosticsScreen(onBack = { morePage = "menu" })
+                            "appinfo" -> AppInfoScreen()
                             "connection" -> {
                                 Panel {
                                     Label("Server connection")
@@ -503,7 +504,8 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                                 onActivity = { morePage = "activity" },
                                 onSettings = { morePage = "settings" },
                                 onConnection = { morePage = "connection" },
-                                onDiagnostics = { morePage = "diagnostics" }
+                                onDiagnostics = { morePage = "diagnostics" },
+                                onAppInfo = { morePage = "appinfo" }
                             )
                         }
                     }

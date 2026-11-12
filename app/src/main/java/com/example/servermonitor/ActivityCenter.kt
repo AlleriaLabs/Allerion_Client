@@ -157,11 +157,12 @@ private fun PreferenceSwitch(label: String, checked: Boolean, onChange: (Boolean
 
 
 @Composable
-fun MoreScreen(onActivity: () -> Unit, onSettings: () -> Unit, onConnection: () -> Unit, onDiagnostics: () -> Unit) {
+fun MoreScreen(onActivity: () -> Unit, onSettings: () -> Unit, onConnection: () -> Unit, onDiagnostics: () -> Unit, onAppInfo: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Label("TOOLS")
         MoreActionRow(Ic.Activity, "Activity center", "Review active alerts, recoveries and recent events", onActivity)
         MoreActionRow(Ic.Chart, "Crash diagnostics", "View and share the latest app crash report", onDiagnostics)
+        MoreActionRow(Ic.Globe, "App info", "Version, device details and acknowledgements", onAppInfo)
         MoreActionRow(Ic.Gear, "Settings", "Dashboard preferences, reports and refresh behavior", onSettings)
         Spacer(Modifier.height(4.dp))
         Label("SERVER")

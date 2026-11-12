@@ -479,7 +479,6 @@ fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
             Text("Keep the backup password safe. It cannot be recovered if lost. Exported backup files contain encrypted credentials.", color = Dim, fontSize = AppType.caption)
             message?.let { Spacer(Modifier.height(8.dp)); Text(it, color = if (it.startsWith("Encrypted")) Green else Amber, fontSize = AppType.small) }
         }
-        AboutPanel()
     }
 
     if (backupAction != null) {
