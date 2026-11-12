@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -28,8 +29,9 @@ fun IntegrationCenterScreen(servers: List<Server>, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val states by produceState(initialValue = emptyList<FleetIntegrationState>(), servers) {
         while (true) {
-            value = servers.map { server ->
-                withContext(Dispatchers.IO) {
+            val refreshed = mutableListOf<FleetIntegrationState>()
+            for (server in servers) {
+                val state = withContext(Dispatchers.IO) {
                     try {
                         val caps = ApiClient.getJson(server.url, server.token, "/api/capabilities",
                             connectTimeoutMs = 2500, readTimeoutMs = 5000)
@@ -51,7 +53,9 @@ fun IntegrationCenterScreen(servers: List<Server>, onBack: () -> Unit) {
                         FleetIntegrationState(server, detail = friendlyError(error))
                     }
                 }
+                refreshed.add(state)
             }
+            value = refreshed
             delay(60_000L)
         }
     }
