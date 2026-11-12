@@ -53,12 +53,23 @@ object AlertScheduler {
 class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val config = applicationContext.getSharedPreferences("cfg", Context.MODE_PRIVATE)
-        if (!config.getBoolean("alerts_enabled", false)) return@withContext Result.success()
-        val servers = try { SecureServerStore.load(config) } catch (_: Exception) { return@withContext Result.retry() }
-        if (servers.isEmpty()) return@withContext Result.success()
+        AlertDiagnostics.record(applicationContext, "Running", "Background check started")
+        if (!config.getBoolean("alerts_enabled", false)) {
+            AlertDiagnostics.record(applicationContext, "Paused", "Smart Health Alerts are disabled")
+            return@withContext Result.success()
+        }
+        val servers = try { SecureServerStore.load(config) } catch (error: Exception) {
+            AlertDiagnostics.record(applicationContext, "Failed", "Could not read encrypted server list: ${error.message ?: error.javaClass.simpleName}")
+            return@withContext Result.retry()
+        }
+        if (servers.isEmpty()) {
+            AlertDiagnostics.record(applicationContext, "No servers", "Add a server to begin background monitoring")
+            return@withContext Result.success()
+        }
         createChannel()
         val thresholds = AlertPreferences.load(applicationContext)
         val rules = AlertRulePreferences.load(applicationContext)
+        var failedChecks = 0
         servers.forEach { server ->
             val prefix = (server.url + "|" + server.name).hashCode().toString()
             try {
@@ -109,6 +120,7 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
+                failedChecks++
                 // Scheduled background DNS failures can be transient and do not prove
                 // that a server is offline. Avoid raising a false critical alert.
                 if (error.hasUnknownHostCause()) {
@@ -137,6 +149,8 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
                 }
             }
         }
+        val summary = if (failedChecks == 0) "Checked ${servers.size} server(s); all checks completed" else "Checked ${servers.size} server(s); $failedChecks check(s) had errors"
+        AlertDiagnostics.record(applicationContext, if (failedChecks == 0) "Success" else "Partial", summary)
         Result.success()
     }
 
