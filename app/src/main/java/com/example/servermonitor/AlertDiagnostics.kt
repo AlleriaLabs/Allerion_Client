@@ -46,6 +46,11 @@ object AlertDiagnostics {
                 "allerion_health_alerts", "Server health alerts", NotificationManager.IMPORTANCE_HIGH
             ).apply { description = "Important health and availability alerts from ALLERION." })
         }
+        if (!manager.areNotificationsEnabled()) return "Notifications are disabled for ALLERION in Android settings."
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            manager.getNotificationChannel("allerion_health_alerts")?.importance == NotificationManager.IMPORTANCE_NONE) {
+            return "The Server health alerts channel is blocked. Enable it in Android notification settings."
+        }
         val notification = NotificationCompat.Builder(context, "allerion_health_alerts")
             .setSmallIcon(R.drawable.logo_mark)
             .setContentTitle("ALLERION · Test notification")
