@@ -45,7 +45,7 @@ fun ActivityCenterScreen(onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconBtn(Ic.ChevronL, "Back to dashboard", onClick = onBack)
+            IconBtn(Ic.ChevronL, "Back to dashboard", plain = true, onClick = onBack)
             Column(Modifier.weight(1f)) {
                 Text("ACTIVITY CENTER", color = Red, fontSize = AppType.micro,
                     fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
