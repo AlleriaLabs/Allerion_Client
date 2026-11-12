@@ -467,7 +467,9 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
     val d = detail
     if (d != null && j != null) { MetricDetail(sv, d, j) { detail = null }; return }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
-        AppHeader(sv, j, r.error, online, onBack, { refreshKey++ }, {
+        AppHeader(sv, j, r.error, online,
+            if (tab == 4 && (morePage == "activity" || morePage == "diagnostics")) ({ morePage = "menu" }) else onBack,
+            { refreshKey++ }, {
             tab = 4
             morePage = "activity"
         })
