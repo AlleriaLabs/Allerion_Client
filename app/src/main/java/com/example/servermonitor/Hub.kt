@@ -151,11 +151,11 @@ fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, o
 
 @Composable
 fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () -> Unit, onOpen: () -> Unit, onEdit: () -> Unit,
-               onDelete: () -> Unit, onStatus: (Int) -> Unit, modifier: Modifier = Modifier) {
+               onDelete: () -> Unit, onStatus: (Int) -> Unit, modifier: Modifier = Modifier, lastSeen: Long? = null) {
     val r by rememberStats(sv, if (expanded) 3_000L else 10_000L)       // collapsed cards only need status, so they poll slowly
     val j = r.json
     val code = when { j != null && r.error == null -> 1; r.error != null -> 2; else -> 0 }
-    LaunchedEffect(statusKey, code) { onStatus(code) }
+    LaunchedEffect(statusKey, code, j) { onStatus(code) }
     val rot by animateFloatAsState(if (expanded) 180f else 0f, tween(260, easing = FastOutSlowInEasing), label = "chevron")
     var confirm by remember { mutableStateOf(false) }
     Panel(modifier) {
@@ -166,6 +166,15 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
                 Text(sv.name, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sv.url.removePrefix("http://").removePrefix("https://"), fontSize = AppType.small, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sv.group.uppercase(), fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = Red, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(lastSeen?.let { FleetPresenceStore.formatAge(it) } ?: "Awaiting first successful check", fontSize = AppType.micro, color = if (FleetPresenceStore.isStale(lastSeen)) Amber else Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                j?.let { stats ->
+                    val metrics = listOfNotNull(
+                        stats.optDouble("cpu", Double.NaN).takeIf { value -> !value.isNaN() }?.let { value -> "CPU ${value.roundToInt()}%" },
+                        stats.optDouble("ram", Double.NaN).takeIf { value -> !value.isNaN() }?.let { value -> "RAM ${value.roundToInt()}%" },
+                        stats.optDouble("temp", Double.NaN).takeIf { value -> !value.isNaN() }?.let { value -> "${value.roundToInt()}°C" }
+                    )
+                    if (metrics.isNotEmpty()) Text(metrics.joinToString("  ·  "), fontSize = AppType.micro, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
             Spacer(Modifier.width(10.dp))
             StatusLabel(code)
@@ -201,9 +210,26 @@ fun AddFab(onClick: () -> Unit, modifier: Modifier) {
 
 @Composable
 fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit,
-         onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit) {
+         onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit, onIntegrations: () -> Unit) {
+    val context = LocalContext.current
     val status = remember { mutableStateMapOf<String, Int>() }
+    val groupPreferences = remember(context) {
+        context.getSharedPreferences("fleet_preferences", android.content.Context.MODE_PRIVATE)
+    }
+    var selectedGroup by remember(groupPreferences) {
+        mutableStateOf(groupPreferences.getString("selected_group", "All groups") ?: "All groups")
+    }
+    var groupMenuExpanded by remember { mutableStateOf(false) }
     fun keyOf(i: Int, sv: Server) = "$i|${sv.url}"
+    val groups = servers.map { it.group.trim().ifEmpty { "Ungrouped" } }.distinct().sorted()
+    LaunchedEffect(selectedGroup) {
+        groupPreferences.edit().putString("selected_group", selectedGroup).apply()
+    }
+    LaunchedEffect(groups) {
+        if (selectedGroup != "All groups" && selectedGroup !in groups) selectedGroup = "All groups"
+    }
+    val visibleServers = servers.mapIndexed { index, server -> index to server }
+        .filter { (_, server) -> selectedGroup == "All groups" || server.group.trim().ifEmpty { "Ungrouped" } == selectedGroup }
     val codes = servers.mapIndexed { i, sv -> status[keyOf(i, sv)] ?: 0 }
     val online = codes.count { it == 1 }; val offline = codes.count { it == 2 }
     val availability = if (online + offline == 0) "–" else "${(online * 100f / (online + offline)).roundToInt()}%"
@@ -236,24 +262,54 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                         SummaryStat("Offline", "$offline", if (offline > 0) Err else Txt, Modifier.weight(1f))
                         SummaryStat("Availability", availability, Txt, Modifier.weight(1.25f))
                     }
-                    if (wideLayout) {
-                        servers.chunked(2).forEachIndexed { rowIndex, pair ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onIntegrations) { Text("Integration Center  →", color = Red, fontSize = AppType.small, fontWeight = FontWeight.SemiBold) } }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Fleet view", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                            Text("${visibleServers.size} of ${servers.size} servers", color = Dim, fontSize = AppType.caption)
+                        }
+                        Box {
+                            OutlinedButton(onClick = { groupMenuExpanded = true }, shape = RoundedCornerShape(12.dp)) {
+                                Text(selectedGroup, color = Txt, fontSize = AppType.small)
+                                Spacer(Modifier.width(6.dp))
+                                Icon24(Ic.ChevronD, Mut, 16.dp)
+                            }
+                            DropdownMenu(expanded = groupMenuExpanded, onDismissRequest = { groupMenuExpanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("All groups") },
+                                    onClick = { selectedGroup = "All groups"; groupMenuExpanded = false }
+                                )
+                                groups.forEach { group ->
+                                    DropdownMenuItem(
+                                        text = { Text(group) },
+                                        onClick = { selectedGroup = group; groupMenuExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (visibleServers.isEmpty()) {
+                        Panel {
+                            Text("No servers in this group", color = Mut, fontSize = AppType.body)
+                        }
+                    } else if (wideLayout) {
+                        visibleServers.chunked(2).forEachIndexed { rowIndex, pair ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                pair.forEachIndexed { columnIndex, sv ->
-                                    val i = rowIndex * 2 + columnIndex
+                                pair.forEachIndexed { columnIndex, entry ->
+                                    val (i, sv) = entry
                                     key(keyOf(i, sv)) {
                                         ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
-                                            { status[keyOf(i, sv)] = it }, Modifier.weight(1f).staggerIn(i + 2))
+                                            { status[keyOf(i, sv)] = it; if (it == 1) FleetPresenceStore.recordSuccess(context, sv) }, Modifier.weight(1f).staggerIn(rowIndex * 2 + columnIndex + 2), FleetPresenceStore.lastSeen(context, sv))
                                     }
                                 }
                                 if (pair.size == 1) Spacer(Modifier.weight(1f))
                             }
                         }
                     } else {
-                        servers.forEachIndexed { i, sv ->
+                        visibleServers.forEach { (i, sv) ->
                             key(keyOf(i, sv)) {
                                 ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
-                                    { status[keyOf(i, sv)] = it }, Modifier.staggerIn(i + 2))
+                                    { status[keyOf(i, sv)] = it; if (it == 1) FleetPresenceStore.recordSuccess(context, sv) }, Modifier.staggerIn(i + 2), FleetPresenceStore.lastSeen(context, sv))
                             }
                         }
                     }
@@ -479,7 +535,6 @@ fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
             Text("Keep the backup password safe. It cannot be recovered if lost. Exported backup files contain encrypted credentials.", color = Dim, fontSize = AppType.caption)
             message?.let { Spacer(Modifier.height(8.dp)); Text(it, color = if (it.startsWith("Encrypted")) Green else Amber, fontSize = AppType.small) }
         }
-        AboutPanel()
     }
 
     if (backupAction != null) {
