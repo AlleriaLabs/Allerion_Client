@@ -165,7 +165,8 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
             Column(Modifier.weight(1f)) {
                 Text(sv.name, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sv.url.removePrefix("http://").removePrefix("https://"), fontSize = AppType.small, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(sv.group.uppercase(), fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = Red, maxLines = 1, overflow = TextOverflow.Ellipsis)\n                Text(lastSeen?.let { FleetPresenceStore.formatAge(it) } ?: "Awaiting first successful check", fontSize = AppType.micro, color = if (FleetPresenceStore.isStale(lastSeen)) Amber else Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sv.group.uppercase(), fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = Red, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(lastSeen?.let { FleetPresenceStore.formatAge(it) } ?: "Awaiting first successful check", fontSize = AppType.micro, color = if (FleetPresenceStore.isStale(lastSeen)) Amber else Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.width(10.dp))
             StatusLabel(code)
@@ -202,6 +203,7 @@ fun AddFab(onClick: () -> Unit, modifier: Modifier) {
 @Composable
 fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit,
          onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit, onIntegrations: () -> Unit) {
+    val context = LocalContext.current
     val status = remember { mutableStateMapOf<String, Int>() }
     var selectedGroup by remember { mutableStateOf("All groups") }
     var groupMenuExpanded by remember { mutableStateOf(false) }
@@ -241,7 +243,8 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                         SummaryStat("Offline", "$offline", if (offline > 0) Err else Txt, Modifier.weight(1f))
                         SummaryStat("Availability", availability, Txt, Modifier.weight(1.25f))
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onIntegrations) { Text("Integration Center  →", color = Red, fontSize = AppType.small, fontWeight = FontWeight.SemiBold) } }\n                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onIntegrations) { Text("Integration Center  →", color = Red, fontSize = AppType.small, fontWeight = FontWeight.SemiBold) } }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("Fleet view", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
                             Text("${visibleServers.size} of ${servers.size} servers", color = Dim, fontSize = AppType.caption)
