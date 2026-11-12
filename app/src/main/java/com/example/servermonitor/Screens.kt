@@ -467,21 +467,16 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
     val d = detail
     if (d != null && j != null) { MetricDetail(sv, d, j) { detail = null }; return }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
-        // Full-page tools provide their own back/title row; avoid stacking the server header above them.
-        if (!(tab == 4 && (morePage == "activity" || morePage == "diagnostics"))) {
-            AppHeader(sv, j, r.error, online, onBack, { refreshKey++ }, {
-                tab = 4
-                morePage = "activity"
-            })
-        }
+        AppHeader(sv, j, r.error, online, onBack, { refreshKey++ }, {
+            tab = 4
+            morePage = "activity"
+        })
         Box(Modifier.weight(1f)) {
             Crossfade("$tab:$morePage", animationSpec = tween(220), label = "tabs") { targetState ->
                 key(targetState) {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    if (!(tab == 4 && (morePage == "activity" || morePage == "diagnostics"))) {
-                        DashboardSectionHeader(tab, sv.name, morePage)
-                    }
+                    DashboardSectionHeader(tab, sv.name, morePage)
                     when (tab) {
                         0 -> if (j == null) Panel { Label("Connecting to server"); Text(r.error ?: "Establishing a secure monitoring connection…", color = Amber, fontSize = AppType.body) }
                              else OverviewScreen(sv, j, online) { detail = it }
@@ -492,9 +487,9 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                         3 -> if (j == null) Panel { Label("Connecting to server"); Text(r.error ?: "Establishing a secure monitoring connection…", color = Amber, fontSize = AppType.body) }
                              else SystemScreen(sv, j, online)
                         else -> when (morePage) {
-                            "activity" -> ActivityCenterScreen { morePage = "menu" }
+                            "activity" -> ActivityCenterScreen()
                             "settings" -> SettingsScreen(sv, onEdit)
-                            "diagnostics" -> CrashDiagnosticsScreen { morePage = "menu" }
+                            "diagnostics" -> CrashDiagnosticsScreen()
                             "connection" -> {
                                 Panel {
                                     Label("Server connection")
