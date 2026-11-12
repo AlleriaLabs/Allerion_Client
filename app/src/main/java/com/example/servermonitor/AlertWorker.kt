@@ -111,18 +111,23 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
                 // Scheduled background DNS failures can be transient and do not prove
                 // that a server is offline. Avoid raising a false critical alert.
                 if (error.hasUnknownHostCause()) {
-                    clearUnverifiedOfflineAlert(prefix + "_offline")
+                    if (rules.serverAvailability) clearUnverifiedOfflineAlert(prefix + "_offline")
                 } else {
                     val apiFailure = monitoringApiFailureMessage(error)
-                    if (apiFailure != null) {
-                        updateAlert(prefix + "_offline", false, server.name, "Monitoring server is reachable.")
-                        updateAlert(prefix + "_api_error", true, server.name, apiFailure, "warning")
+                    if (rules.serverAvailability) {
+                        if (apiFailure != null) {
+                            updateAlert(prefix + "_offline", false, server.name, "Monitoring server is reachable.")
+                            updateAlert(prefix + "_api_error", true, server.name, apiFailure, "warning")
+                        } else {
+                            updateAlert(prefix + "_api_error", false, server.name, "Monitoring API recovered.")
+                            val detail = error.message?.takeIf { it.isNotBlank() }
+                            updateAlert(prefix + "_offline", true, server.name,
+                                "Monitoring server is unreachable from the background check" +
+                                    (detail?.let { ": $it" } ?: "."), "critical")
+                        }
                     } else {
-                        updateAlert(prefix + "_api_error", false, server.name, "Monitoring API recovered.")
-                        val detail = error.message?.takeIf { it.isNotBlank() }
-                        updateAlert(prefix + "_offline", true, server.name,
-                            "Monitoring server is unreachable from the background check" +
-                                (detail?.let { ": $it" } ?: "."), "critical")
+                        clearAlertSilently(prefix + "_offline")
+                        clearAlertSilently(prefix + "_api_error")
                     }
                 }
             }
@@ -145,6 +150,7 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
             return // Docker may be unavailable or disabled; do not infer container failures.
         }
         val items = inventory.optJSONArray("items") ?: return
+        val presentKeys = HashSet<String>()
         for (index in 0 until items.length()) {
             val item = items.optJSONObject(index) ?: continue
             val id = item.optString("id").ifBlank { item.optString("name") }
@@ -153,9 +159,14 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
             val state = item.optString("state", "unknown").lowercase()
             val status = item.optString("status").ifBlank { state }
             val key = prefix + "_container_" + id.hashCode()
+            presentKeys.add(key)
             updateAlert(key, state != "running", server.name,
                 "Container $name is $status.", if (state == "dead" || state == "exited") "critical" else "warning")
         }
+        // A removed container is no longer a failure condition for this host.
+        ActiveAlertStore.load(applicationContext).filter {
+            it.key.startsWith(prefix + "_container_") && it.key !in presentKeys
+        }.forEach { clearAlertSilently(it.key) }
     }
 
     private fun checkNewDevices(server: Server, prefix: String) {
