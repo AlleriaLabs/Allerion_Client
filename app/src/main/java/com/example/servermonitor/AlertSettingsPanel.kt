@@ -140,6 +140,37 @@ fun AlertSettingsPanel() {
             }
         }
     }
+    var checkStatus by remember { mutableStateOf(AlertDiagnostics.load(context)) }
+    var notificationTestMessage by remember { mutableStateOf<String?>(null) }
+    Panel {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Label("Notification diagnostics")
+            TextButton(onClick = { checkStatus = AlertDiagnostics.load(context) }) {
+                Text("Refresh", color = Red)
+            }
+        }
+        Text("Last background check", color = Mut, fontSize = AppType.caption)
+        Text(AlertDiagnostics.formatTimestamp(checkStatus.timestamp), color = Txt, fontSize = AppType.bodyStrong)
+        Text(checkStatus.status.uppercase(Locale.getDefault()), color = when (checkStatus.status) {
+            "Success" -> Green
+            "Partial", "Running" -> Amber
+            "Failed" -> Err
+            else -> Mut
+        }, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold)
+        Text(checkStatus.detail, color = Mut, fontSize = AppType.small)
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = {
+                notificationTestMessage = AlertDiagnostics.requestTestNotification(context)
+                    ?: "Test notification sent. Check your notification shade."
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Surf2, contentColor = Txt)
+        ) { Text("Send test notification") }
+        notificationTestMessage?.let { Text(it, color = if (it.startsWith("Test")) Green else Amber, fontSize = AppType.small) }
+        Text("Background checks run approximately every 15 minutes when Android permits. Battery optimization and Do Not Disturb can delay or hide notifications.", color = Dim, fontSize = AppType.caption)
+    }
+
 }
 
 @Composable
