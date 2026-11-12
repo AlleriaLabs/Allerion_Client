@@ -93,7 +93,7 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
                 for (index in 0 until disks.length()) {
                     val disk = disks.optJSONObject(index) ?: JSONObject()
                     val mount = disk.optString("mount", "Disk " + (index + 1))
-                    val identity = disk.optString("id").ifBlank { disk.optString("device").ifBlank { mount } }
+                    val identity = diskAlertIdentity(disk.optString("id"), disk.optString("device"), mount)
                     val diskKey = prefix + "_disk_" + identity.hashCode()
                     val pct = disk.optDouble("pct", Double.NaN)
                     if (rules.disk && !pct.isNaN()) updateAlert(diskKey, pct >= thresholds.disk, server.name,
@@ -183,7 +183,7 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
             val item = items.optJSONObject(index) ?: continue
             val ip = item.optString("ip")
             val mac = item.optString("mac").lowercase()
-            val identity = mac.ifBlank { ip }
+            val identity = lanDeviceIdentity(mac, ip)
             if (identity.isNotBlank()) current[identity] = buildString {
                 append(ip.ifBlank { "Unknown IP" })
                 if (mac.isNotBlank()) append(" · ").append(mac)
