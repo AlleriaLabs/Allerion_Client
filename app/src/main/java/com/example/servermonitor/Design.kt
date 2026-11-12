@@ -201,19 +201,24 @@ fun BottomBar(tab: Int, onTab: (Int) -> Unit) {
     val items = listOf(Ic.Dash to "Overview", Ic.Globe to "Network", Ic.Zap to "Power", Ic.Server to "System", Ic.Gear to "Settings", Ic.Activity to "Activity")
     Column(Modifier.fillMaxWidth().background(Bg)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.8f)))
-        Row(Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
             items.forEachIndexed { i, (ic, label) ->
                 val selected = tab == i
                 val tint by animateColorAsState(if (selected) Red else Dim, tween(220), label = "nav-icon")
                 Column(Modifier.weight(1f).tap { onTab(i) }.padding(vertical = 1.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.width(56.dp).height(34.dp).clip(RoundedCornerShape(13.dp))
-                        .background(if (selected) Red.copy(alpha = 0.13f) else Color.Transparent),
+                    Box(Modifier.fillMaxWidth().height(30.dp).clip(RoundedCornerShape(10.dp))
+                        .background(if (selected) Red.copy(alpha = 0.12f) else Color.Transparent),
                         contentAlignment = Alignment.Center) {
-                        Icon24(ic, tint, 21.dp, desc = label)
+                        Icon24(ic, tint, 19.dp, desc = label)
                     }
-                    Spacer(Modifier.height(3.dp))
-                    Text(label, fontSize = AppType.caption, color = if (selected) Txt else Dim,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
+                    if (selected) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(label, fontSize = AppType.micro, color = Txt,
+                            fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    } else {
+                        Spacer(Modifier.height(2.dp))
+                        Box(Modifier.height(10.dp))
+                    }
                 }
             }
         }
