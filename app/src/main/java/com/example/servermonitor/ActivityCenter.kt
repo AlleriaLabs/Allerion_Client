@@ -2,10 +2,8 @@ package com.example.servermonitor
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,8 +40,7 @@ fun ActivityCenterScreen(onBack: () -> Unit) {
     }
 
     Column(
-        Modifier.fillMaxSize().background(Bg).systemBarsPadding()
-            .verticalScroll(rememberScrollState()).padding(18.dp),
+        Modifier.fillMaxSize().background(Bg).systemBarsPadding().padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -207,7 +204,7 @@ fun CrashDiagnosticsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var revision by remember { mutableIntStateOf(0) }
     val report = remember(revision) { CrashReportStore.load(context) }
-    Column(Modifier.fillMaxSize().background(Bg).verticalScroll(rememberScrollState()).padding(18.dp),
+    Column(Modifier.fillMaxSize().background(Bg).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
