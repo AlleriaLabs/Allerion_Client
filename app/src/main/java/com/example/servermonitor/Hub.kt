@@ -167,6 +167,14 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
                 Text(sv.url.removePrefix("http://").removePrefix("https://"), fontSize = AppType.small, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sv.group.uppercase(), fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = Red, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(lastSeen?.let { FleetPresenceStore.formatAge(it) } ?: "Awaiting first successful check", fontSize = AppType.micro, color = if (FleetPresenceStore.isStale(lastSeen)) Amber else Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                j?.let { stats ->
+                    val metrics = listOfNotNull(
+                        stats.optDouble("cpu", Double.NaN).takeIf { value -> !value.isNaN() }?.let { value -> "CPU ${value.roundToInt()}%" },
+                        stats.optDouble("ram", Double.NaN).takeIf { value -> !value.isNaN() }?.let { value -> "RAM ${value.roundToInt()}%" },
+                        stats.optDouble("temp", Double.NaN).takeIf { value -> !value.isNaN() }?.let { value -> "${value.roundToInt()}°C" }
+                    )
+                    if (metrics.isNotEmpty()) Text(metrics.joinToString("  ·  "), fontSize = AppType.micro, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
             Spacer(Modifier.width(10.dp))
             StatusLabel(code)
