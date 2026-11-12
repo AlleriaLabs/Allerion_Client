@@ -489,9 +489,9 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                         3 -> if (j == null) Panel { Label("Connecting to server"); Text(r.error ?: "Establishing a secure monitoring connection…", color = Amber, fontSize = AppType.body) }
                              else SystemScreen(sv, j, online)
                         else -> when (morePage) {
-                            "activity" -> ActivityCenterScreen()
+                            "activity" -> ActivityCenterScreen(onBack = { morePage = "menu" })
                             "settings" -> SettingsScreen(sv, onEdit)
-                            "diagnostics" -> CrashDiagnosticsScreen()
+                            "diagnostics" -> CrashDiagnosticsScreen(onBack = { morePage = "menu" })
                             "connection" -> {
                                 Panel {
                                     Label("Server connection")
