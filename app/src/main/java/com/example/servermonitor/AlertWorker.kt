@@ -94,24 +94,54 @@ class ServerAlertWorker(context: Context, params: WorkerParameters) : CoroutineW
                     clearAlertSilently(prefix + "_temp_sensor")
                     clearAlertSilently(prefix + "_temp")
                 }
-                if (rules.cpu && !cpu.isNaN()) updateAlert(prefix + "_cpu", cpu >= thresholds.cpu, server.name,
-                    "CPU usage is ${cpu.roundToInt()}% (threshold ${thresholds.cpu.roundToInt()}%).")
-                else if (!rules.cpu) clearAlertSilently(prefix + "_cpu")
-                if (rules.memory && !ram.isNaN()) updateAlert(prefix + "_ram", ram >= thresholds.memory, server.name,
-                    "Memory usage is ${ram.roundToInt()}% (threshold ${thresholds.memory.roundToInt()}%).")
-                else if (!rules.memory) clearAlertSilently(prefix + "_ram")
+                if (rules.cpu) {
+                    updateAlert(prefix + "_cpu_sensor", cpu.isNaN(), server.name,
+                        "CPU usage data is unavailable. CPU threshold alerts are paused until a reading is reported.", "warning")
+                    if (!cpu.isNaN()) updateAlert(prefix + "_cpu", cpu >= thresholds.cpu, server.name,
+                        "CPU usage is ${cpu.roundToInt()}% (threshold ${thresholds.cpu.roundToInt()}%).")
+                } else {
+                    clearAlertSilently(prefix + "_cpu_sensor")
+                    clearAlertSilently(prefix + "_cpu")
+                }
+                if (rules.memory) {
+                    updateAlert(prefix + "_ram_sensor", ram.isNaN(), server.name,
+                        "Memory usage data is unavailable. Memory threshold alerts are paused until a reading is reported.", "warning")
+                    if (!ram.isNaN()) updateAlert(prefix + "_ram", ram >= thresholds.memory, server.name,
+                        "Memory usage is ${ram.roundToInt()}% (threshold ${thresholds.memory.roundToInt()}%).")
+                } else {
+                    clearAlertSilently(prefix + "_ram_sensor")
+                    clearAlertSilently(prefix + "_ram")
+                }
                 val disks = stats.optJSONArray("disks") ?: JSONArray()
+                val presentDiskKeys = HashSet<String>()
+                if (rules.disk) {
+                    updateAlert(prefix + "_disk_sensor", disks.length() == 0, server.name,
+                        "Disk inventory is unavailable. Disk usage thresholds cannot run until the backend reports mounted disks.", "warning")
+                } else {
+                    clearAlertSilently(prefix + "_disk_sensor")
+                }
                 for (index in 0 until disks.length()) {
-                    val disk = disks.optJSONObject(index) ?: JSONObject()
+                    val disk = disks.optJSONObject(index) ?: continue
                     val mount = disk.optString("mount", "Disk " + (index + 1))
                     val identity = diskAlertIdentity(disk.optString("id"), disk.optString("device"), mount)
                     val diskKey = prefix + "_disk_" + identity.hashCode()
+                    presentDiskKeys.add(diskKey)
                     val pct = disk.optDouble("pct", Double.NaN)
-                    if (rules.disk && !pct.isNaN()) updateAlert(diskKey, pct >= thresholds.disk, server.name,
-                        "$mount is ${pct.roundToInt()}% full (threshold ${thresholds.disk.roundToInt()}%).")
-                    else if (!rules.disk) clearAlertSilently(diskKey)
+                    if (rules.disk) {
+                        if (!pct.isNaN()) updateAlert(diskKey, pct >= thresholds.disk, server.name,
+                            "$mount is ${pct.roundToInt()}% full (threshold ${thresholds.disk.roundToInt()}%).")
+                        else updateAlert(diskKey + "_sensor", true, server.name,
+                            "Disk usage data is unavailable for $mount.", "warning")
+                    } else {
+                        clearAlertSilently(diskKey)
+                        clearAlertSilently(diskKey + "_sensor")
+                    }
                 }
-
+                ActiveAlertStore.load(applicationContext).filter {
+                    it.key.startsWith(prefix + "_disk_") &&
+                        !it.key.endsWith("_sensor") &&
+                        it.key !in presentDiskKeys
+                }.forEach { clearAlertSilently(it.key) }
                 // Optional inventories are isolated: a disabled or unavailable Docker/LAN
                 // feature must never turn a healthy server into an offline alert.
                 if (rules.containers) checkContainers(server, prefix)
