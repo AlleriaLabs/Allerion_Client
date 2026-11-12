@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -171,10 +172,11 @@ private fun PreferenceSwitch(label: String, checked: Boolean, onChange: (Boolean
 
 
 @Composable
-fun MoreScreen(onActivity: () -> Unit, onSettings: () -> Unit, onConnection: () -> Unit) {
+fun MoreScreen(onActivity: () -> Unit, onSettings: () -> Unit, onConnection: () -> Unit, onDiagnostics: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Label("TOOLS")
         MoreActionRow(Ic.Activity, "Activity center", "Review active alerts, recoveries and recent events", onActivity)
+        MoreActionRow(Ic.Chart, "Crash diagnostics", "View and share the latest app crash report", onDiagnostics)
         MoreActionRow(Ic.Gear, "Settings", "Dashboard preferences, reports and refresh behavior", onSettings)
         Spacer(Modifier.height(4.dp))
         Label("SERVER")
@@ -195,6 +197,66 @@ private fun MoreActionRow(icon: Ic, title: String, subtitle: String, onClick: ()
                 Text(subtitle, color = Mut, fontSize = AppType.small, maxLines = 2)
             }
             Icon24(Ic.ChevronD, Dim, 18.dp, Modifier.graphicsLayer { rotationZ = -90f })
+        }
+    }
+}
+
+
+@Composable
+fun CrashDiagnosticsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    var revision by remember { mutableIntStateOf(0) }
+    val report = remember(revision) { CrashReportStore.load(context) }
+    Column(Modifier.fillMaxSize().background(Bg).verticalScroll(rememberScrollState()).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
+            Column(Modifier.weight(1f)) {
+                Text("DIAGNOSTICS", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                Text("Crash reports", color = Txt, fontSize = AppType.section, fontWeight = FontWeight.Bold)
+            }
+        }
+        Panel {
+            Label("Automatic crash capture")
+            Text("Uncaught app crashes are saved locally on this device before Android closes Allerion. No server credentials or tokens are included.",
+                color = Mut, fontSize = AppType.small)
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Capture status", color = Mut, fontSize = AppType.body, modifier = Modifier.weight(1f))
+                Text("Enabled", color = Green, fontSize = AppType.body, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        if (report == null) {
+            Panel {
+                Label("Latest report")
+                Text("No crash report has been captured yet. If Allerion closes unexpectedly, reopen this page to inspect the saved report.",
+                    color = Mut, fontSize = AppType.small)
+            }
+        } else {
+            Panel {
+                Label("Latest crash")
+                Text(java.text.SimpleDateFormat("MMM d, yyyy · HH:mm:ss", Locale.getDefault()).format(Date(report.timestamp)),
+                    color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                KV("Device", report.device)
+                KV("Android", report.android)
+                KV("Exception", report.exception.substringAfterLast('.'))
+                Text(report.message, color = Amber, fontSize = AppType.small)
+                Spacer(Modifier.height(8.dp))
+                Text("Stack trace", color = Mut, fontSize = AppType.caption, fontWeight = FontWeight.Bold)
+                Text(report.stack, color = Dim, fontSize = 10.sp, lineHeight = 13.sp)
+                Spacer(Modifier.height(8.dp))
+                androidx.compose.material3.Button(onClick = {
+                    val send = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, "Allerion crash report")
+                        putExtra(Intent.EXTRA_TEXT, CrashReportStore.exportText(context))
+                    }
+                    context.startActivity(Intent.createChooser(send, "Share crash report"))
+                }) { Text("Share crash report") }
+                TextButton(onClick = { CrashReportStore.clear(context); revision++ }) {
+                    Text("Delete report", color = Err)
+                }
+            }
         }
     }
 }
