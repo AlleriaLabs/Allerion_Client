@@ -31,10 +31,29 @@ import java.util.Locale
 fun AlertSettingsPanel() {
     val context = LocalContext.current
     val initial = remember { AlertPreferences.load(context) }
+    var rules by remember { mutableStateOf(AlertRulePreferences.load(context)) }
+    fun updateRules(next: AlertRules) {
+        rules = next
+        AlertRulePreferences.save(context, next)
+    }
     var cpu by remember { mutableStateOf(initial.cpu) }
     var memory by remember { mutableStateOf(initial.memory) }
     var temperature by remember { mutableStateOf(initial.temperature) }
     var disk by remember { mutableStateOf(initial.disk) }
+
+    Panel {
+        Label("Alert categories")
+        Text("Choose which events ALLERION should monitor. Optional Docker and LAN rules only run when the backend exposes those features.", color = Mut, fontSize = AppType.small)
+        Spacer(Modifier.height(8.dp))
+        AlertRuleSwitch("Server online / offline", rules.serverAvailability) { updateRules(rules.copy(serverAvailability = it)) }
+        AlertRuleSwitch("CPU usage", rules.cpu) { updateRules(rules.copy(cpu = it)) }
+        AlertRuleSwitch("Memory usage", rules.memory) { updateRules(rules.copy(memory = it)) }
+        AlertRuleSwitch("Temperature", rules.temperature) { updateRules(rules.copy(temperature = it)) }
+        AlertRuleSwitch("Disk usage", rules.disk) { updateRules(rules.copy(disk = it)) }
+        AlertRuleSwitch("Docker container failures", rules.containers) { updateRules(rules.copy(containers = it)) }
+        AlertRuleSwitch("New LAN device detected", rules.newDevices) { updateRules(rules.copy(newDevices = it)) }
+        Text("LAN detection uses the server's passive ARP / neighbor cache only. It does not scan your network.", color = Dim, fontSize = AppType.caption)
+    }
 
     Panel {
         Label("Alert thresholds")
@@ -130,5 +149,15 @@ private fun ThresholdSlider(label: String, value: Float, unit: String, range: Cl
             Text("%.0f".format(value) + unit, color = Txt, fontSize = AppType.body, fontWeight = FontWeight.SemiBold)
         }
         Slider(value = value, onValueChange = onChange, valueRange = range, steps = 49)
+    }
+}
+
+
+@Composable
+private fun AlertRuleSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Text(label, color = Txt, fontSize = AppType.body, modifier = Modifier.weight(1f))
+        androidx.compose.material3.Switch(checked = checked, onCheckedChange = onChange)
     }
 }
