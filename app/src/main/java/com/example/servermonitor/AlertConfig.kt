@@ -208,3 +208,11 @@ object AlertRulePreferences {
     }
 }
 
+
+/** Stable identifiers keep disk alert state attached to the same mount across inventory ordering changes. */
+fun diskAlertIdentity(id: String, device: String, mount: String): String =
+    id.ifBlank { device.ifBlank { mount } }
+
+/** Prefer a hardware MAC address; fall back to IP only when the backend has no MAC. */
+fun lanDeviceIdentity(mac: String, ip: String): String =
+    mac.trim().lowercase().ifBlank { ip.trim() }
