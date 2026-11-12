@@ -201,7 +201,7 @@ fun AddFab(onClick: () -> Unit, modifier: Modifier) {
 
 @Composable
 fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit,
-         onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit) {
+         onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit, onIntegrations: () -> Unit) {
     val status = remember { mutableStateMapOf<String, Int>() }
     var selectedGroup by remember { mutableStateOf("All groups") }
     var groupMenuExpanded by remember { mutableStateOf(false) }
@@ -241,7 +241,7 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                         SummaryStat("Offline", "$offline", if (offline > 0) Err else Txt, Modifier.weight(1f))
                         SummaryStat("Availability", availability, Txt, Modifier.weight(1.25f))
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onIntegrations) { Text("Integration Center  →", color = Red, fontSize = AppType.small, fontWeight = FontWeight.SemiBold) } }\n                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("Fleet view", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
                             Text("${visibleServers.size} of ${servers.size} servers", color = Dim, fontSize = AppType.caption)
