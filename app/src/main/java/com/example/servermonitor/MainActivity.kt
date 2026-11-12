@@ -385,8 +385,7 @@ fun PowerSetup(sv: Server, onClose: () -> Unit) {
         }
         msg?.let { Text(it, color = if (it.startsWith("Reading") || it.startsWith("Saved") || it.startsWith("Using")) Green else Amber, fontSize = AppType.body) }
         OutlinedButton({ call("/api/power/test") { j ->
-            if (j.optBoolean("ok")) (if (j.isNull("watts")) j.optString("note") else "Reading: ${j.getDouble("watts")} W" + (if (j.isNull("voltage")) "" else ", ${j.getDouble("voltage")} V") + "
-Data: ${j.optString("raw")}")
+            if (j.optBoolean("ok")) (if (j.isNull("watts")) j.optString("note") else "Reading: ${j.getDouble("watts")} W" + (if (j.isNull("voltage")) "" else ", ${j.getDouble("voltage")} V") + "\nData: ${j.optString("raw")}")
             else "Failed: " + j.optString("error") } },
             Modifier.fillMaxWidth().height(48.dp).border(1.dp, Line, RoundedCornerShape(15.dp)),
             enabled = !busy, shape = RoundedCornerShape(15.dp),
