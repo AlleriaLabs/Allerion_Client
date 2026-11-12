@@ -442,6 +442,7 @@ private fun DashboardSectionHeader(tab: Int, server: String, morePage: String) {
             "activity" -> Triple("SYSTEM ACTIVITY", "Activity", "Server alerts, events and recovery history")
             "settings" -> Triple("PREFERENCES", "Settings", "Manage your Allerion experience")
             "connection" -> Triple("SERVER CONFIGURATION", "Connection", "Manage this server's connection details")
+            "diagnostics" -> Triple("APP DIAGNOSTICS", "Crash reports", "Inspect and share locally captured crash details")
             else -> Triple("WORKSPACE", "More", "Tools and configuration")
         }
     }
@@ -488,6 +489,7 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                         else -> when (morePage) {
                             "activity" -> ActivityCenterScreen { morePage = "menu" }
                             "settings" -> SettingsScreen(sv, onEdit)
+                            "diagnostics" -> CrashDiagnosticsScreen { morePage = "menu" }
                             "connection" -> {
                                 Panel {
                                     Label("Server connection")
@@ -498,7 +500,8 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                             else -> MoreScreen(
                                 onActivity = { morePage = "activity" },
                                 onSettings = { morePage = "settings" },
-                                onConnection = { morePage = "connection" }
+                                onConnection = { morePage = "connection" },
+                                onDiagnostics = { morePage = "diagnostics" }
                             )
                         }
                     }
