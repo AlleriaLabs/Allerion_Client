@@ -282,6 +282,7 @@ fun InfrastructurePanel(sv: Server, networkOnly: Boolean = false, powerOnly: Boo
     }
 
     if (networkOnly) {
+        NetworkPerformancePanel(sv, caps.optBoolean("network_traffic"))
         NetworkTopologyPanel(sv, snapshot.topology, caps.optBoolean("network_topology"), caps.optBoolean("network_traffic"))
         NetworkDiagnosticPanel(sv, caps.optBoolean("network_diagnostics"))
     } else if (!powerOnly) {
