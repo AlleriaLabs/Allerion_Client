@@ -151,7 +151,7 @@ fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, o
 
 @Composable
 fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () -> Unit, onOpen: () -> Unit, onEdit: () -> Unit,
-               onDelete: () -> Unit, onStatus: (Int) -> Unit, modifier: Modifier = Modifier) {
+               onDelete: () -> Unit, onStatus: (Int) -> Unit, modifier: Modifier = Modifier, lastSeen: Long? = null) {
     val r by rememberStats(sv, if (expanded) 3_000L else 10_000L)       // collapsed cards only need status, so they poll slowly
     val j = r.json
     val code = when { j != null && r.error == null -> 1; r.error != null -> 2; else -> 0 }
@@ -165,7 +165,7 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
             Column(Modifier.weight(1f)) {
                 Text(sv.name, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sv.url.removePrefix("http://").removePrefix("https://"), fontSize = AppType.small, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(sv.group.uppercase(), fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = Red, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sv.group.uppercase(), fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = Red, maxLines = 1, overflow = TextOverflow.Ellipsis)\n                Text(lastSeen?.let { FleetPresenceStore.formatAge(it) } ?: "Awaiting first successful check", fontSize = AppType.micro, color = if (FleetPresenceStore.isStale(lastSeen)) Amber else Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.width(10.dp))
             StatusLabel(code)
@@ -277,7 +277,7 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                                     val (i, sv) = entry
                                     key(keyOf(i, sv)) {
                                         ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
-                                            { status[keyOf(i, sv)] = it }, Modifier.weight(1f).staggerIn(rowIndex * 2 + columnIndex + 2))
+                                            { status[keyOf(i, sv)] = it; if (it == 1) FleetPresenceStore.recordSuccess(context, sv) }, Modifier.weight(1f).staggerIn(rowIndex * 2 + columnIndex + 2), FleetPresenceStore.lastSeen(context, sv))
                                     }
                                 }
                                 if (pair.size == 1) Spacer(Modifier.weight(1f))
@@ -287,7 +287,7 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                         visibleServers.forEach { (i, sv) ->
                             key(keyOf(i, sv)) {
                                 ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
-                                    { status[keyOf(i, sv)] = it }, Modifier.staggerIn(i + 2))
+                                    { status[keyOf(i, sv)] = it; if (it == 1) FleetPresenceStore.recordSuccess(context, sv) }, Modifier.staggerIn(i + 2), FleetPresenceStore.lastSeen(context, sv))
                             }
                         }
                     }
