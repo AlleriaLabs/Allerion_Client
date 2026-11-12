@@ -136,7 +136,7 @@ fun App(p: SharedPreferences) {
     var open by remember { mutableStateOf<Int?>(null) }
     var edit by remember { mutableStateOf<Int?>(null) } // -1 = new server
     var expanded by remember { mutableStateOf<Int?>(null) }   // every server card starts collapsed
-    var hubSettings by remember { mutableStateOf(false) }
+    var hubSettings by remember { mutableStateOf(false) }\n    var showIntegrations by remember { mutableStateOf(false) }
     fun commit(l: List<Server>) {
         try {
             saveServers(p, l)
@@ -160,14 +160,14 @@ fun App(p: SharedPreferences) {
     }
     val e = edit
     val o = open
-    BackHandler(enabled = e != null || o != null || hubSettings) { if (e != null) edit = null else if (o != null) open = null else hubSettings = false }
+    BackHandler(enabled = e != null || o != null || hubSettings || showIntegrations) { if (e != null) edit = null else if (o != null) open = null else if (showIntegrations) showIntegrations = false else hubSettings = false }
     when {
         e != null -> EditServer(servers.getOrNull(e),
             onSave = { sv -> commit(if (e < 0) servers + sv else servers.toMutableList().also { it[e] = sv }); edit = null },
             onDelete = { commit(servers.filterIndexed { i, _ -> i != e }); edit = null; open = null; expanded = null },
             onCancel = { edit = null })
         o != null && o in servers.indices -> Dashboard(servers[o], { open = null }, { edit = o })
-        hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })
+        hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })\n        showIntegrations -> IntegrationCenterScreen(servers, onBack = { showIntegrations = false })
         else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true })
     }
