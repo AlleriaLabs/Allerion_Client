@@ -167,3 +167,44 @@ object ActiveAlertStore {
         }.sortedByDescending { it.timestamp }.toList()
     }
 }
+
+data class AlertRules(
+    val serverAvailability: Boolean = true,
+    val cpu: Boolean = true,
+    val memory: Boolean = true,
+    val temperature: Boolean = true,
+    val disk: Boolean = true,
+    val containers: Boolean = false,
+    val newDevices: Boolean = false
+)
+
+/** Per-category alert controls. Defaults preserve existing health-alert behavior. */
+object AlertRulePreferences {
+    private const val PREFS = "cfg"
+
+    fun load(context: Context): AlertRules {
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return AlertRules(
+            serverAvailability = p.getBoolean("rule_server_availability", true),
+            cpu = p.getBoolean("rule_cpu", true),
+            memory = p.getBoolean("rule_memory", true),
+            temperature = p.getBoolean("rule_temperature", true),
+            disk = p.getBoolean("rule_disk", true),
+            containers = p.getBoolean("rule_containers", false),
+            newDevices = p.getBoolean("rule_new_devices", false)
+        )
+    }
+
+    fun save(context: Context, rules: AlertRules) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean("rule_server_availability", rules.serverAvailability)
+            .putBoolean("rule_cpu", rules.cpu)
+            .putBoolean("rule_memory", rules.memory)
+            .putBoolean("rule_temperature", rules.temperature)
+            .putBoolean("rule_disk", rules.disk)
+            .putBoolean("rule_containers", rules.containers)
+            .putBoolean("rule_new_devices", rules.newDevices)
+            .apply()
+    }
+}
+
