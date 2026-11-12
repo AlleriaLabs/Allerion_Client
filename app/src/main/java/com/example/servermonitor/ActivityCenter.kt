@@ -167,3 +167,33 @@ private fun PreferenceSwitch(label: String, checked: Boolean, onChange: (Boolean
         androidx.compose.material3.Switch(checked = checked, onCheckedChange = onChange)
     }
 }
+
+
+@Composable
+fun MoreScreen(onActivity: () -> Unit, onSettings: () -> Unit, onConnection: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Label("TOOLS")
+        MoreActionRow(Ic.Activity, "Activity center", "Review active alerts, recoveries and recent events", onActivity)
+        MoreActionRow(Ic.Gear, "Settings", "Dashboard preferences, reports and refresh behavior", onSettings)
+        Spacer(Modifier.height(4.dp))
+        Label("SERVER")
+        MoreActionRow(Ic.Server, "Server connection", "Edit this server's address, token or name", onConnection)
+    }
+}
+
+@Composable
+private fun MoreActionRow(icon: Ic, title: String, subtitle: String, onClick: () -> Unit) {
+    Panel(onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(Surf2), contentAlignment = Alignment.Center) {
+                Icon24(icon, Red, 19.dp)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(title, color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                Text(subtitle, color = Mut, fontSize = AppType.small, maxLines = 2)
+            }
+            Icon24(Ic.ChevronD, Dim, 18.dp, Modifier.graphicsLayer { rotationZ = -90f })
+        }
+    }
+}
