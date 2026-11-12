@@ -471,7 +471,8 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
             morePage = "activity"
         })
         Box(Modifier.weight(1f)) {
-            Crossfade("$tab:$morePage", animationSpec = tween(220), label = "tabs") {
+            Crossfade("$tab:$morePage", animationSpec = tween(220), label = "tabs") { targetState ->
+                key(targetState) {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     DashboardSectionHeader(tab, sv.name, morePage)
@@ -501,6 +502,7 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                             )
                         }
                     }
+                }
                 }
             }
         }
