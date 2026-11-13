@@ -439,6 +439,7 @@ private fun DashboardSectionHeader(tab: Int, server: String, morePage: String) {
         3 -> Triple("SERVER MANAGEMENT", "System", "Processes, containers and system diagnostics")
         else -> when (morePage) {
             "activity" -> Triple("SYSTEM ACTIVITY", "Activity", "Server alerts, events and recovery history")
+            "liveusers" -> Triple("JELLYFIN PRESENCE", "Live users", "Connected users, devices and current playback")
             "settings" -> Triple("PREFERENCES", "Settings", "Manage your Allerion experience")
             "connection" -> Triple("SERVER CONFIGURATION", "Connection", "Manage this server's connection details")
             "diagnostics" -> Triple("APP DIAGNOSTICS", "Crash reports", "Inspect and share locally captured crash details")
@@ -468,7 +469,7 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
     if (d != null && j != null) { MetricDetail(sv, d, j) { detail = null }; return }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
         AppHeader(sv, j, r.error, online,
-            if (tab == 4 && (morePage == "activity" || morePage == "diagnostics")) ({ morePage = "menu" }) else onBack,
+            if (tab == 4 && (morePage == "activity" || morePage == "diagnostics" || morePage == "liveusers")) ({ morePage = "menu" }) else onBack,
             { refreshKey++ }, {
             tab = 4
             morePage = "activity"
@@ -490,6 +491,7 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                              else SystemScreen(sv, j, online)
                         else -> when (morePage) {
                             "activity" -> ActivityCenterScreen(onBack = { morePage = "menu" })
+                            "liveusers" -> LiveUsersScreen()
                             "settings" -> SettingsScreen(sv, onEdit)
                             "diagnostics" -> CrashDiagnosticsScreen(onBack = { morePage = "menu" })
                             "appinfo" -> AppInfoScreen()
@@ -505,7 +507,8 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                                 onSettings = { morePage = "settings" },
                                 onConnection = { morePage = "connection" },
                                 onDiagnostics = { morePage = "diagnostics" },
-                                onAppInfo = { morePage = "appinfo" }
+                                onAppInfo = { morePage = "appinfo" },
+                                onLiveUsers = { morePage = "liveusers" }
                             )
                         }
                     }
