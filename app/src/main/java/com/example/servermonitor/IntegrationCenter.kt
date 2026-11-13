@@ -65,22 +65,10 @@ fun IntegrationCenterScreen(servers: List<Server>, onBack: () -> Unit) {
     var feedback by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
-            Spacer(Modifier.weight(1f))
-            LogoMark(26.dp)
-            Spacer(Modifier.width(7.dp))
-            Text("ALLERION", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-        }
+        ModulePageHeader("CONNECTIVITY", "Integration Center", "Webhook and Telegram across your servers", onBack)
         Column(Modifier.fillMaxSize().padding(horizontal = 15.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("INTEGRATIONS", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-                Text("Integration Center", color = Txt, fontSize = AppType.title, fontWeight = FontWeight.Bold)
-                Text("Webhook and Telegram status across your registered servers.", color = Mut, fontSize = AppType.small)
-            }
-            if (servers.isEmpty()) {
+                        if (servers.isEmpty()) {
                 Panel { Text("Add a server to manage its notification integrations.", color = Mut, fontSize = AppType.small) }
             } else states.forEach { state ->
                 val key = state.server.url.trimEnd('/') + "|" + state.server.name
