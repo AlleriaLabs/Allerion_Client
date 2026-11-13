@@ -108,7 +108,7 @@ private fun loadJellyfinSessions(config: JfSessionConfig): List<JfSession> {
 }
 
 @Composable
-fun LiveUsersScreen(onBack: () -> Unit = {}) {
+fun LiveUsersScreen(onBack: () -> Unit = {}, onSettings: () -> Unit = {}) {
     val context = LocalContext.current
     var config by remember { mutableStateOf(JfSessionStore.load(context)) }
     var url by remember { mutableStateOf(config?.url.orEmpty()) }
@@ -131,7 +131,7 @@ fun LiveUsersScreen(onBack: () -> Unit = {}) {
     }
 
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 15.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ModulePageHeader("JELLYFIN PRESENCE", "Live Users", "Online devices and current playback", onBack) {
+        ModulePageHeader("JELLYFIN PRESENCE", "Live Users", "Online devices and current playback", onBack, onSettings) {
             IconBtn(Ic.Gear, "Connection settings", plain = true, onClick = { editing = !editing })
             IconBtn(Ic.Refresh, "Refresh", plain = true, onClick = { refresh++ })
         }
