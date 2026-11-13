@@ -211,20 +211,15 @@ private fun JfaMetric(value: String, label: String, icon: Ic, modifier: Modifier
 @Composable
 private fun RowScope.JfaAction(label: String, icon: Ic, tint: Color = Red, enabled: Boolean = true, onClick: () -> Unit) {
     val actionTint = if (enabled) tint else Dim
-    Row(
-        Modifier.weight(1f)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Surf2.copy(alpha = 0.62f))
-            .border(1.dp, Line.copy(alpha = 0.78f), RoundedCornerShape(12.dp))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 2.dp, vertical = 7.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+    Box(
+        Modifier.size(width = 38.dp, height = 34.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(actionTint.copy(alpha = if (enabled) 0.09f else 0.035f))
+            .border(1.dp, actionTint.copy(alpha = if (enabled) 0.24f else 0.10f), RoundedCornerShape(10.dp))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        Icon24(icon, actionTint, 16.dp)
-        Spacer(Modifier.width(5.dp))
-        Text(label, color = if (enabled) Txt else Dim, fontSize = 9.sp,
-            fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Icon24(icon, actionTint, 16.dp, desc = label)
     }
 }
 
@@ -497,15 +492,18 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                             }
                         }
                         Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.55f)))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-                            JfaAction("Expiry", Ic.Clock) { selected = u; expiryDays = "30"; dialog = "expiry" }
-                            JfaAction("Reset", Ic.Refresh) { selected = u; dialog = "reset" }
-                            JfaAction(if (disabled) "Enable" else "Disable", if (disabled) Ic.Check else Ic.Ban, if (disabled) Green else Amber, !actionBusy) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                            JfaAction("Extend expiry", Ic.Clock) { selected = u; expiryDays = "30"; dialog = "expiry" }
+                            Spacer(Modifier.width(6.dp))
+                            JfaAction("Reset password", Ic.Refresh) { selected = u; dialog = "reset" }
+                            Spacer(Modifier.width(6.dp))
+                            JfaAction(if (disabled) "Enable account" else "Disable account", if (disabled) Ic.Check else Ic.Ban, if (disabled) Green else Amber, !actionBusy) {
                                 val id = u.optString("id"); actionBusy = true
                                 scope.launch { try { withContext(Dispatchers.IO) { JfaApi.setEnabled(conn!!, id, u.optBoolean("disabled")) }; refresh++; actionMessage = "Account status updated." }
                                     catch (e: Exception) { actionMessage = e.message ?: "Account update failed." } finally { actionBusy = false } }
                             }
-                            JfaAction("Delete", Ic.Trash, Color(0xFFFF6878), !actionBusy) { selected = u; dialog = "delete" }
+                            Spacer(Modifier.width(6.dp))
+                            JfaAction("Delete account", Ic.Trash, Color(0xFFFF6878), !actionBusy) { selected = u; dialog = "delete" }
                         }
                     }
                 }
