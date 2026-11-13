@@ -414,8 +414,15 @@ private fun NetworkQualityPanel(sv: Server, enabled: Boolean) {
                         Text(status.uppercase(), color = if (status == "ok") Green else Amber, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                        DiagRow("Latency", latency, Mut, Modifier.weight(1f))
-                        DiagRow("Packet loss", loss, if (item.optDouble("packet_loss_pct", 0.0) > 0.0) Amber else Green, Modifier.weight(1f))
+                        Column(Modifier.weight(1f)) {
+                            Text("LATENCY", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+                            Text(latency, color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text("PACKET LOSS", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+                            Text(loss, color = if (item.optDouble("packet_loss_pct", 0.0) > 0.0) Amber else Green,
+                                fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                     if (status != "ok") item.optString("error").takeIf { it.isNotBlank() && it != "null" }?.let {
                         Text(it, color = Dim, fontSize = AppType.micro)
