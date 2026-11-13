@@ -180,9 +180,29 @@ private fun JfaMetric(value: String, label: String, icon: Ic, modifier: Modifier
 }
 @Composable
 private fun RowScope.JfaAction(label: String, icon: Ic, tint: Color = Red, enabled: Boolean = true, onClick: () -> Unit) {
-    Column(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).clickable(enabled = enabled, onClick = onClick).padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Icon24(icon, if (enabled) tint else Dim, 17.dp)
-        Text(label, color = if (enabled) tint else Dim, fontSize = AppType.micro, fontWeight = FontWeight.SemiBold, maxLines = 1)
+    val actionTint = if (enabled) tint else Dim
+    Column(
+        Modifier.weight(1f)
+            .clip(RoundedCornerShape(12.dp))
+            .background(actionTint.copy(alpha = if (enabled) 0.075f else 0.035f))
+            .border(1.dp, actionTint.copy(alpha = if (enabled) 0.20f else 0.08f), RoundedCornerShape(12.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 2.dp, vertical = 9.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            Modifier.size(30.dp).clip(CircleShape).background(actionTint.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
+        ) { Icon24(icon, actionTint, 16.dp) }
+        Text(
+            label.uppercase(),
+            color = actionTint,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.35.sp,
+            maxLines = 1
+        )
     }
 }
 
@@ -339,7 +359,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                         }
                         Spacer(Modifier.height(8.dp))
                         Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.7f)))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
                             JfaAction("Expiry", Ic.Clock) { selected = u; expiryDays = "30"; dialog = "expiry" }
                             JfaAction("Reset", Ic.Refresh) { selected = u; dialog = "reset" }
                             JfaAction(if (disabled) "Enable" else "Disable", if (disabled) Ic.Check else Ic.Ban, if (disabled) Green else Amber, !actionBusy) {
