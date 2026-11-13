@@ -129,7 +129,7 @@ fun EmptyModuleScreen(
     onBack: () -> Unit,
     onSettings: () -> Unit = {}
 ) {
-    BoxWithConstraints(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
+    Box(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
         Column(
             Modifier.widthIn(max = 1100.dp).fillMaxWidth().fillMaxHeight()
                 .align(Alignment.TopCenter)
