@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 @Composable
-fun JellyfinAnalyticsScreen(server: Server, onBack: () -> Unit) {
+fun JellyfinAnalyticsScreen(server: Server, onBack: () -> Unit = {}) {
     var period by remember { mutableStateOf("week") }
     var data by remember { mutableStateOf<JSONObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
