@@ -210,7 +210,7 @@ fun AddFab(onClick: () -> Unit, modifier: Modifier) {
 
 @Composable
 fun HubModuleCard(icon: Ic, title: String, subtitle: String, accent: Color, modifier: Modifier = Modifier, onClick: () -> Unit, live: Boolean = false) {
-    Panel(modifier = modifier.heightIn(min = 124.dp), onClick = onClick) {
+    Panel(modifier = modifier.heightIn(min = 124.dp).tap(onClick)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = 0.12f))
                 .border(1.dp, accent.copy(alpha = 0.20f), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
@@ -259,8 +259,8 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
             Column(Modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Column(Modifier.padding(top = 10.dp, bottom = 3.dp).staggerIn(0), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("ALLERIA LABS · INFRASTRUCTURE", fontSize = AppType.micro, fontWeight = FontWeight.Bold, color = Red, letterSpacing = 1.55.sp)
-                    Text("Servers", fontSize = AppType.displaySmall, fontWeight = FontWeight.ExtraBold, color = Txt, letterSpacing = (-0.5).sp)
-                    Text("Your connected infrastructure at a glance", fontSize = AppType.small, color = Mut)
+                    Text("Control Center", fontSize = AppType.displaySmall, fontWeight = FontWeight.ExtraBold, color = Txt, letterSpacing = (-0.5).sp)
+                    Text("Your infrastructure, connected and in view.", fontSize = AppType.small, color = Mut)
                 }
                 var showFleet by remember { mutableStateOf(false) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
