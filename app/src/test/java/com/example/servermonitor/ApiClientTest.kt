@@ -9,6 +9,31 @@ import org.junit.Test
 
 class ApiClientTest {
     @Test
+    fun alertRulesKeepExistingHealthAlertsEnabledByDefault() {
+        val defaults = AlertRules()
+        assertTrue(defaults.serverAvailability)
+        assertTrue(defaults.cpu)
+        assertTrue(defaults.memory)
+        assertTrue(defaults.temperature)
+        assertTrue(defaults.disk)
+        assertTrue(!defaults.containers)
+        assertTrue(!defaults.newDevices)
+    }
+
+    @Test
+    fun diskAlertIdentityPrefersStableDeviceIdentifiers() {
+        assertEquals("8:2", diskAlertIdentity("8:2", "/dev/sda1", "/"))
+        assertEquals("/dev/sda1", diskAlertIdentity("", "/dev/sda1", "/"))
+        assertEquals("/data", diskAlertIdentity("", "", "/data"))
+    }
+
+    @Test
+    fun lanDeviceIdentityPrefersNormalizedMacAddress() {
+        assertEquals("aa:bb:cc:dd:ee:ff", lanDeviceIdentity(" AA:BB:CC:DD:EE:FF ", "192.168.1.2"))
+        assertEquals("192.168.1.2", lanDeviceIdentity("", "192.168.1.2"))
+    }
+
+    @Test
     fun rejectsBlankApiTokens() {
         val error = try {
             validateApiToken("  \n")
