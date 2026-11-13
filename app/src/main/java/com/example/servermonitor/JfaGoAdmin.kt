@@ -158,6 +158,19 @@ private object JfaApi {
 }
 
 @Composable
+private fun JfaCompactSurface(content: @Composable ColumnScope.() -> Unit) {
+    val shape = RoundedCornerShape(17.dp)
+    Column(Modifier.fillMaxWidth().clip(shape).background(Surf).border(1.dp, Line.copy(alpha = 0.82f), shape).padding(13.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
+}
+@Composable
+private fun JfaAction(label: String, tint: Color = Red, enabled: Boolean = true, onClick: () -> Unit) {
+    TextButton(onClick = onClick, enabled = enabled, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 1.dp)) {
+        Text(label, color = if (enabled) tint else Dim, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
 fun JfaGoUsersScreen(onBack: () -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -190,14 +203,17 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
         finally { busy = false }
     }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState())
-        .padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconBtn(Ic.ChevronL, "Back", onClick = onBack)
+        .padding(horizontal = 15.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
+            Spacer(Modifier.width(4.dp))
             Column(Modifier.weight(1f)) {
-                Text("User management", color = Txt, fontSize = AppType.section, fontWeight = FontWeight.Bold)
-                Text("JFA-Go registration accounts", color = Mut, fontSize = AppType.small)
+                Text("USER MANAGEMENT", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+                Text("JFA-Go accounts", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
+                Text("Registration & access control", color = Mut, fontSize = AppType.caption)
             }
-            TextButton(onClick = { edit = !edit }) { Text("Connection", color = Red) }
+            IconBtn(Ic.Gear, "Connection", plain = true, onClick = { edit = !edit })
+            IconBtn(Ic.Refresh, "Refresh", plain = true, onClick = { refresh++ })
         }
         if (edit) Panel {
             Label("JFA-Go administrator")
@@ -228,18 +244,23 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
         error?.let { StateMessage(it, true) }
         if (conn == null) Panel { Text("Connect your JFA-Go administrator account to view registered users.", color = Mut) }
         else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(conn!!.url.removePrefix("https://").removePrefix("http://"), color = Txt, fontWeight = FontWeight.SemiBold)
-                    Text(users.size.toString() + " registered accounts", color = Mut, fontSize = AppType.small)
+            JfaCompactSurface {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(conn!!.url.removePrefix("https://").removePrefix("http://"), color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text(users.size.toString() + " registered accounts · " + invites.size + " invitations", color = Mut, fontSize = AppType.caption)
+                    }
+                    if (busy) CircularProgressIndicator(Modifier.size(17.dp), color = Red, strokeWidth = 2.dp)
+                    else PulseDot(Green, true, 5.dp)
                 }
-                TextButton(onClick = { refresh++ }, enabled = !busy) { Text("Refresh", color = Red) }
             }
-            Row(Modifier.fillMaxWidth().background(Surf, RoundedCornerShape(14.dp)).padding(4.dp)) {
+            Row(Modifier.fillMaxWidth().background(Surf, RoundedCornerShape(13.dp))
+                .border(1.dp, Line, RoundedCornerShape(13.dp)).padding(4.dp)) {
                 listOf("Users", "Invites", "Activity").forEach { item ->
                     Box(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(if (tab == item) Surf2 else Color.Transparent)
-                        .clickable { tab = item }.padding(10.dp), contentAlignment = Alignment.Center) {
-                        Text(item, color = if (tab == item) Txt else Mut, fontSize = AppType.small, fontWeight = FontWeight.SemiBold)
+                        .clickable { tab = item }.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                        Text(item, color = if (tab == item) Txt else Mut, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -252,33 +273,41 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                     val disabled = u.optBoolean("disabled")
                     val expiry = u.optLong("expiry")
                     val exp = if (expiry <= 0) "No expiry" else java.text.SimpleDateFormat("d MMM yyyy", java.util.Locale.getDefault()).format(java.util.Date(expiry))
-                    Panel {
+                    JfaCompactSurface {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(40.dp).clip(CircleShape).background(Surf2), contentAlignment = Alignment.Center) {
-                                Text(u.optString("name").take(1).uppercase().ifBlank { "?" }, color = Red, fontWeight = FontWeight.Bold)
+                            Box(Modifier.size(34.dp).clip(CircleShape).background(Surf2).border(1.dp, Line, CircleShape), contentAlignment = Alignment.Center) {
+                                Text(u.optString("name").take(1).uppercase().ifBlank { "?" }, color = Red, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(u.optString("name", "Unknown user"), color = Txt, fontWeight = FontWeight.SemiBold)
-                                Text(u.optString("label").ifBlank { u.optString("email") }, color = Mut, fontSize = AppType.small)
-                                Text("Expiry · " + exp, color = Dim, fontSize = AppType.caption)
+                                Text(u.optString("name", "Unknown user"), color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                val detail = u.optString("label").ifBlank { u.optString("email") }
+                                if (detail.isNotBlank()) Text(detail, color = Mut, fontSize = AppType.caption, maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                Text("Expires · " + exp, color = Dim, fontSize = AppType.caption)
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                                Text(if (disabled) "Disabled" else "Active", color = if (disabled) Amber else Green, fontSize = AppType.small)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    PulseDot(if (disabled) Amber else Green, !disabled, 5.dp)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(if (disabled) "DISABLED" else "ACTIVE", color = if (disabled) Amber else Green, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+                                }
                                 if (u.optBoolean("admin")) Text("Jellyfin admin", color = Mut, fontSize = AppType.caption)
                                 if (u.optBoolean("accounts_admin")) Text("JFA-Go admin", color = Red, fontSize = AppType.caption)
                             }
                         }
                         Spacer(Modifier.height(8.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            TextButton(enabled = !actionBusy, onClick = { selected = u; expiryDays = "30"; dialog = "expiry" }) { Text("Expiry", color = Red) }
-                            TextButton(enabled = !actionBusy, onClick = { selected = u; dialog = "reset" }) { Text("Reset", color = Red) }
-                            TextButton(enabled = !actionBusy, onClick = {
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.7f)))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            JfaAction("Expiry") { selected = u; expiryDays = "30"; dialog = "expiry" }
+                            JfaAction("Reset") { selected = u; dialog = "reset" }
+                            JfaAction(if (disabled) "Enable" else "Disable", if (disabled) Green else Amber, !actionBusy) {
                                 val id = u.optString("id"); actionBusy = true
                                 scope.launch { try { withContext(Dispatchers.IO) { JfaApi.setEnabled(conn!!, id, u.optBoolean("disabled")) }; refresh++; actionMessage = "Account status updated." }
                                     catch (e: Exception) { actionMessage = e.message ?: "Account update failed." } finally { actionBusy = false } }
-                            }) { Text(if (disabled) "Enable" else "Disable", color = if (disabled) Green else Amber) }
-                            TextButton(enabled = !actionBusy, onClick = { selected = u; dialog = "delete" }) { Text("Delete", color = Color(0xFFFF6878)) }
+                            }
+                            JfaAction("Delete", Color(0xFFFF6878), !actionBusy) { selected = u; dialog = "delete" }
                         }
                     }
                 }
@@ -286,8 +315,8 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                 Button(onClick = { inviteDays = "7"; inviteUses = "1"; dialog = "invite" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) { Text("Create invitation") }
                 if (invites.isEmpty()) Panel { Text("No invitations returned.", color = Mut) }
                 invites.forEach { inv ->
-                    Panel {
-                        Text(inv.optString("code", "Invitation"), color = Txt, fontWeight = FontWeight.SemiBold)
+                    JfaCompactSurface {
+                        Text(inv.optString("code", "Invitation"), color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
                         Text(inv.optString("label"), color = Mut, fontSize = AppType.small)
                         Text("Uses remaining: " + inv.optString("remaining-uses", "—"), color = Dim, fontSize = AppType.caption)
                         TextButton(enabled = !actionBusy, onClick = { actionBusy = true; scope.launch {
