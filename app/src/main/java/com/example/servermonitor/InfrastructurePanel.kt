@@ -396,8 +396,13 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
     }
     val nodes = topology?.optJSONArray("nodes")
     val links = topology?.optJSONArray("links")
-    val allNodes = if (nodes == null) emptyList() else (0 until minOf(nodes.length(), 40)).mapNotNull { nodes.optJSONObject(it) }
-    val linkItems = if (links == null) emptyList() else (0 until minOf(links.length(), 40)).mapNotNull { links.optJSONObject(it) }
+    val allNodes = if (nodes == null) emptyList() else (0 until nodes.length()).mapNotNull { nodes.optJSONObject(it) }
+    val linkItems = if (links == null) emptyList() else (0 until links.length()).mapNotNull { links.optJSONObject(it) }
+    // MACs seen in the bridge forwarding database without a current IP mapping.
+    // Keep these visible as unidentified L2 observations, never as named devices.
+    val bridgeMacs = topology?.optJSONArray("unmapped_macs")?.let { array ->
+        (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+    } ?: emptyList()
     val linkedIps = linkItems.map { it.optString("target") }.filter { it.isNotBlank() }.toSet()
     val linkedNodes = allNodes.filter { it.optString("ip") in linkedIps && it.optString("topology_status") != "unmapped" }
     val unmappedNodes = allNodes.filter { it.optString("topology_status") == "unmapped" }
@@ -410,7 +415,9 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
     val tx = liveTraffic?.optDouble("tx_bytes_per_sec", 0.0) ?: 0.0
     val packetAge = liveTraffic?.let { if (it.isNull("last_packet_age_ms")) null else it.optLong("last_packet_age_ms") }
     val isLive = trafficAvailable && packetAge != null && packetAge in 0..5000
-    val deviceCount = linkedNodes.size + if (sourceIp != null) 1 else 0
+    val deviceCount = allNodes.count { it.optString("role") != "gateway" } + if (sourceIp != null && allNodes.none { it.optString("ip") == sourceIp }) 1 else 0
+    val mapRows = (linkedNodes.size + 1) / 2
+    val mapHeight = maxOf(410, 320 + mapRows * 112).dp
     Panel {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -448,7 +455,7 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
                 Text("+", Modifier.clip(RoundedCornerShape(8.dp)).clickable { zoom = (zoom + 0.1f).coerceAtMost(1.3f) }.padding(horizontal = 9.dp, vertical = 4.dp), color = Txt, fontSize = AppType.title)
                 Text("⛶", Modifier.clip(RoundedCornerShape(8.dp)).clickable { fullScreen = !fullScreen }.padding(7.dp), color = Blue, fontSize = AppType.title)
             }
-            Box(Modifier.fillMaxWidth().height(if (fullScreen) 620.dp else 410.dp)
+            Box(Modifier.fillMaxWidth().height(if (fullScreen) maxOf(620.dp, mapHeight) else mapHeight)
                 .clip(RoundedCornerShape(20.dp)).background(Color(0xFF0D1729))
                 .border(1.dp, Color(0xFF263B5B), RoundedCornerShape(20.dp))
                 .pointerInput(fullScreen) { detectTransformGestures { _, _, factor, _ -> zoom = (zoom * factor).coerceIn(0.8f, 1.3f) } }) {
@@ -464,15 +471,20 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
                     val line = Color(0xFF16B9F2).copy(alpha = 0.82f)
                     drawLine(line, Offset(cx, 76.dp.toPx()), Offset(cx, routerY - 34.dp.toPx()), 2.dp.toPx())
                     if (linkedNodes.isNotEmpty()) {
-                        val count = minOf(linkedNodes.size, 4)
-                        val left = 34.dp.toPx()
-                        val right = size.width - left
+                        val left = size.width * 0.27f
+                        val right = size.width * 0.73f
                         drawLine(line, Offset(cx, routerY + 32.dp.toPx()), Offset(cx, 226.dp.toPx()), 2.dp.toPx())
-                        drawLine(line, Offset(left, 226.dp.toPx()), Offset(right, 226.dp.toPx()), 2.dp.toPx())
-                        for (i in 0 until count) {
-                            val px = if (count == 1) cx else left + i * (right - left) / (count - 1)
-                            drawLine(line, Offset(px, 226.dp.toPx()), Offset(px, deviceY), 1.8.dp.toPx())
-                            drawCircle(Color(0xFF25DFA0), 3.5.dp.toPx(), Offset(px, deviceY))
+                        for (row in 0 until mapRows) {
+                            val busY = 226.dp.toPx() + row * 112.dp.toPx()
+                            val nodeY = 298.dp.toPx() + row * 112.dp.toPx()
+                            drawLine(line, Offset(left, busY), Offset(right, busY), 1.8.dp.toPx())
+                            drawLine(line, Offset(cx, if (row == 0) 226.dp.toPx() else 226.dp.toPx() + (row - 1) * 112.dp.toPx()), Offset(cx, busY), 1.8.dp.toPx())
+                            drawLine(line, Offset(left, busY), Offset(left, nodeY), 1.8.dp.toPx())
+                            drawCircle(Color(0xFF25DFA0), 3.5.dp.toPx(), Offset(left, nodeY))
+                            if (row * 2 + 1 < linkedNodes.size) {
+                                drawLine(line, Offset(right, busY), Offset(right, nodeY), 1.8.dp.toPx())
+                                drawCircle(Color(0xFF25DFA0), 3.5.dp.toPx(), Offset(right, nodeY))
+                            }
                         }
                     }
                     // The monitoring host is shown as a separate known endpoint, not
@@ -537,11 +549,23 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
             }
             if (unmappedNodes.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
-                Label("Unmapped observations")
+                Label("Unmapped IP observations · ${unmappedNodes.size}")
                 unmappedNodes.forEach { node ->
                     TopologyDevice(node, Amber, Modifier.fillMaxWidth(), node.optString("topology_reason", "Insufficient passive network data"))
                     Spacer(Modifier.height(6.dp))
                 }
+            }
+            if (bridgeMacs.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Label("Unidentified MAC observations · ${bridgeMacs.size}")
+                Text("Seen in the bridge forwarding table, but no current IP address is available. These are not counted as identified devices.", color = Dim, fontSize = AppType.caption)
+                bridgeMacs.forEach { entry ->
+                    DiagRow(entry.optString("mac", "Unknown MAC"), entry.optJSONArray("interfaces")?.let { a -> (0 until a.length()).joinToString { a.optString(it) } } ?: "Bridge table", Amber)
+                }
+            }
+            topology?.optString("note")?.takeIf { it.isNotBlank() && it != "null" }?.let {
+                Spacer(Modifier.height(6.dp))
+                Text(it, color = Dim, fontSize = AppType.caption)
             }
             Spacer(Modifier.height(8.dp))
             DiagRow("Last packet", packetAge?.let { if (it < 1000) "Just now" else "${it / 1000}s ago" } ?: "No recent packet", if (isLive) Green else Dim)
