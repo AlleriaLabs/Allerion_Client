@@ -1,12 +1,17 @@
 package com.example.servermonitor
 
 import android.content.Context
+import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -132,7 +137,9 @@ private object JfaApi {
             throw IllegalStateException("JFA-Go $key endpoint returned a $kind instead of JSON. Check the server URL and API route.")
         }
         val root = JSONObject(text)
-        return root.optJSONArray(key) ?: root.optJSONArray("activity") ?: root.optJSONArray("items") ?: JSONArray()
+        val arr = root.optJSONArray(key) ?: root.optJSONArray("activity") ?: root.optJSONArray("items")
+        if (arr != null) return arr
+        throw IllegalStateException("JFA-Go returned JSON but the expected '$key' list was missing.")
     }
     fun users(c: JfaConn): List<JSONObject> {
         val auth = login(c)
@@ -142,8 +149,10 @@ private object JfaApi {
         return (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
     }
     fun test(c: JfaConn) { require(c.username.isNotBlank() && c.password.isNotBlank()) { "Enter the JFA-Go administrator username and password." }; users(c) }
-    fun setEnabled(c: JfaConn, id: String, enabled: Boolean) { val a = login(c); request(c, "/users/enable", "POST", JSONObject().put("users", JSONArray().put(id)).put("enabled", enabled).put("notify", false), a.token) }
-    fun deleteUser(c: JfaConn, id: String) { val a = login(c); request(c, "/users", "DELETE", JSONObject().put("users", JSONArray().put(id)).put("notify", false), a.token) }
+    fun setEnabled(c: JfaConn, id: String, enabled: Boolean) = setEnabled(c, listOf(id), enabled)
+    fun setEnabled(c: JfaConn, ids: List<String>, enabled: Boolean) { require(ids.isNotEmpty()); val a = login(c); request(c, "/users/enable", "POST", JSONObject().put("users", JSONArray(ids)).put("enabled", enabled).put("notify", false), a.token) }
+    fun deleteUser(c: JfaConn, id: String) = deleteUsers(c, listOf(id))
+    fun deleteUsers(c: JfaConn, ids: List<String>) { require(ids.isNotEmpty()); val a = login(c); request(c, "/users", "DELETE", JSONObject().put("users", JSONArray(ids)).put("notify", false), a.token) }
     fun resetPassword(c: JfaConn, id: String): JSONObject { val a = login(c); return JSONObject(request(c, "/users/password-reset", "POST", JSONObject().put("users", JSONArray().put(id)), a.token).first) }
     fun setExpiry(c: JfaConn, id: String, days: Int) { require(days > 0) { "Days must be greater than zero." }; val a = login(c); request(c, "/users/extend", "POST", JSONObject().put("users", JSONArray().put(id)).put("months", 0).put("days", days).put("hours", 0).put("minutes", 0).put("notify", false), a.token) }
     fun createUser(c: JfaConn, name: String, password: String, email: String) { require(name.isNotBlank() && password.isNotBlank()) { "Username and password are required." }; val a = login(c); request(c, "/user", "POST", JSONObject().put("username", name.trim()).put("password", password).put("email", email.trim()), a.token) }
@@ -160,6 +169,15 @@ private object JfaApi {
     }
 }
 
+private fun copyText(ctx: Context, value: String) {
+    val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText("JFA-Go", value))
+}
+private fun shareText(ctx: Context, value: String) {
+    val intent = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, value)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    ctx.startActivity(Intent.createChooser(intent, "Share"))
+}
 @Composable
 private fun JfaCompactSurface(content: @Composable ColumnScope.() -> Unit) {
     val shape = RoundedCornerShape(17.dp)
@@ -225,6 +243,17 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
     var actionMessage by remember { mutableStateOf<String?>(null) }
     var userSearch by remember { mutableStateOf("") }
     var userFilter by remember { mutableStateOf("All") }
+    var userSort by remember { mutableStateOf("Name") }
+    var userPage by remember { mutableIntStateOf(0) }
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var inviteSearch by remember { mutableStateOf("") }
+    var inviteFilter by remember { mutableStateOf("All") }
+    var activitySearch by remember { mutableStateOf("") }
+    var activityType by remember { mutableStateOf("All") }
+    var activityDays by remember { mutableStateOf("30") }
+    var activityPage by remember { mutableIntStateOf(0) }
+    var detailUser by remember { mutableStateOf<JSONObject?>(null) }
+    var resetLink by remember { mutableStateOf<String?>(null) }
     var newName by remember { mutableStateOf("") }; var newPassword by remember { mutableStateOf("") }; var newEmail by remember { mutableStateOf("") }
     var expiryDays by remember { mutableStateOf("30") }; var inviteDays by remember { mutableStateOf("7") }; var inviteUses by remember { mutableStateOf("1") }
     LaunchedEffect(conn, refresh) {
@@ -326,7 +355,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                     singleLine = true, placeholder = { Text("Search users") }, leadingIcon = { Icon24(Ic.Globe, Mut, 18.dp) })
                 val now = System.currentTimeMillis()
                 val filterOptions = listOf("All", "Active", "Disabled", "Expiring", "No expiry")
-                val filteredUsers = users.filter { u ->
+                val filteredUsersUnsorted = users.filter { u ->
                     val expiry = u.optLong("expiry")
                     val statusMatch = when (userFilter) {
                         "Active" -> !u.optBoolean("disabled")
@@ -339,6 +368,16 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                         u.optString("email").contains(userSearch, true) || u.optString("label").contains(userSearch, true)
                     statusMatch && queryMatch
                 }
+                val filteredUsers = when (userSort) {
+                    "Expiry" -> filteredUsersUnsorted.sortedBy { it.optLong("expiry").let { e -> if (e <= 0) Long.MAX_VALUE else e } }
+                    "Newest" -> filteredUsersUnsorted.sortedByDescending { it.optLong("created_at", it.optLong("created")) }
+                    "Status" -> filteredUsersUnsorted.sortedBy { it.optBoolean("disabled") }
+                    else -> filteredUsersUnsorted.sortedBy { it.optString("name").lowercase() }
+                }
+                val pageSize = 20
+                val pageCount = maxOf(1, (filteredUsers.size + pageSize - 1) / pageSize)
+                userPage = userPage.coerceIn(0, pageCount - 1)
+                val pageUsers = filteredUsers.drop(userPage * pageSize).take(pageSize)
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     filterOptions.forEach { option ->
                         val selectedFilter = userFilter == option
@@ -363,19 +402,40 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                         }
                     }
                 }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Sort", color = Dim, fontSize = AppType.caption)
+                    listOf("Name", "Expiry", "Newest", "Status").forEach { sort ->
+                        FilterChip(selected = userSort == sort, onClick = { userSort = sort; userPage = 0 }, label = { Text(sort) })
+                    }
+                }
+                if (selectedIds.isNotEmpty()) {
+                    JfaCompactSurface {
+                        Text("${selectedIds.size} selected", color = Txt, fontWeight = FontWeight.SemiBold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(enabled = !actionBusy, onClick = { dialog = "bulk_disable" }) { Text("Disable") }
+                            OutlinedButton(enabled = !actionBusy, onClick = { dialog = "bulk_enable" }) { Text("Enable") }
+                            OutlinedButton(enabled = !actionBusy, onClick = { dialog = "bulk_delete" }) { Text("Delete", color = Color(0xFFFF6878)) }
+                            TextButton(onClick = { selectedIds = emptySet() }) { Text("Clear") }
+                        }
+                    }
+                }
                 if (filteredUsers.isEmpty()) Panel { Text(if (users.isEmpty()) "No accounts returned by JFA-Go." else "No users match this search and filter.", color = Mut) }
-                filteredUsers.forEach { u ->
+                pageUsers.forEach { u ->
                     val disabled = u.optBoolean("disabled")
                     val expiry = u.optLong("expiry")
                     val exp = if (expiry <= 0) "No expiry" else java.text.SimpleDateFormat("d MMM yyyy", java.util.Locale.getDefault()).format(java.util.Date(expiry))
                     JfaCompactSurface {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = selectedIds.contains(u.optString("id")), onCheckedChange = { checked ->
+                                val id = u.optString("id")
+                                selectedIds = if (checked) selectedIds + id else selectedIds - id
+                            })
                             Box(Modifier.size(34.dp).clip(CircleShape).background(Surf2).border(1.dp, Line, CircleShape), contentAlignment = Alignment.Center) {
                                 Text(u.optString("name").take(1).uppercase().ifBlank { "?" }, color = Red, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(u.optString("name", "Unknown user"), color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold,
+                                Text(u.optString("name", "Unknown user"), modifier = Modifier.clickable { detailUser = u }, color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold,
                                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                 val detail = u.optString("label").ifBlank { u.optString("email") }
                                 if (detail.isNotBlank()) Text(detail, color = Mut, fontSize = AppType.caption, maxLines = 1,
@@ -393,6 +453,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                                 if (u.optBoolean("accounts_admin")) Text("JFA-Go admin", color = Red, fontSize = AppType.caption)
                             }
                         }
+                        TextButton(onClick = { detailUser = u }) { Text("View account details", color = Mut) }
                         Spacer(Modifier.height(8.dp))
                         Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.7f)))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -407,29 +468,92 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                         }
                     }
                 }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Page ${userPage + 1} of $pageCount", color = Mut, fontSize = AppType.caption)
+                    Row {
+                        TextButton(enabled = userPage > 0, onClick = { userPage-- }) { Text("Previous") }
+                        TextButton(enabled = userPage < pageCount - 1, onClick = { userPage++ }) { Text("Next") }
+                    }
+                }
             } else if (tab == "Invites") {
                 Button(onClick = { inviteDays = "7"; inviteUses = "1"; dialog = "invite" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) { Text("Create invitation") }
-                if (invites.isEmpty()) Panel { Text("No invitations returned.", color = Mut) }
-                invites.forEach { inv ->
+                OutlinedTextField(inviteSearch, { inviteSearch = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search invitation code") })
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf("All", "Active", "Expired", "Used").forEach { filter ->
+                        FilterChip(selected = inviteFilter == filter, onClick = { inviteFilter = filter }, label = { Text(filter) })
+                    }
+                }
+                val nowSeconds = System.currentTimeMillis() / 1000L
+                val visibleInvites = invites.filter { inv ->
+                    val code = inv.optString("code")
+                    val remaining = inv.optInt("remaining-uses", -1)
+                    val expiry = inv.optLong("expiry", inv.optLong("expires"))
+                    val match = when (inviteFilter) {
+                        "Used" -> remaining == 0
+                        "Expired" -> expiry > 0 && expiry < nowSeconds
+                        "Active" -> remaining != 0 && (expiry <= 0 || expiry >= nowSeconds)
+                        else -> true
+                    }
+                    match && (inviteSearch.isBlank() || code.contains(inviteSearch, true) || inv.optString("label").contains(inviteSearch, true))
+                }
+                if (visibleInvites.isEmpty()) Panel { Text(if (invites.isEmpty()) "No invitations returned." else "No invitations match this filter.", color = Mut) }
+                visibleInvites.forEach { inv ->
                     JfaCompactSurface {
                         Text(inv.optString("code", "Invitation"), color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
                         Text(inv.optString("label"), color = Mut, fontSize = AppType.small)
                         Text("Uses remaining: " + inv.optString("remaining-uses", "—"), color = Dim, fontSize = AppType.caption)
-                        TextButton(enabled = !actionBusy, onClick = { actionBusy = true; scope.launch {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = { copyText(ctx, inv.optString("code")) ; actionMessage = "Invitation code copied." }) { Text("Copy code") }
+                            TextButton(onClick = { shareText(ctx, "JFA-Go invitation: " + inv.optString("code")) }) { Text("Share") }
+                        }
+                        TextButton(enabled = !actionBusy, onClick = { selected = inv; dialog = "delete_invite" }) { Text("Delete invitation", color = Color(0xFFFF6878)) }
+                        /* deletion is confirmed in the shared dialog below */
+                        TextButton(enabled = false, onClick = { actionBusy = true; scope.launch {
                             try { withContext(Dispatchers.IO) { JfaApi.deleteInvite(conn!!, inv.optString("code")) }; refresh++; actionMessage = "Invitation deleted." }
                             catch (e: Exception) { actionMessage = e.message ?: "Invitation deletion failed." } finally { actionBusy = false }
                         } }) { Text("Delete invitation", color = Color(0xFFFF6878)) }
                     }
                 }
             } else {
-                if (activity.isEmpty()) Panel { Text("No activity entries returned.", color = Mut) }
-                activity.forEach { a ->
+                OutlinedTextField(activitySearch, { activitySearch = it; activityPage = 0 }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search activity") })
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf("All", "User", "Invite", "Login", "Password").forEach { type ->
+                        FilterChip(selected = activityType == type, onClick = { activityType = type; activityPage = 0 }, label = { Text(type) })
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Within days", color = Mut, fontSize = AppType.caption)
+                    Spacer(Modifier.width(8.dp))
+                    listOf("7", "30", "90", "365").forEach { days ->
+                        FilterChip(selected = activityDays == days, onClick = { activityDays = days; activityPage = 0 }, label = { Text(days) })
+                    }
+                }
+                val cutoff = System.currentTimeMillis() / 1000L - (activityDays.toLongOrNull() ?: 30L) * 86400L
+                val filteredActivity = activity.filter { a ->
+                    val type = a.optString("type")
+                    val user = a.optString("username").ifBlank { a.optString("source_username") }
+                    val time = a.optLong("time")
+                    (activityType == "All" || type.contains(activityType, true)) &&
+                        (time <= 0 || time >= cutoff) &&
+                        (activitySearch.isBlank() || user.contains(activitySearch, true) || type.contains(activitySearch, true) || a.toString().contains(activitySearch, true))
+                }
+                val activityPageCount = maxOf(1, (filteredActivity.size + 19) / 20)
+                val activityItems = filteredActivity.drop(activityPage * 20).take(20)
+                if (activityItems.isEmpty()) Panel { Text("No activity entries match these filters.", color = Mut) }
+                activityItems.forEach { a ->
                     val t = a.optLong("time")
                     val date = if (t > 0) java.text.SimpleDateFormat("d MMM · HH:mm", java.util.Locale.getDefault()).format(java.util.Date(t)) else "—"
                     Panel {
                         Text(a.optString("type").replace('-', ' ').replace('_', ' ').ifBlank { "Activity" }, color = Txt, fontWeight = FontWeight.SemiBold)
                         Text(a.optString("username").ifBlank { a.optString("source_username") }, color = Mut, fontSize = AppType.small)
                         Text(date, color = Dim, fontSize = AppType.caption)
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Page ${activityPage.coerceAtMost(activityPageCount - 1) + 1} of $activityPageCount", color = Mut, fontSize = AppType.caption)
+                    Row {
+                        TextButton(enabled = activityPage > 0, onClick = { activityPage-- }) { Text("Previous") }
+                        TextButton(enabled = activityPage < activityPageCount - 1, onClick = { activityPage++ }) { Text("Next") }
                     }
                 }
             }
@@ -443,10 +567,58 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
     if (dialog == "expiry") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Extend account expiry", color = Txt) },
         text = { OutlinedTextField(expiryDays, { expiryDays = it.filter(Char::isDigit) }, label = { Text("Additional days") }) },
         confirmButton = { TextButton(enabled = !actionBusy && (expiryDays.toIntOrNull() ?: 0) > 0, onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.setExpiry(conn!!, selected!!.getString("id"), expiryDays.toInt()) }; dialog = ""; refresh++; actionMessage = "Expiry extended." } catch (e: Exception) { actionMessage = e.message ?: "Expiry update failed." } finally { actionBusy = false } } }) { Text("Apply", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    if (dialog == "bulk_enable" || dialog == "bulk_disable" || dialog == "bulk_delete") AlertDialog(
+        onDismissRequest = { if (!actionBusy) dialog = "" },
+        title = { Text(if (dialog == "bulk_delete") "Delete selected accounts?" else "Change selected accounts?", color = Txt) },
+        text = { Text(if (dialog == "bulk_delete") "Permanently delete ${selectedIds.size} selected accounts?" else "Apply this status change to ${selectedIds.size} selected accounts?", color = Mut) },
+        confirmButton = { TextButton(enabled = !actionBusy && selectedIds.isNotEmpty(), onClick = {
+            val mode = dialog; actionBusy = true
+            scope.launch { try {
+                withContext(Dispatchers.IO) {
+                    if (mode == "bulk_delete") JfaApi.deleteUsers(conn!!, selectedIds.toList())
+                    else JfaApi.setEnabled(conn!!, selectedIds.toList(), mode == "bulk_enable")
+                }
+                selectedIds = emptySet(); dialog = ""; refresh++; actionMessage = "Bulk action completed."
+            } catch (e: Exception) { actionMessage = e.message ?: "Bulk action failed." }
+            finally { actionBusy = false }
+        }) { Text(if (dialog == "bulk_delete") "Delete" else "Confirm", color = if (dialog == "bulk_delete") Color(0xFFFF6878) else Red) } },
+        dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    if (dialog == "delete_invite") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
+        title = { Text("Delete invitation?", color = Txt) },
+        text = { Text("Delete invitation code ${selected?.optString("code").orEmpty()}?", color = Mut) },
+        confirmButton = { TextButton(enabled = !actionBusy, onClick = { actionBusy = true; scope.launch {
+            try { withContext(Dispatchers.IO) { JfaApi.deleteInvite(conn!!, selected?.optString("code").orEmpty()) }; dialog = ""; refresh++; actionMessage = "Invitation deleted." }
+            catch (e: Exception) { actionMessage = e.message ?: "Invitation deletion failed." } finally { actionBusy = false }
+        } }) { Text("Delete", color = Color(0xFFFF6878)) } },
+        dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (dialog == "reset") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Generate password reset", color = Txt) }, text = { Text("Generate a JFA-Go password reset link for " + selected?.optString("name").orEmpty() + "?", color = Mut) },
-        confirmButton = { TextButton(enabled = !actionBusy, onClick = { actionBusy = true; scope.launch { try { val result = withContext(Dispatchers.IO) { JfaApi.resetPassword(conn!!, selected!!.getString("id")) }; val link = result.optString("link"); actionMessage = if (link.isBlank()) "JFA-Go accepted the reset request." else "Reset link: " + link; dialog = "" } catch (e: Exception) { actionMessage = e.message ?: "Password reset failed." } finally { actionBusy = false } } }) { Text("Generate", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+        confirmButton = { TextButton(enabled = !actionBusy, onClick = { actionBusy = true; scope.launch { try { val result = withContext(Dispatchers.IO) { JfaApi.resetPassword(conn!!, selected!!.getString("id")) }; val link = result.optString("link").ifBlank { result.optString("url") }
+                            resetLink = link
+                            actionMessage = if (link.isBlank()) "JFA-Go accepted the reset request, but returned no link." else "Password reset link is ready."
+                            dialog = "" } catch (e: Exception) { actionMessage = e.message ?: "Password reset failed." } finally { actionBusy = false } } }) { Text("Generate", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (dialog == "delete") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Delete account?", color = Txt) }, text = { Text("Permanently delete " + selected?.optString("name").orEmpty() + " from JFA-Go?", color = Mut) },
         confirmButton = { TextButton(enabled = !actionBusy, onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.deleteUser(conn!!, selected!!.getString("id")) }; dialog = ""; refresh++; actionMessage = "Account deleted." } catch (e: Exception) { actionMessage = e.message ?: "Account deletion failed." } finally { actionBusy = false } } }) { Text("Delete", color = Color(0xFFFF6878)) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    if (detailUser != null) AlertDialog(onDismissRequest = { detailUser = null },
+        title = { Text(detailUser?.optString("name", "Account") ?: "Account", color = Txt) },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            val u = detailUser!!
+            listOf("Email" to u.optString("email"), "Label" to u.optString("label"), "ID" to u.optString("id"),
+                "Expiry" to u.optLong("expiry").let { if (it <= 0) "No expiry" else java.text.SimpleDateFormat("d MMM yyyy, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it)) },
+                "Status" to if (u.optBoolean("disabled")) "Disabled" else "Active",
+                "Jellyfin admin" to u.optBoolean("admin").toString(), "JFA-Go admin" to u.optBoolean("accounts_admin").toString()).forEach { (k,v) ->
+                if (v.isNotBlank()) Text("$k · $v", color = Mut)
+            }
+        } },
+        confirmButton = { TextButton(onClick = { detailUser = null }) { Text("Close", color = Red) } })
+    resetLink?.let { link ->
+        AlertDialog(onDismissRequest = { resetLink = null }, title = { Text("Password reset link", color = Txt) },
+            text = { Text(link, color = Mut) },
+            confirmButton = { Row {
+                TextButton(onClick = { copyText(ctx, link); actionMessage = "Reset link copied."; resetLink = null }) { Text("Copy") }
+                TextButton(onClick = { shareText(ctx, link); resetLink = null }) { Text("Share") }
+            } },
+            dismissButton = { TextButton(onClick = { resetLink = null }) { Text("Close") } })
+    }
     if (dialog == "invite") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Create invitation", color = Txt) },
         text = { Column { OutlinedTextField(inviteDays, { inviteDays = it.filter(Char::isDigit) }, label = { Text("Validity days") }); OutlinedTextField(inviteUses, { inviteUses = it.filter(Char::isDigit) }, label = { Text("Number of uses") }) } },
         confirmButton = { TextButton(enabled = !actionBusy && (inviteDays.toIntOrNull() ?: 0) > 0 && (inviteUses.toIntOrNull() ?: 0) > 0, onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.createInvite(conn!!, inviteDays.toInt(), inviteUses.toInt()) }; dialog = ""; refresh++; actionMessage = "Invitation created." } catch (e: Exception) { actionMessage = e.message ?: "Invitation creation failed." } finally { actionBusy = false } } }) { Text("Create", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
