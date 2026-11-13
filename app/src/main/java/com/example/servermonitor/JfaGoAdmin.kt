@@ -209,24 +209,20 @@ private fun JfaMetric(value: String, label: String, icon: Ic, modifier: Modifier
 @Composable
 private fun RowScope.JfaAction(label: String, icon: Ic, tint: Color = Red, enabled: Boolean = true, onClick: () -> Unit) {
     val actionTint = if (enabled) tint else Dim
-    Column(
+    Row(
         Modifier.weight(1f)
-            .clip(RoundedCornerShape(15.dp))
-            .background(Surf2.copy(alpha = 0.88f))
-            .border(1.dp, Line.copy(alpha = 0.95f), RoundedCornerShape(15.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(Surf2.copy(alpha = 0.62f))
+            .border(1.dp, Line.copy(alpha = 0.78f), RoundedCornerShape(12.dp))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 2.dp, vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(5.dp)
+            .padding(horizontal = 4.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon24(icon, actionTint, 21.dp)
-        Text(
-            label,
-            color = if (enabled) Txt else Dim,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1
-        )
+        Icon24(icon, actionTint, 16.dp)
+        Spacer(Modifier.width(5.dp))
+        Text(label, color = if (enabled) Txt else Dim, fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
@@ -286,8 +282,13 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
         catch (e: Exception) { error = e.message ?: "Unable to load JFA-Go users." }
         finally { busy = false }
     }
-    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState())
-        .padding(horizontal = 15.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
+      Column(
+        Modifier.widthIn(max = 1100.dp).fillMaxWidth().fillMaxHeight()
+            .align(Alignment.TopCenter).verticalScroll(rememberScrollState())
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(11.dp)
+      ) {
         ModulePageHeader("USER MANAGEMENT", "User Management", "Accounts, invitations and access control", onBack, { edit = !edit }) {
             IconBtn(Ic.Refresh, "Refresh", plain = true, onClick = { refresh++ })
         }
@@ -363,7 +364,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                         Icon24(Ic.Plus, Color.White, 16.dp); Spacer(Modifier.width(6.dp)); Text("Add user")
                     }
                 }
-                OutlinedTextField(userSearch, { userSearch = it }, modifier = Modifier.fillMaxWidth(),
+                OutlinedTextField(userSearch, { userSearch = it; userPage = 0 }, modifier = Modifier.fillMaxWidth(),
                     singleLine = true, placeholder = { Text("Search users") }, leadingIcon = { Icon24(Ic.Globe, Mut, 18.dp) })
                 val now = System.currentTimeMillis()
                 val filterOptions = listOf("All", "Active", "Disabled", "Expiring", "No expiry")
@@ -404,7 +405,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                             Modifier.clip(RoundedCornerShape(18.dp))
                                 .background(if (selectedFilter) Red.copy(alpha = 0.14f) else Surf2.copy(alpha = 0.72f))
                                 .border(1.dp, if (selectedFilter) Red.copy(alpha = 0.55f) else Line, RoundedCornerShape(18.dp))
-                                .clickable { userFilter = option }
+                                .clickable { userFilter = option; userPage = 0 }
                                 .padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -568,6 +569,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             }
         }
         Text("JFA-Go manages account registration and expiry. Jellyfin playback sessions and connected-device monitoring are separate.", color = Dim, fontSize = AppType.caption)
+      }
     }
 
     if (dialog == "create") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Create JFA-Go user", color = Txt) },
