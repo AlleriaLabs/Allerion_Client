@@ -108,7 +108,7 @@ private fun loadJellyfinSessions(config: JfSessionConfig): List<JfSession> {
 }
 
 @Composable
-fun LiveUsersScreen(onBack: () -> Unit) {
+fun LiveUsersScreen(onBack: () -> Unit = {}) {
     val context = LocalContext.current
     var config by remember { mutableStateOf(JfSessionStore.load(context)) }
     var url by remember { mutableStateOf(config?.url.orEmpty()) }
