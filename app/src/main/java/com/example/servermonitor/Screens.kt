@@ -468,6 +468,12 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
     if (setup) { PowerSetup(sv) { setup = false }; return }
     val d = detail
     if (d != null && j != null) { MetricDetail(sv, d, j) { detail = null }; return }
+    // Analytics owns its complete branded page. Do not render it inside the legacy dashboard shell,
+    // which adds AppHeader, DashboardSectionHeader, nested scrolling and BottomBar around it.
+    if (tab == 4 && morePage == "analytics") {
+        JellyfinAnalyticsScreen(sv, onBack = { morePage = "menu" }, onSettings = onEdit)
+        return
+    }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
         AppHeader(sv, j, r.error, online,
             if (tab == 4 && (morePage == "activity" || morePage == "diagnostics" || morePage == "liveusers")) ({ morePage = "menu" }) else onBack,
