@@ -61,7 +61,7 @@ val LocalReduceMotion = compositionLocalOf { false }
 object AppSettings { var refreshMs by mutableLongStateOf(2000L) }
 
 // ---------------------------------------------------------------- icons (one consistent 24-grid, round stroke set)
-enum class Ic { Dash, Cpu, Memory, Storage, Thermo, Activity, Download, Upload, Zap, Plug, Heart, Server, Globe, Clock, Bell, Gear, Refresh, Chart, ChevronL, ChevronD, Plus, Pencil, Trash }
+enum class Ic { Dash, Cpu, Memory, Storage, Thermo, Activity, Download, Upload, Zap, Plug, Heart, Server, Globe, Clock, Bell, Gear, Refresh, Chart, ChevronL, ChevronD, Plus, Pencil, Trash, Check, Ban }
 
 @Composable
 fun Icon24(kind: Ic, tint: Color, sz: Dp = 20.dp, modifier: Modifier = Modifier, desc: String? = null) {
@@ -115,6 +115,8 @@ fun Icon24(kind: Ic, tint: Color, sz: Dp = 20.dp, modifier: Modifier = Modifier,
             Ic.Plus -> { line(12f, 5f, 12f, 19f); line(5f, 12f, 19f, 12f) }
             Ic.Pencil -> { poly(4f, 20f, 5f, 15f, 16f, 4f, 20f, 8f, 9f, 19f, close = true); line(13.5f, 6.5f, 17.5f, 10.5f) }
             Ic.Trash -> { line(4f, 7f, 20f, 7f); poly(9f, 7f, 9f, 4f, 15f, 4f, 15f, 7f); poly(6f, 7f, 7f, 20f, 17f, 20f, 18f, 7f); line(10f, 11f, 10f, 16f); line(14f, 11f, 14f, 16f) }
+            Ic.Check -> { drawCircle(tint, 9f * u, p(12f, 12f), style = sw); poly(7f, 12f, 10.5f, 15.5f, 17f, 8.5f) }
+            Ic.Ban -> { drawCircle(tint, 9f * u, p(12f, 12f), style = sw); line(5.5f, 18.5f, 18.5f, 5.5f) }
         }
     }
 }
