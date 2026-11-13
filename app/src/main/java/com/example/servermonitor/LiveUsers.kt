@@ -6,6 +6,7 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -106,7 +107,7 @@ private fun loadJellyfinSessions(config: JfSessionConfig): List<JfSession> {
 }
 
 @Composable
-fun LiveUsersScreen() {
+fun LiveUsersScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var config by remember { mutableStateOf(JfSessionStore.load(context)) }
     var url by remember { mutableStateOf(config?.url.orEmpty()) }
@@ -128,17 +129,12 @@ fun LiveUsersScreen() {
         if (config != null) while (true) { updateSessions(); delay(15000) }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 15.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ModulePageHeader("JELLYFIN PRESENCE", "Live Users", "Online devices and current playback", onBack) {
+            IconBtn(Ic.Gear, "Connection settings", plain = true, onClick = { editing = !editing })
+            IconBtn(Ic.Refresh, "Refresh", plain = true, onClick = { refresh++ })
+        }
         Panel {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Label("JELLYFIN PRESENCE")
-                    Text("Live users", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
-                    Text("Online devices and current playback", color = Mut, fontSize = AppType.small)
-                }
-                TextButton(onClick = { editing = !editing }) { Text("Settings", color = Mut) }
-                TextButton(onClick = { refresh++ }, enabled = config != null && !busy) { Text(if (busy) "…" else "Refresh", color = Red) }
-            }
             if (config != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PresenceCount("ONLINE", sessions.size.toString(), Green, Modifier.weight(1f))
                 PresenceCount("WATCHING", sessions.count { it.title.isNotBlank() && it.state == "Playing" }.toString(), Red, Modifier.weight(1f))
