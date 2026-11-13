@@ -142,44 +142,44 @@ object JellyfinApi {
         val base = connection.url.trim().trimEnd('/')
         require(base.startsWith("http://") || base.startsWith("https://")) { "Enter a full Jellyfin URL, including http:// or https://." }
         // A successful HTTP 200 is not enough: reverse proxies and login pages can return HTML.
-        parseArray(request(connection, "GET", "/Users"), "/Users")
+        parseArray(request(connection, "GET", "/users"), "/users")
     }
 
     fun users(connection: JellyfinConnection): List<JSONObject> =
-        parseArray(request(connection, "GET", "/Users"), "/Users")
+        parseArray(request(connection, "GET", "/users"), "/users")
 
     fun sessions(connection: JellyfinConnection): List<JSONObject> =
-        parseArray(request(connection, "GET", "/Sessions"), "/Sessions")
+        parseArray(request(connection, "GET", "/sessions"), "/sessions")
 
     fun libraries(connection: JellyfinConnection): List<JSONObject> =
-        parseArray(request(connection, "GET", "/Library/VirtualFolders"), "/Library/VirtualFolders")
+        parseArray(request(connection, "GET", "/library/virtualfolders"), "/library/virtualfolders")
 
     fun activity(connection: JellyfinConnection): List<JSONObject> {
-        val raw = request(connection, "GET", "/System/ActivityLog/Entries?StartIndex=0&Limit=50")
+        val raw = request(connection, "GET", "/system/activitylog/entries?StartIndex=0&Limit=50")
         val result = JSONObject(raw)
         val items = result.optJSONArray("Items") ?: JSONArray()
         return (0 until items.length()).mapNotNull { items.optJSONObject(it) }
     }
 
     fun createUser(connection: JellyfinConnection, name: String, password: String) {
-        request(connection, "POST", "/Users/New", JSONObject().put("Name", name).put("Password", password))
+        request(connection, "POST", "/users/new", JSONObject().put("Name", name).put("Password", password))
     }
 
     fun updatePolicy(connection: JellyfinConnection, userId: String, policy: JSONObject) {
-        request(connection, "POST", "/Users/$userId/Policy", policy)
+        request(connection, "POST", "/users/$userId/policy", policy)
     }
 
     fun updateProfile(connection: JellyfinConnection, userId: String, user: JSONObject) {
-        request(connection, "POST", "/Users/$userId", user)
+        request(connection, "POST", "/users/$userId", user)
     }
 
     fun changePassword(connection: JellyfinConnection, userId: String, newPassword: String) {
-        request(connection, "POST", "/Users/$userId/Password",
+        request(connection, "POST", "/users/$userId/password",
             JSONObject().put("CurrentPw", "").put("NewPw", newPassword))
     }
 
     fun deleteUser(connection: JellyfinConnection, userId: String) {
-        request(connection, "DELETE", "/Users/$userId")
+        request(connection, "DELETE", "/users/$userId")
     }
 }
 
