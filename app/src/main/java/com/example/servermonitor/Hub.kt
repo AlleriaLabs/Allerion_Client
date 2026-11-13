@@ -243,6 +243,10 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                     Text("Servers", fontSize = AppType.displaySmall, fontWeight = FontWeight.ExtraBold, color = Txt, letterSpacing = (-0.5).sp)
                     Text("Your connected infrastructure at a glance", fontSize = AppType.small, color = Mut)
                 }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onUsers) { Text("User management  →", color = Red, fontSize = AppType.small, fontWeight = FontWeight.SemiBold) }
+                    TextButton(onClick = onIntegrations) { Text("Integration Center  →", color = Red, fontSize = AppType.small, fontWeight = FontWeight.SemiBold) }
+                }
                 if (servers.isEmpty()) {
                     Panel(Modifier.staggerIn(1)) {
                         Column(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -261,10 +265,6 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                         SummaryStat("Online", "$online", Green, Modifier.weight(1f))
                         SummaryStat("Offline", "$offline", if (offline > 0) Err else Txt, Modifier.weight(1f))
                         SummaryStat("Availability", availability, Txt, Modifier.weight(1.25f))
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = onUsers) { Text("User management  →", color = Red, fontSize = AppType.small, fontWeight = FontWeight.SemiBold) }
-                        TextButton(onClick = onIntegrations) { Text("Integration Center  →", color = Red, fontSize = AppType.small, fontWeight = FontWeight.SemiBold) }
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
