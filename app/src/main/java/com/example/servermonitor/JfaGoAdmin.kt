@@ -9,6 +9,7 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -188,10 +189,10 @@ private fun shareText(ctx: Context, value: String) {
     ctx.startActivity(Intent.createChooser(intent, "Share"))
 }
 @Composable
-private fun JfaCompactSurface(content: @Composable ColumnScope.() -> Unit) {
-    val shape = RoundedCornerShape(17.dp)
-    Column(Modifier.fillMaxWidth().clip(shape).background(Surf).border(1.dp, Line.copy(alpha = 0.82f), shape).padding(13.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
+private fun JfaCompactSurface(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val shape = RoundedCornerShape(15.dp)
+    Column(modifier.fillMaxWidth().clip(shape).background(Surf).border(1.dp, Line.copy(alpha = 0.82f), shape).padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp), content = content)
 }
 @Composable
 private fun JfaMetric(value: String, label: String, icon: Ic, modifier: Modifier = Modifier) {
@@ -215,13 +216,13 @@ private fun RowScope.JfaAction(label: String, icon: Ic, tint: Color = Red, enabl
             .background(Surf2.copy(alpha = 0.62f))
             .border(1.dp, Line.copy(alpha = 0.78f), RoundedCornerShape(12.dp))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 10.dp),
+            .padding(horizontal = 2.dp, vertical = 7.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon24(icon, actionTint, 16.dp)
         Spacer(Modifier.width(5.dp))
-        Text(label, color = if (enabled) Txt else Dim, fontSize = 10.sp,
+        Text(label, color = if (enabled) Txt else Dim, fontSize = 9.sp,
             fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
@@ -251,6 +252,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     var userSearch by remember { mutableStateOf("") }
     var userFilter by remember { mutableStateOf("All") }
     var userSort by remember { mutableStateOf("Name") }
+    var sortMenuExpanded by remember { mutableStateOf(false) }
     var userPage by remember { mutableIntStateOf(0) }
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var inviteSearch by remember { mutableStateOf("") }
@@ -415,10 +417,22 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                         }
                     }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Sort", color = Dim, fontSize = AppType.caption)
-                    listOf("Name", "Expiry", "Newest", "Status").forEach { sort ->
-                        FilterChip(selected = userSort == sort, onClick = { userSort = sort; userPage = 0 }, label = { Text(sort) })
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                    Box {
+                        TextButton(onClick = { sortMenuExpanded = true }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) {
+                            Icon24(Ic.Sort, Red, 15.dp)
+                            Spacer(Modifier.width(5.dp))
+                            Text("Sort: $userSort", color = Txt, fontSize = AppType.caption)
+                            Spacer(Modifier.width(3.dp))
+                            Icon24(Ic.ChevronDown, Mut, 14.dp)
+                        }
+                        DropdownMenu(expanded = sortMenuExpanded, onDismissRequest = { sortMenuExpanded = false }) {
+                            listOf("Name", "Expiry", "Newest", "Status").forEach { sort ->
+                                DropdownMenuItem(text = { Text(sort) }, onClick = {
+                                    userSort = sort; userPage = 0; sortMenuExpanded = false
+                                })
+                            }
+                        }
                     }
                 }
                 if (selectedIds.isNotEmpty()) {
@@ -437,18 +451,32 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                     val disabled = u.optBoolean("disabled")
                     val expiry = u.optLong("expiry")
                     val exp = if (expiry <= 0) "No expiry" else java.text.SimpleDateFormat("d MMM yyyy", java.util.Locale.getDefault()).format(java.util.Date(expiry))
-                    JfaCompactSurface {
+                    val userId = u.optString("id")
+                    val isSelected = selectedIds.contains(userId)
+                    JfaCompactSurface(
+                        modifier = Modifier.border(
+                            if (isSelected) 1.5.dp else 0.dp,
+                            if (isSelected) Red.copy(alpha = 0.85f) else Color.Transparent,
+                            RoundedCornerShape(15.dp)
+                        ).combinedClickable(
+                            onClick = {
+                                if (selectedIds.isNotEmpty()) {
+                                    selectedIds = if (isSelected) selectedIds - userId else selectedIds + userId
+                                } else detailUser = u
+                            },
+                            onLongClick = {
+                                selectedIds = if (isSelected) selectedIds - userId else selectedIds + userId
+                            }
+                        )
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = selectedIds.contains(u.optString("id")), onCheckedChange = { checked ->
-                                val id = u.optString("id")
-                                selectedIds = if (checked) selectedIds + id else selectedIds - id
-                            })
-                            Box(Modifier.size(34.dp).clip(CircleShape).background(Surf2).border(1.dp, Line, CircleShape), contentAlignment = Alignment.Center) {
+                            Box(Modifier.size(30.dp).clip(CircleShape).background(if (isSelected) Red.copy(alpha = 0.14f) else Surf2)
+                                .border(1.dp, if (isSelected) Red.copy(alpha = 0.7f) else Line, CircleShape), contentAlignment = Alignment.Center) {
                                 Text(u.optString("name").take(1).uppercase().ifBlank { "?" }, color = Red, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(u.optString("name", "Unknown user"), modifier = Modifier.clickable { detailUser = u }, color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold,
+                                Text(u.optString("name", "Unknown user"), color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold,
                                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                 val detail = u.optString("label").ifBlank { u.optString("email") }
                                 if (detail.isNotBlank()) Text(detail, color = Mut, fontSize = AppType.caption, maxLines = 1,
@@ -466,9 +494,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                                 if (u.optBoolean("accounts_admin")) Text("JFA-Go admin", color = Red, fontSize = AppType.caption)
                             }
                         }
-                        TextButton(onClick = { detailUser = u }) { Text("View account details", color = Mut) }
-                        Spacer(Modifier.height(8.dp))
-                        Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.7f)))
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.55f)))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
                             JfaAction("Expiry", Ic.Clock) { selected = u; expiryDays = "30"; dialog = "expiry" }
                             JfaAction("Reset", Ic.Refresh) { selected = u; dialog = "reset" }
