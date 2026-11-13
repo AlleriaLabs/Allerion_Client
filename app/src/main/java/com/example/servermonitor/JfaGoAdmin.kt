@@ -24,6 +24,7 @@ import kotlinx.coroutines.*
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -31,6 +32,20 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+/** Accept either the JFA-Go server root or its visible /accounts page URL. */
+fun normalizeJfaGoBaseUrl(input: String): String {
+    val value = input.trim().trimEnd('/')
+    require(value.isNotBlank()) { "Enter your JFA-Go server URL." }
+    val parsed = URI(value)
+    require((parsed.scheme == "https" || parsed.scheme == "http") && !parsed.host.isNullOrBlank()) {
+        "Enter a full JFA-Go URL beginning with https:// or http://."
+    }
+    var path = parsed.path.orEmpty().trimEnd('/')
+    if (path.equals("/accounts", ignoreCase = true) || path.endsWith("/accounts", ignoreCase = true)) {
+        path = path.dropLast("/accounts".length).trimEnd('/')
+    }
+    return URI(parsed.scheme, parsed.userInfo, parsed.host, parsed.port, path.ifBlank { null }, null, null).toASCIIString().trimEnd('/')
+}
 private data class JfaConn(val url: String, val username: String, val password: String)
 private data class JfaAuth(val token: String, val refresh: String)
 
@@ -58,7 +73,7 @@ private object JfaStore {
     }
     fun load(ctx: Context): JfaConn? = runCatching {
         val raw = ctx.getSharedPreferences(PREF, 0).getString(KEY, null) ?: return null
-        val j = JSONObject(open(raw)); JfaConn(j.getString("url"), j.getString("username"), j.getString("password"))
+        val j = JSONObject(open(raw)); JfaConn(normalizeJfaGoBaseUrl(j.getString("url")), j.getString("username"), j.getString("password"))
     }.getOrNull()
     fun save(ctx: Context, c: JfaConn) {
         val j = JSONObject().put("url", c.url).put("username", c.username).put("password", c.password)
@@ -70,7 +85,7 @@ private object JfaStore {
 private object JfaApi {
     private fun request(c: JfaConn, path: String, method: String = "GET", body: JSONObject? = null,
                         bearer: String? = null, basic: Boolean = false, cookie: String? = null): Pair<String, String?> {
-        val u = URL(c.url.trimEnd('/') + path)
+        val u = URL(normalizeJfaGoBaseUrl(c.url) + path)
         require(u.protocol == "https" || u.protocol == "http") { "Use a valid JFA-Go HTTP or HTTPS URL." }
         val h = u.openConnection() as HttpURLConnection
         try {
@@ -169,17 +184,18 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
         if (edit) Panel {
             Label("JFA-Go administrator")
             Text("Your JFA-Go server is the account source. Credentials are encrypted using Android Keystore.", color = Mut, fontSize = AppType.small)
-            OutlinedTextField(url, { url = it; error = null }, label = { Text("JFA-Go URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(url, { url = it; error = null }, label = { Text("JFA-Go server URL") }, placeholder = { Text("https://your-jfa-go-domain") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Text("Enter the server address only. If you paste the /accounts page URL, Allerion will remove that page path automatically.", color = Dim, fontSize = AppType.caption)
             OutlinedTextField(username, { username = it; error = null }, label = { Text("Admin username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(password, { password = it; error = null }, label = { Text("Admin password") }, singleLine = true,
                 visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
             Button(onClick = {
-                val candidate = JfaConn(url.trim().trimEnd('/'), username.trim(), password)
+                val candidate = JfaConn(normalizeJfaGoBaseUrl(url), username.trim(), password)
                 busy = true; error = null
                 scope.launch {
                     try {
                         withContext(Dispatchers.IO) { JfaApi.test(candidate) }
-                        JfaStore.save(ctx, candidate); conn = candidate; edit = false
+                        JfaStore.save(ctx, candidate); conn = candidate; url = candidate.url; edit = false
                     } catch (e: CancellationException) { throw e }
                     catch (e: Exception) { error = e.message ?: "JFA-Go connection failed." }
                     finally { busy = false }
