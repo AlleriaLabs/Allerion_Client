@@ -166,9 +166,10 @@ private fun JfaCompactSurface(content: @Composable ColumnScope.() -> Unit) {
         verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
 }
 @Composable
-private fun JfaAction(label: String, tint: Color = Red, enabled: Boolean = true, onClick: () -> Unit) {
-    TextButton(onClick = onClick, enabled = enabled, contentPadding = PaddingValues(horizontal = 5.dp, vertical = 1.dp)) {
-        Text(label, color = if (enabled) tint else Dim, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold)
+private fun JfaAction(label: String, icon: Ic, tint: Color = Red, enabled: Boolean = true, onClick: () -> Unit) {
+    Column(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).clickable(enabled = enabled, onClick = onClick).padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Icon24(icon, if (enabled) tint else Dim, 17.dp)
+        Text(label, color = if (enabled) tint else Dim, fontSize = AppType.micro, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
@@ -291,9 +292,9 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    PulseDot(if (disabled) Amber else Green, !disabled, 5.dp)
+                                    Icon24(if (disabled) Ic.Ban else Ic.Check, if (disabled) Amber else Green, 15.dp)
                                     Spacer(Modifier.width(4.dp))
-                                    Text(if (disabled) "DISABLED" else "ACTIVE", color = if (disabled) Amber else Green, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+                                    Text(if (disabled) "Disabled" else "Active", color = if (disabled) Amber else Green, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold)
                                 }
                                 if (u.optBoolean("admin")) Text("Jellyfin admin", color = Mut, fontSize = AppType.caption)
                                 if (u.optBoolean("accounts_admin")) Text("JFA-Go admin", color = Red, fontSize = AppType.caption)
@@ -302,14 +303,14 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                         Spacer(Modifier.height(8.dp))
                         Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.7f)))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            JfaAction("Expiry") { selected = u; expiryDays = "30"; dialog = "expiry" }
-                            JfaAction("Reset") { selected = u; dialog = "reset" }
-                            JfaAction(if (disabled) "Enable" else "Disable", if (disabled) Green else Amber, !actionBusy) {
+                            JfaAction("Expiry", Ic.Clock) { selected = u; expiryDays = "30"; dialog = "expiry" }
+                            JfaAction("Reset", Ic.Refresh) { selected = u; dialog = "reset" }
+                            JfaAction(if (disabled) "Enable" else "Disable", if (disabled) Ic.Check else Ic.Ban, if (disabled) Green else Amber, !actionBusy) {
                                 val id = u.optString("id"); actionBusy = true
                                 scope.launch { try { withContext(Dispatchers.IO) { JfaApi.setEnabled(conn!!, id, u.optBoolean("disabled")) }; refresh++; actionMessage = "Account status updated." }
                                     catch (e: Exception) { actionMessage = e.message ?: "Account update failed." } finally { actionBusy = false } }
                             }
-                            JfaAction("Delete", Color(0xFFFF6878), !actionBusy) { selected = u; dialog = "delete" }
+                            JfaAction("Delete", Ic.Trash, Color(0xFFFF6878), !actionBusy) { selected = u; dialog = "delete" }
                         }
                     }
                 }
