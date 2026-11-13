@@ -120,29 +120,39 @@ object JellyfinApi {
         }
     }
 
+    private fun parseArray(raw: String, endpoint: String): List<JSONObject> {
+        val payload = raw.trim()
+        if (!payload.startsWith("[")) {
+            val hint = when {
+                payload.startsWith("<!doctype", ignoreCase = true) || payload.startsWith("<html", ignoreCase = true) ->
+                    "The server returned an HTML page instead of Jellyfin API JSON. Enter the Jellyfin server root URL (for example http://192.168.68.107:8097), not a /web, /web/index.html, login-page, or reverse-proxy dashboard URL. If you use a subpath reverse proxy, include only its base path."
+                payload.isBlank() -> "The server returned an empty response."
+                else -> "The server response was not a JSON array."
+            }
+            throw IllegalStateException("Invalid response from $endpoint. $hint")
+        }
+        val array = try { JSONArray(payload) } catch (e: Exception) {
+            throw IllegalStateException("Jellyfin returned malformed JSON from $endpoint.", e)
+        }
+        return (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+    }
+
     fun test(connection: JellyfinConnection) {
         require(connection.apiKey.isNotBlank()) { "Enter a Jellyfin API key." }
         val base = connection.url.trim().trimEnd('/')
         require(base.startsWith("http://") || base.startsWith("https://")) { "Enter a full Jellyfin URL, including http:// or https://." }
-        request(connection, "GET", "/Users")
+        // A successful HTTP 200 is not enough: reverse proxies and login pages can return HTML.
+        parseArray(request(connection, "GET", "/Users"), "/Users")
     }
 
-    fun users(connection: JellyfinConnection): List<JSONObject> {
-        val raw = request(connection, "GET", "/Users")
-        val array = JSONArray(raw)
-        return (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-    }
+    fun users(connection: JellyfinConnection): List<JSONObject> =
+        parseArray(request(connection, "GET", "/Users"), "/Users")
 
-    fun sessions(connection: JellyfinConnection): List<JSONObject> {
-        val raw = request(connection, "GET", "/Sessions")
-        val array = JSONArray(raw)
-        return (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-    }
+    fun sessions(connection: JellyfinConnection): List<JSONObject> =
+        parseArray(request(connection, "GET", "/Sessions"), "/Sessions")
 
-    fun libraries(connection: JellyfinConnection): List<JSONObject> {
-        val array = JSONArray(request(connection, "GET", "/Library/VirtualFolders"))
-        return (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-    }
+    fun libraries(connection: JellyfinConnection): List<JSONObject> =
+        parseArray(request(connection, "GET", "/Library/VirtualFolders"), "/Library/VirtualFolders")
 
     fun activity(connection: JellyfinConnection): List<JSONObject> {
         val raw = request(connection, "GET", "/System/ActivityLog/Entries?StartIndex=0&Limit=50")
@@ -215,7 +225,10 @@ fun JellyfinUsersScreen(onBack: () -> Unit) {
             error = null
             try {
                 val result = withContext(Dispatchers.IO) {
-                    Triple(JellyfinApi.users(conn), JellyfinApi.sessions(conn), JellyfinApi.activity(conn))
+                    val loadedUsers = JellyfinApi.users(conn) // Required: fail the refresh if user data is unavailable.
+                    val loadedSessions = runCatching { JellyfinApi.sessions(conn) }.getOrDefault(emptyList())
+                    val loadedActivity = runCatching { JellyfinApi.activity(conn) }.getOrDefault(emptyList())
+                    Triple(loadedUsers, loadedSessions, loadedActivity)
                 }
                 users = result.first
                 sessions = result.second.map { item ->
