@@ -186,7 +186,7 @@ fun PulseDot(color: Color, pulse: Boolean, dia: Dp = 8.dp) {
 }
 
 @Composable
-fun IconBtn(ic: Ic, desc: String, rotate: Float = 0f, plain: Boolean = false, onClick: () -> Unit) {
+fun IconBtn(ic: Ic, desc: String, rotate: Float = 0f, plain: Boolean = true, onClick: () -> Unit) {
     val buttonModifier = if (plain) Modifier.size(44.dp).clickable(
         interactionSource = remember { MutableInteractionSource() },
         indication = null,
