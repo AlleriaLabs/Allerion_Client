@@ -138,6 +138,13 @@ object JellyfinApi {
         return (0 until array.length()).mapNotNull { array.optJSONObject(it) }
     }
 
+    fun activity(connection: JellyfinConnection): List<JSONObject> {
+        val raw = request(connection, "GET", "/System/ActivityLog/Entries?StartIndex=0&Limit=50")
+        val result = JSONObject(raw)
+        val items = result.optJSONArray("Items") ?: JSONArray()
+        return (0 until items.length()).mapNotNull { items.optJSONObject(it) }
+    }
+
     fun createUser(connection: JellyfinConnection, name: String, password: String) {
         request(connection, "POST", "/Users/New", JSONObject().put("Name", name).put("Password", password))
     }
@@ -168,6 +175,14 @@ private data class JellyfinSessionRow(
     val remote: String
 )
 
+private data class JellyfinActivityRow(
+    val name: String,
+    val overview: String,
+    val type: String,
+    val user: String,
+    val date: String
+)
+
 @Composable
 fun JellyfinUsersScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -182,6 +197,7 @@ fun JellyfinUsersScreen(onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var users by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var sessions by remember { mutableStateOf<List<JellyfinSessionRow>>(emptyList()) }
+    var activity by remember { mutableStateOf<List<JellyfinActivityRow>>(emptyList()) }
     var tab by remember { mutableStateOf("Users") }
     var selectedUser by remember { mutableStateOf<JSONObject?>(null) }
     var showCreate by remember { mutableStateOf(false) }
@@ -193,7 +209,7 @@ fun JellyfinUsersScreen(onBack: () -> Unit) {
             error = null
             try {
                 val result = withContext(Dispatchers.IO) {
-                    JellyfinApi.users(conn) to JellyfinApi.sessions(conn)
+                    Triple(JellyfinApi.users(conn), JellyfinApi.sessions(conn), JellyfinApi.activity(conn))
                 }
                 users = result.first
                 sessions = result.second.map { item ->
@@ -205,6 +221,13 @@ fun JellyfinUsersScreen(onBack: () -> Unit) {
                         remote = item.optString("RemoteEndPoint", "")
                     )
                 }
+                activity = result.third.map { item -> JellyfinActivityRow(
+                    name = item.optString("Name", "Activity"),
+                    overview = item.optString("Overview"),
+                    type = item.optString("Type"),
+                    user = item.optString("UserName"),
+                    date = item.optString("Date")
+                ) }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (e: Exception) {
@@ -264,6 +287,7 @@ fun JellyfinUsersScreen(onBack: () -> Unit) {
                         connection = null
                         users = emptyList()
                         sessions = emptyList()
+                        activity = emptyList()
                         editingConnection = true
                     }) { Text("Disconnect") }
                 }
@@ -285,12 +309,12 @@ fun JellyfinUsersScreen(onBack: () -> Unit) {
                 TextButton(onClick = { revision++ }, enabled = !loading) { Text("Refresh", color = Red) }
             }
             Row(Modifier.fillMaxWidth().background(Surf, RoundedCornerShape(14.dp)).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                listOf("Users", "Devices").forEach { item ->
+                listOf("Users", "Devices", "Activity").forEach { item ->
                     val selected = tab == item
                     Box(Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
                         .background(if (selected) Surf2 else Color.Transparent).clickable { tab = item }.padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center) {
-                        Text(if (item == "Devices") "Active devices" else item, color = if (selected) Txt else Mut, fontSize = AppType.small, fontWeight = FontWeight.SemiBold)
+                        Text(if (item == "Devices") "Devices" else item, color = if (selected) Txt else Mut, fontSize = AppType.small, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -329,7 +353,7 @@ fun JellyfinUsersScreen(onBack: () -> Unit) {
                         }
                     }
                 }
-            } else {
+            } else if (tab == "Devices") {
                 Label("Currently connected")
                 if (sessions.isEmpty()) Panel { Text("No active Jellyfin sessions.", color = Mut, fontSize = AppType.small) }
                 sessions.forEach { session ->
@@ -343,6 +367,17 @@ fun JellyfinUsersScreen(onBack: () -> Unit) {
                                 if (session.remote.isNotBlank()) Text(session.remote, color = Dim, fontSize = AppType.caption)
                             }
                         }
+                    }
+                }
+            } else {
+                Label("Recent server activity")
+                if (activity.isEmpty()) Panel { Text("No activity entries were returned by Jellyfin.", color = Mut, fontSize = AppType.small) }
+                activity.forEach { entry ->
+                    Panel {
+                        Text(entry.name, color = Txt, fontWeight = FontWeight.SemiBold, fontSize = AppType.body)
+                        if (entry.overview.isNotBlank()) Text(entry.overview, color = Mut, fontSize = AppType.small)
+                        Text(listOf(entry.user, entry.type, entry.date).filter { it.isNotBlank() }.joinToString(" · "),
+                            color = Dim, fontSize = AppType.caption)
                     }
                 }
             }
