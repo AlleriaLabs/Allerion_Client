@@ -139,6 +139,11 @@ object JellyfinApi {
         return (0 until array.length()).mapNotNull { array.optJSONObject(it) }
     }
 
+    fun libraries(connection: JellyfinConnection): List<JSONObject> {
+        val array = JSONArray(request(connection, "GET", "/Library/VirtualFolders"))
+        return (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+    }
+
     fun activity(connection: JellyfinConnection): List<JSONObject> {
         val raw = request(connection, "GET", "/System/ActivityLog/Entries?StartIndex=0&Limit=50")
         val result = JSONObject(raw)
@@ -453,10 +458,24 @@ private fun JellyfinUserEditor(
     var allLibraries by remember(userId) { mutableStateOf(policy.optBoolean("EnableAllFolders", true)) }
     var allDevices by remember(userId) { mutableStateOf(policy.optBoolean("EnableAllDevices", true)) }
     var mediaPlayback by remember(userId) { mutableStateOf(policy.optBoolean("EnableMediaPlayback", true)) }
+    var audioTranscoding by remember(userId) { mutableStateOf(policy.optBoolean("EnableAudioPlaybackTranscoding", true)) }
+    var videoTranscoding by remember(userId) { mutableStateOf(policy.optBoolean("EnableVideoPlaybackTranscoding", true)) }
+    var downloads by remember(userId) { mutableStateOf(policy.optBoolean("EnableContentDownloading", false)) }
+    var hidden by remember(userId) { mutableStateOf(policy.optBoolean("IsHidden", false)) }
+    var libraries by remember(userId) { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var selectedLibraryIds by remember(userId) {
+        mutableStateOf((0 until (policy.optJSONArray("EnabledFolders")?.length() ?: 0))
+            .mapNotNull { policy.optJSONArray("EnabledFolders")?.optString(it)?.takeIf(String::isNotBlank) }.toSet())
+    }
     var password by remember(userId) { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
+
+    LaunchedEffect(userId, connection) {
+        val conn = connection ?: return@LaunchedEffect
+        libraries = withContext(Dispatchers.IO) { runCatching { JellyfinApi.libraries(conn) }.getOrDefault(emptyList()) }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -468,10 +487,27 @@ private fun JellyfinUserEditor(
                 Label("Account permissions")
                 UserPermissionSwitch("Administrator", administrator) { administrator = it }
                 UserPermissionSwitch("Disabled", disabled) { disabled = it }
+                UserPermissionSwitch("Hide from login screen", hidden) { hidden = it }
                 UserPermissionSwitch("Allow remote access", remote) { remote = it }
                 UserPermissionSwitch("Access all libraries", allLibraries) { allLibraries = it }
+                if (!allLibraries) {
+                    Text("Allowed libraries", color = Mut, fontSize = AppType.small, fontWeight = FontWeight.SemiBold)
+                    if (libraries.isEmpty()) Text("Library list unavailable from Jellyfin.", color = Dim, fontSize = AppType.caption)
+                    libraries.forEach { library ->
+                        val id = library.optString("ItemId")
+                        if (id.isNotBlank()) Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = id in selectedLibraryIds, onCheckedChange = { checked ->
+                                selectedLibraryIds = if (checked) selectedLibraryIds + id else selectedLibraryIds - id
+                            })
+                            Text(library.optString("Name", "Library"), color = Txt, fontSize = AppType.small)
+                        }
+                    }
+                }
                 UserPermissionSwitch("Access from all devices", allDevices) { allDevices = it }
                 UserPermissionSwitch("Allow media playback", mediaPlayback) { mediaPlayback = it }
+                UserPermissionSwitch("Allow audio transcoding", audioTranscoding) { audioTranscoding = it }
+                UserPermissionSwitch("Allow video transcoding", videoTranscoding) { videoTranscoding = it }
+                UserPermissionSwitch("Allow downloads", downloads) { downloads = it }
                 Label("Set new password")
                 OutlinedTextField(password, { password = it }, label = { Text("Leave blank to keep current password") },
                     singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
@@ -493,10 +529,15 @@ private fun JellyfinUserEditor(
                             val nextPolicy = JSONObject(policy.toString())
                                 .put("IsAdministrator", administrator)
                                 .put("IsDisabled", disabled)
+                                .put("IsHidden", hidden)
                                 .put("EnableRemoteAccess", remote)
                                 .put("EnableAllFolders", allLibraries)
+                                .put("EnabledFolders", JSONArray(selectedLibraryIds.toList()))
                                 .put("EnableAllDevices", allDevices)
                                 .put("EnableMediaPlayback", mediaPlayback)
+                                .put("EnableAudioPlaybackTranscoding", audioTranscoding)
+                                .put("EnableVideoPlaybackTranscoding", videoTranscoding)
+                                .put("EnableContentDownloading", downloads)
                             JellyfinApi.updatePolicy(conn, userId, nextPolicy)
                             if (password.isNotBlank()) JellyfinApi.changePassword(conn, userId, password)
                         }
