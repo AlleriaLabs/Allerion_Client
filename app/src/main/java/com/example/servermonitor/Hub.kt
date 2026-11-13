@@ -87,6 +87,8 @@ fun ModulePageHeader(
         // Consistent Allerion brand header on every standalone module page.
         Row(Modifier.fillMaxWidth().padding(start = 2.dp),
             verticalAlignment = Alignment.CenterVertically) {
+            IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
+            Spacer(Modifier.width(8.dp))
             LogoMark(27.dp)
             Spacer(Modifier.width(9.dp))
             Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -100,8 +102,6 @@ fun ModulePageHeader(
             IconBtn(Ic.Gear, "Settings", plain = true, onClick = onSettings)
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
-            Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(category.uppercase(), color = Red, fontSize = AppType.micro,
                     fontWeight = FontWeight.Bold, letterSpacing = 1.35.sp, maxLines = 1)
