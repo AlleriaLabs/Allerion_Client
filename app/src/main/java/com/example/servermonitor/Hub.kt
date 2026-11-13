@@ -114,8 +114,12 @@ fun ModulePageHeader(
 }
 
 @Composable
-fun HubHeader(onSettings: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 10.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+fun HubHeader(onSettings: () -> Unit, onBack: (() -> Unit)? = null) {
+    Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (onBack != null) {
+            IconBtn(Ic.ChevronL, "Back to control center", plain = true, onClick = onBack)
+            Spacer(Modifier.width(8.dp))
+        }
         LogoMark(38.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -296,13 +300,11 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
     BoxWithConstraints(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
         val wideLayout = maxWidth >= 720.dp
         Column(Modifier.widthIn(max = 1100.dp).fillMaxHeight().fillMaxWidth().align(Alignment.TopCenter).verticalScroll(rememberScrollState())) {
-            HubHeader(onSettings)
+            HubHeader(onSettings, if (serverManagementPage) onBack else null)
             Column(Modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Column(Modifier.padding(top = 10.dp, bottom = 3.dp).staggerIn(0), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (serverManagementPage) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            IconBtn(Ic.ChevronL, "Back to control center", plain = true, onClick = onBack)
-                            Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text("INFRASTRUCTURE", fontSize = AppType.micro, fontWeight = FontWeight.Bold, color = Red, letterSpacing = 1.55.sp)
                                 Text("Server Management", fontSize = AppType.title, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = (-0.25).sp)
