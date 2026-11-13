@@ -84,37 +84,24 @@ fun ModulePageHeader(
 ) {
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 5.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Consistent Allerion brand header on every standalone module page.
-        Row(Modifier.fillMaxWidth().padding(start = 2.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
-            Spacer(Modifier.width(8.dp))
-            LogoMark(27.dp)
-            Spacer(Modifier.width(9.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text("ALLERION", color = Txt, fontSize = AppType.bodyStrong,
-                    fontWeight = FontWeight.ExtraBold, letterSpacing = 1.8.sp, maxLines = 1)
-                Text("ALLERIA LABS", color = Dim, fontSize = AppType.micro,
-                    fontWeight = FontWeight.Medium, letterSpacing = 1.7.sp, maxLines = 1)
-            }
-            Spacer(Modifier.weight(1f))
-            trailing()
-            IconBtn(Ic.Gear, "Settings", plain = true, onClick = onSettings)
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(category.uppercase(), color = Red, fontSize = AppType.micro,
-                    fontWeight = FontWeight.Bold, letterSpacing = 1.35.sp, maxLines = 1)
-                Text(title, color = Txt, fontSize = AppType.title,
-                    fontWeight = FontWeight.Bold, letterSpacing = (-0.25).sp, maxLines = 1)
-                Text(subtitle, color = Mut, fontSize = AppType.small, maxLines = 2)
-            }
+        HubHeader(onSettings, onBack, trailing)
+        Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(category.uppercase(), color = Red, fontSize = AppType.micro,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.35.sp, maxLines = 1)
+            Text(title, color = Txt, fontSize = AppType.title,
+                fontWeight = FontWeight.Bold, letterSpacing = (-0.25).sp, maxLines = 1)
+            Text(subtitle, color = Mut, fontSize = AppType.small, maxLines = 2)
         }
     }
 }
 
 @Composable
-fun HubHeader(onSettings: () -> Unit, onBack: (() -> Unit)? = null) {
+fun HubHeader(
+    onSettings: () -> Unit,
+    onBack: (() -> Unit)? = null,
+    trailing: @Composable RowScope.() -> Unit = {}
+) {
     Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         if (onBack != null) {
             IconBtn(Ic.ChevronL, "Back to control center", plain = true, onClick = onBack)
@@ -126,6 +113,7 @@ fun HubHeader(onSettings: () -> Unit, onBack: (() -> Unit)? = null) {
             Text("ALLERION", fontSize = AppType.title, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 2.sp)
             Text("ALLERIA LABS", fontSize = AppType.micro, color = Dim, fontWeight = FontWeight.Medium, letterSpacing = 2.2.sp)
         }
+        trailing()
         IconBtn(Ic.Gear, "Settings", plain = true, onClick = onSettings)
     }
 }
