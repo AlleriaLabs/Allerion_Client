@@ -183,24 +183,20 @@ private fun RowScope.JfaAction(label: String, icon: Ic, tint: Color = Red, enabl
     val actionTint = if (enabled) tint else Dim
     Column(
         Modifier.weight(1f)
-            .clip(RoundedCornerShape(12.dp))
-            .background(actionTint.copy(alpha = if (enabled) 0.075f else 0.035f))
-            .border(1.dp, actionTint.copy(alpha = if (enabled) 0.20f else 0.08f), RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(15.dp))
+            .background(Surf2.copy(alpha = 0.88f))
+            .border(1.dp, Line.copy(alpha = 0.95f), RoundedCornerShape(15.dp))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 2.dp, vertical = 9.dp),
+            .padding(horizontal = 2.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        Box(
-            Modifier.size(30.dp).clip(CircleShape).background(actionTint.copy(alpha = 0.14f)),
-            contentAlignment = Alignment.Center
-        ) { Icon24(icon, actionTint, 16.dp) }
+        Icon24(icon, actionTint, 21.dp)
         Text(
-            label.uppercase(),
-            color = actionTint,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.35.sp,
+            label,
+            color = if (enabled) Txt else Dim,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 1
         )
     }
