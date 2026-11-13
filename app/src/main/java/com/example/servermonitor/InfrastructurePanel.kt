@@ -633,7 +633,7 @@ private fun NetworkTopologyNode(title: String, address: String, glyph: String, t
 @Composable
 private fun NetworkDeviceNode(node: JSONObject, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val name = node.optString("hostname").takeIf { it.isNotBlank() && it != "null" } ?: node.optString("ip", "Unknown")
-    val tint = if (selected) Color(0xFF8B83FF) else Color(0xFF25DFA0)
+    val tint = if (selected) Color(0xFF8B83FF) else Blue
     Column(modifier.clip(RoundedCornerShape(15.dp)).background(Color(0xFF14243D))
         .border(1.dp, tint.copy(alpha = if (selected) 0.9f else 0.42f), RoundedCornerShape(15.dp))
         .clickable(onClick = onClick).padding(9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -644,7 +644,7 @@ private fun NetworkDeviceNode(node: JSONObject, selected: Boolean, modifier: Mod
         Text(name, color = Txt, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold, maxLines = 1)
         Text(node.optString("ip", "IP unavailable"), color = Mut, fontSize = AppType.micro, maxLines = 1)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            PulseDot(Green, true, 5.dp)
+            Box(Modifier.size(5.dp).clip(CircleShape).background(tint))
             Spacer(Modifier.width(4.dp))
             Text(node.optString("state", "Observed").replace('_', ' '), color = Mut, fontSize = AppType.micro, maxLines = 1)
         }
