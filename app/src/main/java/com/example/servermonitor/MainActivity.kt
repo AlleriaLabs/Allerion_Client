@@ -171,7 +171,7 @@ fun App(p: SharedPreferences) {
         o != null && o in servers.indices -> Dashboard(servers[o], { open = null }, { edit = o })
         hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })
         showIntegrations -> IntegrationCenterScreen(servers, onBack = { showIntegrations = false })
-        showUsers -> JellyfinUsersScreen(onBack = { showUsers = false })
+        showUsers -> JfaGoUsersScreen(onBack = { showUsers = false })
         else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true }, { showIntegrations = true }, { showUsers = true })
     }
