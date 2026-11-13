@@ -598,6 +598,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                 selectedIds = emptySet(); dialog = ""; refresh++; actionMessage = "Bulk action completed."
             } catch (e: Exception) { actionMessage = e.message ?: "Bulk action failed." }
             finally { actionBusy = false }
+            }
         }) { Text(if (dialog == "bulk_delete") "Delete" else "Confirm", color = if (dialog == "bulk_delete") Color(0xFFFF6878) else Red) } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (dialog == "delete_invite") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
