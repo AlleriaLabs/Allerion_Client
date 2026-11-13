@@ -138,6 +138,7 @@ fun App(p: SharedPreferences) {
     var expanded by remember { mutableStateOf<Int?>(null) }   // every server card starts collapsed
     var hubSettings by remember { mutableStateOf(false) }
     var showIntegrations by remember { mutableStateOf(false) }
+    var showUsers by remember { mutableStateOf(false) }
     fun commit(l: List<Server>) {
         try {
             saveServers(p, l)
@@ -161,7 +162,7 @@ fun App(p: SharedPreferences) {
     }
     val e = edit
     val o = open
-    BackHandler(enabled = e != null || o != null || hubSettings || showIntegrations) { if (e != null) edit = null else if (o != null) open = null else if (showIntegrations) showIntegrations = false else hubSettings = false }
+    BackHandler(enabled = e != null || o != null || hubSettings || showIntegrations || showUsers) { if (e != null) edit = null else if (o != null) open = null else if (showUsers) showUsers = false else if (showIntegrations) showIntegrations = false else hubSettings = false }
     when {
         e != null -> EditServer(servers.getOrNull(e),
             onSave = { sv -> commit(if (e < 0) servers + sv else servers.toMutableList().also { it[e] = sv }); edit = null },
@@ -170,8 +171,9 @@ fun App(p: SharedPreferences) {
         o != null && o in servers.indices -> Dashboard(servers[o], { open = null }, { edit = o })
         hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })
         showIntegrations -> IntegrationCenterScreen(servers, onBack = { showIntegrations = false })
+        showUsers -> JellyfinUsersScreen(onBack = { showUsers = false })
         else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
-            { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true }, { showIntegrations = true })
+            { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true }, { showIntegrations = true }, { showUsers = true })
     }
     availableUpdate?.let { update ->
         AllerionUpdateDialog(update) {
