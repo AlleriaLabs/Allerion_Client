@@ -209,8 +209,27 @@ fun AddFab(onClick: () -> Unit, modifier: Modifier) {
 }
 
 @Composable
+fun HubModuleCard(icon: Ic, title: String, subtitle: String, accent: Color, modifier: Modifier = Modifier, onClick: () -> Unit, live: Boolean = false) {
+    Panel(modifier = modifier.heightIn(min = 124.dp), onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = 0.12f))
+                .border(1.dp, accent.copy(alpha = 0.20f), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+                Icon24(icon, accent, 19.dp)
+            }
+            Spacer(Modifier.weight(1f))
+            if (live) PulseDot(accent, true, 7.dp)
+            else Icon24(Ic.ChevronD, Dim, 16.dp, Modifier.graphicsLayer { rotationZ = -90f })
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(title, color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(subtitle, color = Mut, fontSize = AppType.caption, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
 fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit,
-         onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit, onIntegrations: () -> Unit, onUsers: () -> Unit) {
+         onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit, onIntegrations: () -> Unit, onUsers: () -> Unit,
+         onLiveUsers: () -> Unit, onAnalytics: () -> Unit, onActivity: () -> Unit) {
     val context = LocalContext.current
     val status = remember { mutableStateMapOf<String, Int>() }
     val groupPreferences = remember(context) {
@@ -243,10 +262,29 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                     Text("Servers", fontSize = AppType.displaySmall, fontWeight = FontWeight.ExtraBold, color = Txt, letterSpacing = (-0.5).sp)
                     Text("Your connected infrastructure at a glance", fontSize = AppType.small, color = Mut)
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onUsers) { Text("User management  →", color = Red, fontSize = AppType.small, fontWeight = FontWeight.SemiBold) }
-                    TextButton(onClick = onIntegrations) { Text("Integration Center  →", color = Red, fontSize = AppType.small, fontWeight = FontWeight.SemiBold) }
+                var showFleet by remember { mutableStateOf(false) }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HubModuleCard(Ic.Heart, "User management", "Accounts, invitations and access", Color(0xFFFF8294), Modifier.weight(1f).staggerIn(1), onUsers)
+                    HubModuleCard(Ic.Plug, "Integration center", "Jellyfin, alerts and services", Color(0xFFD6B4FF), Modifier.weight(1f).staggerIn(2), onIntegrations)
                 }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HubModuleCard(Ic.Server, "Server management", "Fleet, network and diagnostics", Color(0xFF77C7FF), Modifier.weight(1f).staggerIn(3), { showFleet = !showFleet })
+                    HubModuleCard(Ic.Chart, "Jellyfin analytics", "Viewing trends and rankings", Color(0xFFB7A2FF), Modifier.weight(1f).staggerIn(4), onAnalytics)
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HubModuleCard(Ic.Activity, "Live users", "Who's online and watching", Color(0xFF62E0B0), Modifier.weight(1f).staggerIn(5), onLiveUsers, live = true)
+                    HubModuleCard(Ic.Bell, "Activity & alerts", "Events, incidents and recovery", Color(0xFFFFC477), Modifier.weight(1f).staggerIn(6), onActivity)
+                }
+                AnimatedVisibility(visible = showFleet, enter = fadeIn(tween(240)) + androidx.compose.animation.expandVertically(tween(260)),
+                    exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(200))) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("SERVER MANAGEMENT", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                                Text("Your fleet", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
+                            }
+                            TextButton(onClick = { showFleet = false }) { Text("Close", color = Mut) }
+                        }
                 if (servers.isEmpty()) {
                     Panel(Modifier.staggerIn(1)) {
                         Column(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -315,6 +353,8 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                                     { status[keyOf(i, sv)] = it; if (it == 1) FleetPresenceStore.recordSuccess(context, sv) }, Modifier.staggerIn(i + 2), FleetPresenceStore.lastSeen(context, sv))
                             }
                         }
+                    }
+                }
                     }
                 }
                 Spacer(Modifier.height(124.dp))
