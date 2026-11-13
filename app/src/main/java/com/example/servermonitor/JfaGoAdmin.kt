@@ -166,7 +166,7 @@ private fun JfaCompactSurface(content: @Composable ColumnScope.() -> Unit) {
         verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
 }
 @Composable
-private fun JfaAction(label: String, icon: Ic, tint: Color = Red, enabled: Boolean = true, onClick: () -> Unit) {
+private fun RowScope.JfaAction(label: String, icon: Ic, tint: Color = Red, enabled: Boolean = true, onClick: () -> Unit) {
     Column(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).clickable(enabled = enabled, onClick = onClick).padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Icon24(icon, if (enabled) tint else Dim, 17.dp)
         Text(label, color = if (enabled) tint else Dim, fontSize = AppType.micro, fontWeight = FontWeight.SemiBold, maxLines = 1)
@@ -193,6 +193,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
     var dialog by remember { mutableStateOf("") }
     var actionBusy by remember { mutableStateOf(false) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
+    var userSearch by remember { mutableStateOf("") }
     var newName by remember { mutableStateOf("") }; var newPassword by remember { mutableStateOf("") }; var newEmail by remember { mutableStateOf("") }
     var expiryDays by remember { mutableStateOf("30") }; var inviteDays by remember { mutableStateOf("7") }; var inviteUses by remember { mutableStateOf("1") }
     LaunchedEffect(conn, refresh) {
@@ -270,9 +271,20 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
             actionMessage?.let { StateMessage(it, false) }
             if (busy && users.isEmpty()) Panel { Text("Loading JFA-Go data…", color = Mut) }
             else if (tab == "Users") {
-                Button(onClick = { newName = ""; newPassword = ""; newEmail = ""; dialog = "create" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) { Text("Create user") }
-                if (users.isEmpty()) Panel { Text("No accounts returned by JFA-Go.", color = Mut) }
-                users.forEach { u ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Registered users", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                        Text(users.size.toString() + " accounts connected", color = Mut, fontSize = AppType.caption)
+                    }
+                    Button(onClick = { newName = ""; newPassword = ""; newEmail = ""; dialog = "create" }, enabled = !actionBusy) {
+                        Icon24(Ic.Plus, Color.White, 16.dp); Spacer(Modifier.width(6.dp)); Text("Add user")
+                    }
+                }
+                OutlinedTextField(userSearch, { userSearch = it }, modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, placeholder = { Text("Search users") }, leadingIcon = { Icon24(Ic.Globe, Mut, 18.dp) })
+                val filteredUsers = users.filter { it.optString("name").contains(userSearch, true) || it.optString("email").contains(userSearch, true) || it.optString("label").contains(userSearch, true) }
+                if (filteredUsers.isEmpty()) Panel { Text(if (users.isEmpty()) "No accounts returned by JFA-Go." else "No users match your search.", color = Mut) }
+                filteredUsers.forEach { u ->
                     val disabled = u.optBoolean("disabled")
                     val expiry = u.optLong("expiry")
                     val exp = if (expiry <= 0) "No expiry" else java.text.SimpleDateFormat("d MMM yyyy", java.util.Locale.getDefault()).format(java.util.Date(expiry))
@@ -288,13 +300,14 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                                 val detail = u.optString("label").ifBlank { u.optString("email") }
                                 if (detail.isNotBlank()) Text(detail, color = Mut, fontSize = AppType.caption, maxLines = 1,
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                                Text("Expires · " + exp, color = Dim, fontSize = AppType.caption)
+                                Row(verticalAlignment = Alignment.CenterVertically) { Icon24(Ic.Clock, Dim, 13.dp); Spacer(Modifier.width(4.dp)); Text(if (expiry <= 0) "No expiry" else "Expires " + exp, color = Dim, fontSize = AppType.caption) }
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon24(if (disabled) Ic.Ban else Ic.Check, if (disabled) Amber else Green, 15.dp)
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(if (disabled) "Disabled" else "Active", color = if (disabled) Amber else Green, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold)
+                                Row(Modifier.clip(RoundedCornerShape(18.dp)).background((if (disabled) Amber else Green).copy(alpha = 0.11f)).padding(horizontal = 9.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    Icon24(if (disabled) Ic.Ban else Ic.Check, if (disabled) Amber else Green, 13.dp)
+                                    Spacer(Modifier.width(5.dp))
+                                    Text(if (disabled) "DISABLED" else "ACTIVE", color = if (disabled) Amber else Green, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
                                 }
                                 if (u.optBoolean("admin")) Text("Jellyfin admin", color = Mut, fontSize = AppType.caption)
                                 if (u.optBoolean("accounts_admin")) Text("JFA-Go admin", color = Red, fontSize = AppType.caption)
