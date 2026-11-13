@@ -160,12 +160,21 @@ private object JfaApi {
     fun createInvite(c: JfaConn, days: Int, uses: Int) { val a = login(c); val body = JSONObject().put("days", days).put("hours", 0).put("minutes", 0).put("multiple-uses", uses > 1).put("no-limit", false).put("remaining-uses", uses); request(c, "/invites", "POST", body, a.token) }
     fun deleteInvite(c: JfaConn, code: String) { val a = login(c); request(c, "/invites", "DELETE", JSONObject().put("code", code), a.token) }
     fun activity(c: JfaConn): List<JSONObject> {
-        val a = login(c)
-        val body = JSONObject().put("searchTerms", JSONArray()).put("queries", JSONArray())
-            .put("limit", 50).put("page", 0).put("sortByField", "time").put("ascending", false)
-        val raw = call(c, a, "/activity", body).first
-        val arr = responseArray(raw, "activities")
-        return (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
+        var auth = login(c)
+        val all = mutableListOf<JSONObject>()
+        // JFA-Go uses zero-indexed pages and reports last_page in its response.
+        for (page in 0 until 100) {
+            val body = JSONObject().put("searchTerms", JSONArray()).put("queries", JSONArray())
+                .put("limit", 100).put("page", page).put("sortByField", "time").put("ascending", false)
+            val result = call(c, auth, "/activity", body)
+            auth = result.second
+            val root = JSONObject(result.first)
+            val arr = root.optJSONArray("activities")
+                ?: throw IllegalStateException("JFA-Go activity response did not include an activities list.")
+            for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { all.add(it) }
+            if (root.optBoolean("last_page", arr.length() < 100) || arr.length() == 0) break
+        }
+        return all
     }
 }
 
@@ -387,8 +396,8 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                 }
                 val pageSize = 20
                 val pageCount = maxOf(1, (filteredUsers.size + pageSize - 1) / pageSize)
-                userPage = userPage.coerceIn(0, pageCount - 1)
-                val pageUsers = filteredUsers.drop(userPage * pageSize).take(pageSize)
+                val safeUserPage = userPage.coerceIn(0, pageCount - 1)
+                val pageUsers = filteredUsers.drop(safeUserPage * pageSize).take(pageSize)
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     filterOptions.forEach { option ->
                         val selectedFilter = userFilter == option
@@ -480,10 +489,10 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Page ${userPage + 1} of $pageCount", color = Mut, fontSize = AppType.caption)
+                    Text("Page ${safeUserPage + 1} of $pageCount", color = Mut, fontSize = AppType.caption)
                     Row {
-                        TextButton(enabled = userPage > 0, onClick = { userPage-- }) { Text("Previous") }
-                        TextButton(enabled = userPage < pageCount - 1, onClick = { userPage++ }) { Text("Next") }
+                        TextButton(enabled = userPage > 0, onClick = { userPage = (userPage - 1).coerceAtLeast(0) }) { Text("Previous") }
+                        TextButton(enabled = userPage < pageCount - 1, onClick = { userPage = (userPage + 1).coerceAtMost(pageCount - 1) }) { Text("Next") }
                     }
                 }
             } else if (tab == "Invites") {
