@@ -320,7 +320,8 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                             Text("${visibleServers.size} of ${servers.size} servers", color = Dim, fontSize = AppType.caption)
                         }
                         Box {
-                            OutlinedButton(onClick = { groupMenuExpanded = true }, shape = RoundedCornerShape(12.dp)) {
+                            OutlinedButton(onClick = { groupMenuExpanded = true }, shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Transparent, contentColor = Txt)) {
                                 Text(selectedGroup, color = Txt, fontSize = AppType.small)
                                 Spacer(Modifier.width(6.dp))
                                 Icon24(Ic.ChevronD, Mut, 16.dp)
