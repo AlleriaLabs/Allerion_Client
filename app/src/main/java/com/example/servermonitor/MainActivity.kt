@@ -123,6 +123,17 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+fun EmptyModuleScreen(title: String, message: String, onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBtn(Ic.ChevronL, "Back", onClick = onBack)
+            Text(title, color = Txt, fontSize = AppType.section, fontWeight = FontWeight.Bold)
+        }
+        Panel { Text(message, color = Mut, fontSize = AppType.body) }
+    }
+}
+
+@Composable
 fun App(p: SharedPreferences) {
     val appContext = LocalContext.current
     var availableUpdate by remember { mutableStateOf<AllerionUpdate?>(null) }
@@ -139,6 +150,9 @@ fun App(p: SharedPreferences) {
     var hubSettings by remember { mutableStateOf(false) }
     var showIntegrations by remember { mutableStateOf(false) }
     var showUsers by remember { mutableStateOf(false) }
+    var showLiveUsers by remember { mutableStateOf(false) }
+    var showAnalytics by remember { mutableStateOf(false) }
+    var showActivity by remember { mutableStateOf(false) }
     fun commit(l: List<Server>) {
         try {
             saveServers(p, l)
@@ -162,7 +176,16 @@ fun App(p: SharedPreferences) {
     }
     val e = edit
     val o = open
-    BackHandler(enabled = e != null || o != null || hubSettings || showIntegrations || showUsers) { if (e != null) edit = null else if (o != null) open = null else if (showUsers) showUsers = false else if (showIntegrations) showIntegrations = false else hubSettings = false }
+    BackHandler(enabled = e != null || o != null || hubSettings || showIntegrations || showUsers || showLiveUsers || showAnalytics || showActivity) {
+        if (e != null) edit = null
+        else if (o != null) open = null
+        else if (showActivity) showActivity = false
+        else if (showAnalytics) showAnalytics = false
+        else if (showLiveUsers) showLiveUsers = false
+        else if (showUsers) showUsers = false
+        else if (showIntegrations) showIntegrations = false
+        else hubSettings = false
+    }
     when {
         e != null -> EditServer(servers.getOrNull(e),
             onSave = { sv -> commit(if (e < 0) servers + sv else servers.toMutableList().also { it[e] = sv }); edit = null },
@@ -172,8 +195,12 @@ fun App(p: SharedPreferences) {
         hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })
         showIntegrations -> IntegrationCenterScreen(servers, onBack = { showIntegrations = false })
         showUsers -> JfaGoUsersScreen(onBack = { showUsers = false })
+        showLiveUsers -> LiveUsersScreen()
+        showAnalytics -> if (servers.isNotEmpty()) JellyfinAnalyticsScreen(servers.first()) else EmptyModuleScreen("Jellyfin analytics", "Add a monitoring server before opening analytics.") { showAnalytics = false }
+        showActivity -> ActivityCenterScreen(onBack = { showActivity = false })
         else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
-            { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true }, { showIntegrations = true }, { showUsers = true })
+            { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true },
+            { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true })
     }
     availableUpdate?.let { update ->
         AllerionUpdateDialog(update) {
