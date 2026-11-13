@@ -288,14 +288,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
     }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState())
         .padding(horizontal = 15.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
-            Spacer(Modifier.width(4.dp))
-            Column(Modifier.weight(1f)) {
-                Text("ALLERION · ACCOUNT MANAGEMENT", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.0.sp)
-                Text("Accounts", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
-                Text("Registration & access control", color = Mut, fontSize = AppType.caption)
-            }
+        ModulePageHeader("USER MANAGEMENT", "User Management", "Accounts, invitations and access control", onBack) {
             IconBtn(Ic.Gear, "Connection", plain = true, onClick = { edit = !edit })
             IconBtn(Ic.Refresh, "Refresh", plain = true, onClick = { refresh++ })
         }
