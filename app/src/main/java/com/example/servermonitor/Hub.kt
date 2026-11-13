@@ -79,6 +79,7 @@ fun ModulePageHeader(
     title: String,
     subtitle: String,
     onBack: () -> Unit,
+    onSettings: () -> Unit = {},
     trailing: @Composable RowScope.() -> Unit = {}
 ) {
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 5.dp),
@@ -94,6 +95,9 @@ fun ModulePageHeader(
                 Text("ALLERIA LABS", color = Dim, fontSize = AppType.micro,
                     fontWeight = FontWeight.Medium, letterSpacing = 1.7.sp, maxLines = 1)
             }
+            Spacer(Modifier.weight(1f))
+            trailing()
+            IconBtn(Ic.Gear, "Settings", plain = true, onClick = onSettings)
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
@@ -105,7 +109,6 @@ fun ModulePageHeader(
                     fontWeight = FontWeight.Bold, letterSpacing = (-0.25).sp, maxLines = 1)
                 Text(subtitle, color = Mut, fontSize = AppType.small, maxLines = 2)
             }
-            trailing()
         }
     }
 }
