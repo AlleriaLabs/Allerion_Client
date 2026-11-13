@@ -25,7 +25,7 @@ private data class FleetIntegrationState(
 )
 
 @Composable
-fun IntegrationCenterScreen(servers: List<Server>, onBack: () -> Unit) {
+fun IntegrationCenterScreen(servers: List<Server>, onBack: () -> Unit, onSettings: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val states by produceState(initialValue = emptyList<FleetIntegrationState>(), servers) {
         while (true) {
@@ -65,7 +65,7 @@ fun IntegrationCenterScreen(servers: List<Server>, onBack: () -> Unit) {
     var feedback by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
-        ModulePageHeader("CONNECTIVITY", "Integration Center", "Webhook and Telegram across your servers", onBack)
+        ModulePageHeader("CONNECTIVITY", "Integration Center", "Webhook and Telegram across your servers", onBack, onSettings = onSettings)
         Column(Modifier.fillMaxSize().padding(horizontal = 15.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (servers.isEmpty()) {
