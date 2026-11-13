@@ -6,6 +6,7 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -223,6 +224,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
     var actionBusy by remember { mutableStateOf(false) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
     var userSearch by remember { mutableStateOf("") }
+    var userFilter by remember { mutableStateOf("All") }
     var newName by remember { mutableStateOf("") }; var newPassword by remember { mutableStateOf("") }; var newEmail by remember { mutableStateOf("") }
     var expiryDays by remember { mutableStateOf("30") }; var inviteDays by remember { mutableStateOf("7") }; var inviteUses by remember { mutableStateOf("1") }
     LaunchedEffect(conn, refresh) {
@@ -322,8 +324,46 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                 }
                 OutlinedTextField(userSearch, { userSearch = it }, modifier = Modifier.fillMaxWidth(),
                     singleLine = true, placeholder = { Text("Search users") }, leadingIcon = { Icon24(Ic.Globe, Mut, 18.dp) })
-                val filteredUsers = users.filter { it.optString("name").contains(userSearch, true) || it.optString("email").contains(userSearch, true) || it.optString("label").contains(userSearch, true) }
-                if (filteredUsers.isEmpty()) Panel { Text(if (users.isEmpty()) "No accounts returned by JFA-Go." else "No users match your search.", color = Mut) }
+                val now = System.currentTimeMillis()
+                val filterOptions = listOf("All", "Active", "Disabled", "Expiring", "No expiry")
+                val filteredUsers = users.filter { u ->
+                    val expiry = u.optLong("expiry")
+                    val statusMatch = when (userFilter) {
+                        "Active" -> !u.optBoolean("disabled")
+                        "Disabled" -> u.optBoolean("disabled")
+                        "Expiring" -> !u.optBoolean("disabled") && expiry > now && expiry <= now + 30L * 24 * 60 * 60 * 1000
+                        "No expiry" -> expiry <= 0
+                        else -> true
+                    }
+                    val queryMatch = userSearch.isBlank() || u.optString("name").contains(userSearch, true) ||
+                        u.optString("email").contains(userSearch, true) || u.optString("label").contains(userSearch, true)
+                    statusMatch && queryMatch
+                }
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    filterOptions.forEach { option ->
+                        val selectedFilter = userFilter == option
+                        val count = when (option) {
+                            "Active" -> users.count { !it.optBoolean("disabled") }
+                            "Disabled" -> users.count { it.optBoolean("disabled") }
+                            "Expiring" -> users.count { val e = it.optLong("expiry"); !it.optBoolean("disabled") && e > now && e <= now + 30L * 24 * 60 * 60 * 1000 }
+                            "No expiry" -> users.count { it.optLong("expiry") <= 0 }
+                            else -> users.size
+                        }
+                        Box(
+                            Modifier.clip(RoundedCornerShape(18.dp))
+                                .background(if (selectedFilter) Red.copy(alpha = 0.14f) else Surf2.copy(alpha = 0.72f))
+                                .border(1.dp, if (selectedFilter) Red.copy(alpha = 0.55f) else Line, RoundedCornerShape(18.dp))
+                                .clickable { userFilter = option }
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(option, color = if (selectedFilter) Red else Mut, fontSize = AppType.caption, fontWeight = if (selectedFilter) FontWeight.Bold else FontWeight.Medium)
+                                Text(count.toString(), color = if (selectedFilter) Red else Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+                if (filteredUsers.isEmpty()) Panel { Text(if (users.isEmpty()) "No accounts returned by JFA-Go." else "No users match this search and filter.", color = Mut) }
                 filteredUsers.forEach { u ->
                     val disabled = u.optBoolean("disabled")
                     val expiry = u.optLong("expiry")
