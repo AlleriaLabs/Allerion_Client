@@ -157,10 +157,11 @@ private fun PreferenceSwitch(label: String, checked: Boolean, onChange: (Boolean
 
 
 @Composable
-fun MoreScreen(onActivity: () -> Unit, onSettings: () -> Unit, onConnection: () -> Unit, onDiagnostics: () -> Unit, onAppInfo: () -> Unit, onLiveUsers: () -> Unit) {
+fun MoreScreen(onActivity: () -> Unit, onSettings: () -> Unit, onConnection: () -> Unit, onDiagnostics: () -> Unit, onAppInfo: () -> Unit, onLiveUsers: () -> Unit, onAnalytics: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Label("MEDIA SERVER")
         MoreActionRow(Ic.Activity, "Live users", "See who is online and what is playing on Jellyfin", onLiveUsers)
+        MoreActionRow(Ic.Chart, "Jellyfin analytics", "Viewer history, movie rankings and user rankings", onAnalytics)
         Spacer(Modifier.height(4.dp))
         Label("TOOLS")
         MoreActionRow(Ic.Activity, "Activity center", "Review active alerts, recoveries and recent events", onActivity)
