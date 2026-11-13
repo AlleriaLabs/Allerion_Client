@@ -288,8 +288,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState())
         .padding(horizontal = 15.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        ModulePageHeader("USER MANAGEMENT", "User Management", "Accounts, invitations and access control", onBack, onSettings) {
-            IconBtn(Ic.Gear, "Connection", plain = true, onClick = { edit = !edit })
+        ModulePageHeader("USER MANAGEMENT", "User Management", "Accounts, invitations and access control", onBack, { edit = !edit }) {
             IconBtn(Ic.Refresh, "Refresh", plain = true, onClick = { refresh++ })
         }
         if (edit) Panel {
