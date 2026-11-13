@@ -231,7 +231,7 @@ private fun RowScope.JfaAction(label: String, icon: Ic, tint: Color = Red, enabl
 }
 
 @Composable
-fun JfaGoUsersScreen(onBack: () -> Unit) {
+fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var conn by remember { mutableStateOf(JfaStore.load(ctx)) }
@@ -288,7 +288,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
     }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState())
         .padding(horizontal = 15.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        ModulePageHeader("USER MANAGEMENT", "User Management", "Accounts, invitations and access control", onBack) {
+        ModulePageHeader("USER MANAGEMENT", "User Management", "Accounts, invitations and access control", onBack, onSettings) {
             IconBtn(Ic.Gear, "Connection", plain = true, onClick = { edit = !edit })
             IconBtn(Ic.Refresh, "Refresh", plain = true, onClick = { refresh++ })
         }
