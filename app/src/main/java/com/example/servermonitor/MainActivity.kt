@@ -197,8 +197,8 @@ fun App(p: SharedPreferences) {
         hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })
         showIntegrations -> IntegrationCenterScreen(servers, onBack = { showIntegrations = false })
         showUsers -> JfaGoUsersScreen(onBack = { showUsers = false })
-        showLiveUsers -> LiveUsersScreen()
-        showAnalytics -> if (servers.isNotEmpty()) JellyfinAnalyticsScreen(servers.first()) else EmptyModuleScreen("Jellyfin analytics", "Add a monitoring server before opening analytics.") { showAnalytics = false }
+        showLiveUsers -> LiveUsersScreen(onBack = { showLiveUsers = false })
+        showAnalytics -> if (servers.isNotEmpty()) JellyfinAnalyticsScreen(servers.first(), onBack = { showAnalytics = false }) else EmptyModuleScreen("Jellyfin analytics", "Add a monitoring server before opening analytics.") { showAnalytics = false }
         showActivity -> ActivityCenterScreen(onBack = { showActivity = false })
         showServerManagement -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true },
