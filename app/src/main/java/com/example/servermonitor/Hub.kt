@@ -360,7 +360,7 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                 Spacer(Modifier.height(124.dp))
             }
         }
-        if (servers.isNotEmpty()) AddFab(onAdd, Modifier.align(Alignment.BottomEnd).padding(20.dp))
+        AddFab(onAdd, Modifier.align(Alignment.BottomEnd).padding(20.dp))
     }
 }
 
