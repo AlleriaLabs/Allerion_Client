@@ -234,6 +234,8 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var users by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var activity by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var inviteLoadError by remember { mutableStateOf<String?>(null) }
+    var activityLoadError by remember { mutableStateOf<String?>(null) }
     var tab by remember { mutableStateOf("Users") }
     var refresh by remember { mutableIntStateOf(0) }
     var invites by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
@@ -260,8 +262,17 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
         val c = conn ?: return@LaunchedEffect
         busy = true; error = null
         try {
-            val result = withContext(Dispatchers.IO) { Triple(JfaApi.users(c), runCatching { JfaApi.activity(c) }.getOrDefault(emptyList()), runCatching { JfaApi.invites(c) }.getOrDefault(emptyList())) }
-            users = result.first; activity = result.second; invites = result.third
+            val result = withContext(Dispatchers.IO) {
+                val loadedUsers = JfaApi.users(c)
+                val loadedActivity = runCatching { JfaApi.activity(c) }
+                val loadedInvites = runCatching { JfaApi.invites(c) }
+                Triple(loadedUsers, loadedActivity, loadedInvites)
+            }
+            users = result.first
+            activity = result.second.getOrDefault(emptyList())
+            invites = result.third.getOrDefault(emptyList())
+            activityLoadError = result.second.exceptionOrNull()?.message
+            inviteLoadError = result.third.exceptionOrNull()?.message
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { error = e.message ?: "Unable to load JFA-Go users." }
         finally { busy = false }
@@ -477,6 +488,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                 }
             } else if (tab == "Invites") {
                 Button(onClick = { inviteDays = "7"; inviteUses = "1"; dialog = "invite" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) { Text("Create invitation") }
+                inviteLoadError?.let { StateMessage("Invitations could not be loaded: $it", true) }
                 OutlinedTextField(inviteSearch, { inviteSearch = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search invitation code") })
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     listOf("All", "Active", "Expired", "Used").forEach { filter ->
@@ -507,14 +519,10 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
                             TextButton(onClick = { shareText(ctx, "JFA-Go invitation: " + inv.optString("code")) }) { Text("Share") }
                         }
                         TextButton(enabled = !actionBusy, onClick = { selected = inv; dialog = "delete_invite" }) { Text("Delete invitation", color = Color(0xFFFF6878)) }
-                        /* deletion is confirmed in the shared dialog below */
-                        TextButton(enabled = false, onClick = { actionBusy = true; scope.launch {
-                            try { withContext(Dispatchers.IO) { JfaApi.deleteInvite(conn!!, inv.optString("code")) }; refresh++; actionMessage = "Invitation deleted." }
-                            catch (e: Exception) { actionMessage = e.message ?: "Invitation deletion failed." } finally { actionBusy = false }
-                        } }) { Text("Delete invitation", color = Color(0xFFFF6878)) }
                     }
                 }
             } else {
+                activityLoadError?.let { StateMessage("Activity could not be loaded: $it", true) }
                 OutlinedTextField(activitySearch, { activitySearch = it; activityPage = 0 }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search activity") })
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     listOf("All", "User", "Invite", "Login", "Password").forEach { type ->
