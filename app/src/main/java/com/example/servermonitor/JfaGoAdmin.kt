@@ -420,11 +420,11 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                     Box {
                         TextButton(onClick = { sortMenuExpanded = true }, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)) {
-                            Icon24(Ic.Sort, Red, 15.dp)
+                            Icon24(Ic.Chart, Red, 15.dp)
                             Spacer(Modifier.width(5.dp))
                             Text("Sort: $userSort", color = Txt, fontSize = AppType.caption)
                             Spacer(Modifier.width(3.dp))
-                            Icon24(Ic.ChevronDown, Mut, 14.dp)
+                            Icon24(Ic.ChevronD, Mut, 14.dp)
                         }
                         DropdownMenu(expanded = sortMenuExpanded, onDismissRequest = { sortMenuExpanded = false }) {
                             listOf("Name", "Expiry", "Newest", "Status").forEach { sort ->
