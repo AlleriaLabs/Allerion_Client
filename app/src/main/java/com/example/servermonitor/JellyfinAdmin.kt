@@ -220,7 +220,7 @@ fun JellyfinUsersScreen(onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState())
         .padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconBtn(Ic.ChevronL, "Back", onBack)
+            IconBtn(Ic.ChevronL, "Back", onClick = onBack)
             Column(Modifier.weight(1f)) {
                 Text("User management", color = Txt, fontSize = AppType.section, fontWeight = FontWeight.Bold)
                 Text("Jellyfin accounts, access and active devices", color = Mut, fontSize = AppType.small)
