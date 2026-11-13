@@ -81,18 +81,32 @@ fun ModulePageHeader(
     onBack: () -> Unit,
     trailing: @Composable RowScope.() -> Unit = {}
 ) {
-    Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 5.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(category.uppercase(), color = Red, fontSize = AppType.micro,
-                fontWeight = FontWeight.Bold, letterSpacing = 1.35.sp, maxLines = 1)
-            Text(title, color = Txt, fontSize = AppType.title,
-                fontWeight = FontWeight.Bold, letterSpacing = (-0.25).sp, maxLines = 1)
-            Text(subtitle, color = Mut, fontSize = AppType.small, maxLines = 2)
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 5.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Consistent Allerion brand header on every standalone module page.
+        Row(Modifier.fillMaxWidth().padding(start = 2.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            LogoMark(27.dp)
+            Spacer(Modifier.width(9.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text("ALLERION", color = Txt, fontSize = AppType.bodyStrong,
+                    fontWeight = FontWeight.ExtraBold, letterSpacing = 1.8.sp, maxLines = 1)
+                Text("ALLERIA LABS", color = Dim, fontSize = AppType.micro,
+                    fontWeight = FontWeight.Medium, letterSpacing = 1.7.sp, maxLines = 1)
+            }
         }
-        trailing()
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(category.uppercase(), color = Red, fontSize = AppType.micro,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.35.sp, maxLines = 1)
+                Text(title, color = Txt, fontSize = AppType.title,
+                    fontWeight = FontWeight.Bold, letterSpacing = (-0.25).sp, maxLines = 1)
+                Text(subtitle, color = Mut, fontSize = AppType.small, maxLines = 2)
+            }
+            trailing()
+        }
     }
 }
 
