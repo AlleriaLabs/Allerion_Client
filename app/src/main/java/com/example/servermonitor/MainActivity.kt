@@ -123,13 +123,32 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun EmptyModuleScreen(title: String, message: String, onBack: () -> Unit) {
-    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconBtn(Ic.ChevronL, "Back", onClick = onBack)
-            Text(title, color = Txt, fontSize = AppType.section, fontWeight = FontWeight.Bold)
+fun EmptyModuleScreen(
+    title: String,
+    message: String,
+    onBack: () -> Unit,
+    onSettings: () -> Unit = {}
+) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
+        Column(
+            Modifier.widthIn(max = 1100.dp).fillMaxWidth().fillMaxHeight()
+                .align(Alignment.TopCenter)
+        ) {
+            HubHeader(onSettings = onSettings, onBack = onBack)
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(13.dp)
+            ) {
+                Column(Modifier.padding(top = 10.dp, bottom = 3.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("ALLERION MODULE", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.55.sp)
+                    Text(title, color = Txt, fontSize = AppType.title, fontWeight = FontWeight.Bold)
+                    Text("Connect a server to unlock this module.", color = Mut, fontSize = AppType.small)
+                }
+                Panel {
+                    Text(message, color = Mut, fontSize = AppType.body)
+                }
+            }
         }
-        Panel { Text(message, color = Mut, fontSize = AppType.body) }
     }
 }
 
@@ -198,7 +217,7 @@ fun App(p: SharedPreferences) {
         showIntegrations -> IntegrationCenterScreen(servers, onBack = { showIntegrations = false }, onSettings = { hubSettings = true })
         showUsers -> JfaGoUsersScreen(onBack = { showUsers = false })
         showLiveUsers -> LiveUsersScreen(onBack = { showLiveUsers = false })
-        showAnalytics -> if (servers.isNotEmpty()) JellyfinAnalyticsScreen(servers.first(), onBack = { showAnalytics = false }, onSettings = { edit = servers.indexOf(servers.first()) }) else EmptyModuleScreen("Jellyfin analytics", "Add a monitoring server before opening analytics.") { showAnalytics = false }
+        showAnalytics -> if (servers.isNotEmpty()) JellyfinAnalyticsScreen(servers.first(), onBack = { showAnalytics = false }, onSettings = { edit = servers.indexOf(servers.first()) }) else EmptyModuleScreen("Jellyfin Analytics", "No monitoring server is registered yet. Add one in Server Management; the analytics page and Allerion header remain available without a connection.", onBack = { showAnalytics = false }, onSettings = { hubSettings = true })
         showActivity -> ActivityCenterScreen(onBack = { showActivity = false }, onSettings = { hubSettings = true })
         showServerManagement -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true },
