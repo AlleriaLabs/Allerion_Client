@@ -74,6 +74,29 @@ fun Splash(onDone: () -> Unit) {
 }
 
 @Composable
+fun ModulePageHeader(
+    category: String,
+    title: String,
+    subtitle: String,
+    onBack: () -> Unit,
+    trailing: @Composable RowScope.() -> Unit = {}
+) {
+    Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 5.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(category.uppercase(), color = Red, fontSize = AppType.micro,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.35.sp, maxLines = 1)
+            Text(title, color = Txt, fontSize = AppType.title,
+                fontWeight = FontWeight.Bold, letterSpacing = (-0.25).sp, maxLines = 1)
+            Text(subtitle, color = Mut, fontSize = AppType.small, maxLines = 2)
+        }
+        trailing()
+    }
+}
+
+@Composable
 fun HubHeader(onSettings: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 10.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         LogoMark(38.dp)
