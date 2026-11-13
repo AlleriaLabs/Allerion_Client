@@ -28,7 +28,7 @@ private fun eventTime(timestamp: Long): String =
     SimpleDateFormat("MMM d · HH:mm", Locale.getDefault()).format(Date(timestamp))
 
 @Composable
-fun ActivityCenterScreen(onBack: () -> Unit) {
+fun ActivityCenterScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     val context = LocalContext.current
     var revision by remember { mutableIntStateOf(0) }
     var filter by remember { mutableStateOf("All") }
@@ -42,7 +42,7 @@ fun ActivityCenterScreen(onBack: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 15.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ModulePageHeader("OPERATIONS", "Activity & Alerts", "Active conditions, incidents and recovery history", onBack)
+        ModulePageHeader("OPERATIONS", "Activity & Alerts", "Active conditions, incidents and recovery history", onBack, onSettings = onSettings)
         Panel {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
