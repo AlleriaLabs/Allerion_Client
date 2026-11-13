@@ -210,7 +210,7 @@ fun AddFab(onClick: () -> Unit, modifier: Modifier) {
 
 @Composable
 fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit,
-         onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit, onIntegrations: () -> Unit) {
+         onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit, onIntegrations: () -> Unit, onUsers: () -> Unit) {
     val context = LocalContext.current
     val status = remember { mutableStateMapOf<String, Int>() }
     val groupPreferences = remember(context) {
@@ -262,7 +262,10 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                         SummaryStat("Offline", "$offline", if (offline > 0) Err else Txt, Modifier.weight(1f))
                         SummaryStat("Availability", availability, Txt, Modifier.weight(1.25f))
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onIntegrations) { Text("Integration Center  →", color = Red, fontSize = AppType.small, fontWeight = FontWeight.SemiBold) } }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = onUsers) { Text("User management  →", color = Red, fontSize = AppType.small, fontWeight = FontWeight.SemiBold) }
+                        TextButton(onClick = onIntegrations) { Text("Integration Center  →", color = Red, fontSize = AppType.small, fontWeight = FontWeight.SemiBold) }
+                    }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("Fleet view", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
