@@ -166,6 +166,19 @@ private fun JfaCompactSurface(content: @Composable ColumnScope.() -> Unit) {
         verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
 }
 @Composable
+private fun JfaMetric(value: String, label: String, icon: Ic, modifier: Modifier = Modifier) {
+    Column(modifier.clip(RoundedCornerShape(11.dp)).background(Surf2.copy(alpha = 0.66f))
+        .border(1.dp, Line.copy(alpha = 0.65f), RoundedCornerShape(11.dp)).padding(horizontal = 10.dp, vertical = 9.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon24(icon, Red, 14.dp)
+            Spacer(Modifier.width(5.dp))
+            Text(label, color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.55.sp)
+        }
+        Text(value, color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
+    }
+}
+@Composable
 private fun RowScope.JfaAction(label: String, icon: Ic, tint: Color = Red, enabled: Boolean = true, onClick: () -> Unit) {
     Column(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).clickable(enabled = enabled, onClick = onClick).padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Icon24(icon, if (enabled) tint else Dim, 17.dp)
@@ -212,8 +225,8 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
             IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
             Spacer(Modifier.width(4.dp))
             Column(Modifier.weight(1f)) {
-                Text("USER MANAGEMENT", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
-                Text("JFA-Go accounts", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
+                Text("ALLERION · ACCOUNT MANAGEMENT", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.0.sp)
+                Text("Accounts", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
                 Text("Registration & access control", color = Mut, fontSize = AppType.caption)
             }
             IconBtn(Ic.Gear, "Connection", plain = true, onClick = { edit = !edit })
@@ -250,13 +263,24 @@ fun JfaGoUsersScreen(onBack: () -> Unit) {
         else {
             JfaCompactSurface {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("CONNECTED SERVER", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.0.sp)
                         Text(conn!!.url.removePrefix("https://").removePrefix("http://"), color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold,
                             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                        Text(users.size.toString() + " registered accounts · " + invites.size + " invitations", color = Mut, fontSize = AppType.caption)
+                        Text("Account directory · Registration control", color = Mut, fontSize = AppType.caption)
                     }
-                    if (busy) CircularProgressIndicator(Modifier.size(17.dp), color = Red, strokeWidth = 2.dp)
-                    else PulseDot(Green, true, 5.dp)
+                    Row(Modifier.clip(RoundedCornerShape(18.dp)).background((if (busy) Amber else Green).copy(alpha = 0.10f))
+                        .padding(horizontal = 9.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (busy) CircularProgressIndicator(Modifier.size(12.dp), color = Amber, strokeWidth = 1.5.dp)
+                        else Icon24(Ic.Check, Green, 13.dp)
+                        Spacer(Modifier.width(5.dp))
+                        Text(if (busy) "SYNCING" else "ONLINE", color = if (busy) Amber else Green, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    JfaMetric(users.size.toString(), "USERS", Ic.Server, Modifier.weight(1f))
+                    JfaMetric(invites.size.toString(), "INVITES", Ic.Plus, Modifier.weight(1f))
+                    JfaMetric(activity.size.toString(), "EVENTS", Ic.Activity, Modifier.weight(1f))
                 }
             }
             Row(Modifier.fillMaxWidth().background(Surf, RoundedCornerShape(13.dp))
