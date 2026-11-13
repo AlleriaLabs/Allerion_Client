@@ -11,7 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeCap\nimport androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,13 +42,23 @@ fun JellyfinAnalyticsScreen(server: Server, onBack: () -> Unit = {}, onSettings:
             Modifier.width(pageWidth).fillMaxHeight()
                 .align(Alignment.TopCenter).verticalScroll(rememberScrollState())
         ) {
-            ModulePageHeader("MEDIA INTELLIGENCE", "Jellyfin Analytics", "Viewing trends and playback rankings", onBack, onSettings) {
+            HubHeader(onSettings, onBack) {
                 IconBtn(Ic.Refresh, "Refresh analytics", plain = true, onClick = { refresh++ })
             }
             Column(
-                Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 18.dp),
                 verticalArrangement = Arrangement.spacedBy(13.dp)
             ) {
+                Column(
+                    Modifier.padding(top = 10.dp, bottom = 3.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text("MEDIA INTELLIGENCE", color = Red, fontSize = AppType.micro,
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.55.sp)
+                    Text("Jellyfin Analytics", color = Txt, fontSize = AppType.title,
+                        fontWeight = FontWeight.Bold, letterSpacing = (-0.25).sp)
+                    Text("Viewing trends and playback rankings", color = Mut, fontSize = AppType.small)
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SummaryStat("Samples", (data?.optInt("sample_count") ?: 0).toString(), Txt, Modifier.weight(1f))
                     SummaryStat("Movies", (data?.optJSONArray("movies")?.length() ?: 0).toString(), Red, Modifier.weight(1f))
