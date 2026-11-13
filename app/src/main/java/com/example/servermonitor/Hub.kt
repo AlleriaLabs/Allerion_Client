@@ -82,7 +82,7 @@ fun HubHeader(onSettings: () -> Unit) {
             Text("ALLERION", fontSize = AppType.title, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 2.sp)
             Text("ALLERIA LABS", fontSize = AppType.micro, color = Dim, fontWeight = FontWeight.Medium, letterSpacing = 2.2.sp)
         }
-        IconBtn(Ic.Gear, "Settings", onClick = onSettings)
+        IconBtn(Ic.Gear, "Settings", plain = true, onClick = onSettings)
     }
 }
 
