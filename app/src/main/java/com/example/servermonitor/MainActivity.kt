@@ -195,11 +195,11 @@ fun App(p: SharedPreferences) {
             onCancel = { edit = null })
         o != null && o in servers.indices -> Dashboard(servers[o], { open = null }, { edit = o })
         hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })
-        showIntegrations -> IntegrationCenterScreen(servers, onBack = { showIntegrations = false })
-        showUsers -> JfaGoUsersScreen(onBack = { showUsers = false })
-        showLiveUsers -> LiveUsersScreen(onBack = { showLiveUsers = false })
-        showAnalytics -> if (servers.isNotEmpty()) JellyfinAnalyticsScreen(servers.first(), onBack = { showAnalytics = false }) else EmptyModuleScreen("Jellyfin analytics", "Add a monitoring server before opening analytics.") { showAnalytics = false }
-        showActivity -> ActivityCenterScreen(onBack = { showActivity = false })
+        showIntegrations -> IntegrationCenterScreen(servers, onBack = { showIntegrations = false }, onSettings = { hubSettings = true })
+        showUsers -> JfaGoUsersScreen(onBack = { showUsers = false }, onSettings = { hubSettings = true })
+        showLiveUsers -> LiveUsersScreen(onBack = { showLiveUsers = false }, onSettings = { hubSettings = true })
+        showAnalytics -> if (servers.isNotEmpty()) JellyfinAnalyticsScreen(servers.first(), onBack = { showAnalytics = false }, onSettings = { hubSettings = true }) else EmptyModuleScreen("Jellyfin analytics", "Add a monitoring server before opening analytics.") { showAnalytics = false }
+        showActivity -> ActivityCenterScreen(onBack = { showActivity = false }, onSettings = { hubSettings = true })
         showServerManagement -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true },
             { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true },
