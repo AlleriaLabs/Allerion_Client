@@ -440,6 +440,7 @@ private fun DashboardSectionHeader(tab: Int, server: String, morePage: String) {
         else -> when (morePage) {
             "activity" -> Triple("SYSTEM ACTIVITY", "Activity", "Server alerts, events and recovery history")
             "liveusers" -> Triple("JELLYFIN PRESENCE", "Live users", "Connected users, devices and current playback")
+            "analytics" -> Triple("JELLYFIN ANALYTICS", "Analytics", "Historical viewers, movie rankings and viewer rankings")
             "settings" -> Triple("PREFERENCES", "Settings", "Manage your Allerion experience")
             "connection" -> Triple("SERVER CONFIGURATION", "Connection", "Manage this server's connection details")
             "diagnostics" -> Triple("APP DIAGNOSTICS", "Crash reports", "Inspect and share locally captured crash details")
@@ -492,6 +493,7 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                         else -> when (morePage) {
                             "activity" -> ActivityCenterScreen(onBack = { morePage = "menu" })
                             "liveusers" -> LiveUsersScreen()
+                            "analytics" -> JellyfinAnalyticsScreen(sv)
                             "settings" -> SettingsScreen(sv, onEdit)
                             "diagnostics" -> CrashDiagnosticsScreen(onBack = { morePage = "menu" })
                             "appinfo" -> AppInfoScreen()
@@ -508,7 +510,8 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
                                 onConnection = { morePage = "connection" },
                                 onDiagnostics = { morePage = "diagnostics" },
                                 onAppInfo = { morePage = "appinfo" },
-                                onLiveUsers = { morePage = "liveusers" }
+                                onLiveUsers = { morePage = "liveusers" },
+                                onAnalytics = { morePage = "analytics" }
                             )
                         }
                     }
