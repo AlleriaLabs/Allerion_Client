@@ -67,17 +67,17 @@ fun IntegrationCenterScreen(servers: List<Server>, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("‹  Back", color = Mut) }
+            IconBtn(Ic.ChevronL, "Back", plain = true, onClick = onBack)
             Spacer(Modifier.weight(1f))
-            LogoMark(30.dp)
-            Spacer(Modifier.width(8.dp))
-            Text("ALLERION", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+            LogoMark(26.dp)
+            Spacer(Modifier.width(7.dp))
+            Text("ALLERION", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
         }
-        Column(Modifier.fillMaxSize().padding(horizontal = 18.dp).verticalScroll(rememberScrollState()),
+        Column(Modifier.fillMaxSize().padding(horizontal = 15.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("INTEGRATIONS", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                Text("Integration Center", color = Txt, fontSize = AppType.displaySmall, fontWeight = FontWeight.ExtraBold)
+                Text("INTEGRATIONS", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                Text("Integration Center", color = Txt, fontSize = AppType.title, fontWeight = FontWeight.Bold)
                 Text("Webhook and Telegram status across your registered servers.", color = Mut, fontSize = AppType.small)
             }
             if (servers.isEmpty()) {
