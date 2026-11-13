@@ -153,6 +153,7 @@ fun App(p: SharedPreferences) {
     var showLiveUsers by remember { mutableStateOf(false) }
     var showAnalytics by remember { mutableStateOf(false) }
     var showActivity by remember { mutableStateOf(false) }
+    var showServerManagement by remember { mutableStateOf(false) }
     fun commit(l: List<Server>) {
         try {
             saveServers(p, l)
@@ -176,9 +177,10 @@ fun App(p: SharedPreferences) {
     }
     val e = edit
     val o = open
-    BackHandler(enabled = e != null || o != null || hubSettings || showIntegrations || showUsers || showLiveUsers || showAnalytics || showActivity) {
+    BackHandler(enabled = e != null || o != null || hubSettings || showIntegrations || showUsers || showLiveUsers || showAnalytics || showActivity || showServerManagement) {
         if (e != null) edit = null
         else if (o != null) open = null
+        else if (showServerManagement) showServerManagement = false
         else if (showActivity) showActivity = false
         else if (showAnalytics) showAnalytics = false
         else if (showLiveUsers) showLiveUsers = false
@@ -198,9 +200,14 @@ fun App(p: SharedPreferences) {
         showLiveUsers -> LiveUsersScreen()
         showAnalytics -> if (servers.isNotEmpty()) JellyfinAnalyticsScreen(servers.first()) else EmptyModuleScreen("Jellyfin analytics", "Add a monitoring server before opening analytics.") { showAnalytics = false }
         showActivity -> ActivityCenterScreen(onBack = { showActivity = false })
+        showServerManagement -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
+            { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true },
+            { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true },
+            { showServerManagement = true }, serverManagementPage = true, onBack = { showServerManagement = false })
         else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true },
-            { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true })
+            { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true },
+            { showServerManagement = true })
     }
     availableUpdate?.let { update ->
         AllerionUpdateDialog(update) {
