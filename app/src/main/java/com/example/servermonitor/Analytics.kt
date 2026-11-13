@@ -2,6 +2,7 @@ package com.example.servermonitor
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -17,7 +18,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 @Composable
-fun JellyfinAnalyticsScreen(server: Server) {
+fun JellyfinAnalyticsScreen(server: Server, onBack: () -> Unit) {
     var period by remember { mutableStateOf("week") }
     var data by remember { mutableStateOf<JSONObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -33,7 +34,10 @@ fun JellyfinAnalyticsScreen(server: Server) {
         } catch (e: Exception) { error = friendlyError(e) }
         loading = false
     }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 15.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ModulePageHeader("MEDIA INTELLIGENCE", "Jellyfin Analytics", "Viewing trends and playback rankings", onBack) {
+            IconBtn(Ic.Refresh, "Refresh analytics", plain = true, onClick = { refresh++ })
+        }
         Panel {
             Label("HISTORICAL VIEWERS")
             Text("Unique online users per day", color = Mut, fontSize = AppType.small)
