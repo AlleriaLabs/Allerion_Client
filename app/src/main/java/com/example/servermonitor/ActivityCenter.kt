@@ -236,5 +236,28 @@ fun CrashDiagnosticsScreen(onBack: () -> Unit) {
                 }
             }
         }
+        Panel {
+            Label("Support report")
+            Text(
+                "Create a shareable summary of this device's Allerion diagnostics, alert configuration, recent local events and latest crash details. It works without connecting to CasaOS.",
+                color = Mut, fontSize = AppType.small
+            )
+            Spacer(Modifier.height(8.dp))
+            androidx.compose.material3.Button(onClick = {
+                val reportText = DiagnosticsReportBuilder.build(context)
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, "ALLERION support diagnostic report")
+                    putExtra(Intent.EXTRA_TEXT, reportText)
+                }
+                context.startActivity(Intent.createChooser(send, "Share Allerion support report"))
+            }, modifier = Modifier.fillMaxWidth()) {
+                Text("Generate & share support report")
+            }
+            Text(
+                "Review before sharing. The summary excludes server URLs and credentials, but may include server names, alert messages, device details and crash exception text.",
+                color = Dim, fontSize = AppType.caption
+            )
+        }
     }
 }
