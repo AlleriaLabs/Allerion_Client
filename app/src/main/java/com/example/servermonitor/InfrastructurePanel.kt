@@ -410,6 +410,9 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
     val sourceIp = topology?.optString("source_ip").orEmpty().takeIf { it.isNotBlank() && it != "null" }
     val routeInterface = topology?.optString("interface").orEmpty().takeIf { it.isNotBlank() && it != "null" }
     val subnet = topology?.optString("subnet").orEmpty().takeIf { it.isNotBlank() && it != "null" }
+    val dnsResolvers = topology?.optJSONObject("dns")?.optJSONArray("servers")?.let { array ->
+        (0 until array.length()).mapNotNull { array.optJSONObject(it) }
+    } ?: emptyList()
     val trafficAvailable = liveTraffic?.optBoolean("available") == true
     val rx = liveTraffic?.optDouble("rx_bytes_per_sec", 0.0) ?: 0.0
     val tx = liveTraffic?.optDouble("tx_bytes_per_sec", 0.0) ?: 0.0
@@ -417,7 +420,7 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
     val isLive = trafficAvailable && packetAge != null && packetAge in 0..5000
     val deviceCount = allNodes.count { it.optString("role") != "gateway" } + if (sourceIp != null && allNodes.none { it.optString("ip") == sourceIp }) 1 else 0
     val mapRows = (linkedNodes.size + 1) / 2
-    val mapHeight = maxOf(410, 320 + mapRows * 112).dp
+    val mapHeight = maxOf(410, 360 + mapRows * 112 + dnsResolvers.size * 62).dp
     Panel {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -504,7 +507,18 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
                             NetworkTopologyNode("ALLERION SERVER", sourceIp, "▣", Color(0xFF8B83FF), true, Modifier.width(160.dp))
                         }
                     }
-                    Spacer(Modifier.height(if (sourceIp != null) 43.dp else 70.dp))
+                    if (dnsResolvers.isNotEmpty()) {
+                        Spacer(Modifier.height(12.dp))
+                        Text("CONFIGURED DNS RESOLVER", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+                        dnsResolvers.forEach { resolver ->
+                            Spacer(Modifier.height(6.dp))
+                            NetworkTopologyNode("DNS RESOLVER", resolver.optString("address", "Unknown"), "◎", Blue, true, Modifier.width(210.dp))
+                        }
+                    } else {
+                        Spacer(Modifier.height(8.dp))
+                        Text("DNS resolver not detected from host configuration", color = Amber, fontSize = AppType.caption)
+                    }
+                    Spacer(Modifier.height(if (sourceIp != null) 35.dp else 55.dp))
                     if (linkedNodes.isEmpty()) {
                         Text("No linked LAN devices discovered", color = Mut, fontSize = AppType.caption)
                         Text("Only confirmed passive observations appear here.", color = Dim, fontSize = AppType.micro)
@@ -570,6 +584,17 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
             Spacer(Modifier.height(8.dp))
             DiagRow("Last packet", packetAge?.let { if (it < 1000) "Just now" else "${it / 1000}s ago" } ?: "No recent packet", if (isLive) Green else Dim)
             DiagRow("Packets observed", liveTraffic?.optLong("packet_count")?.toString() ?: "—", Mut)
+            Label("DNS configuration")
+            if (dnsResolvers.isEmpty()) {
+                Text("No DNS resolver could be read from the CasaOS host configuration.", color = Amber, fontSize = AppType.caption)
+            } else {
+                dnsResolvers.forEach { resolver ->
+                    DiagRow(resolver.optString("address", "Unknown DNS"), resolver.optString("type", "configured") + " · " + resolver.optString("source", "Host resolver"), Blue)
+                }
+                topology?.optJSONObject("dns")?.optJSONArray("search_domains")?.let { domains ->
+                    if (domains.length() > 0) DiagRow("Search domain", (0 until domains.length()).joinToString { domains.optString(it) }, Mut)
+                }
+            }
             Text("Only devices and relationships supported by passive neighbor/topology data are shown. Internet and gateway placement reflects the server's active route; packet payloads are never collected.", color = Dim, fontSize = AppType.caption)
             Text("Host: ${sourceIp ?: "unknown"} · Subnet: ${subnet ?: "unknown"}", color = Mut, fontSize = AppType.caption)
         }
