@@ -430,12 +430,12 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 NetworkSummaryTile("DEVICES", deviceCount.toString(), Blue, Modifier.weight(1f))
                 NetworkSummaryTile("UNMAPPED", unmappedNodes.size.toString(), if (unmappedNodes.isEmpty()) Green else Amber, Modifier.weight(1f))
-                NetworkSummaryTile("INTERFACE", routeInterface ?: "—", Purple, Modifier.weight(1f))
+                NetworkSummaryTile("INTERFACE", routeInterface ?: "—", Color(0xFF8B83FF), Modifier.weight(1f))
             }
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 NetworkRateTile("Download", formatNetworkRate(rx), Blue, "↓", Modifier.weight(1f))
-                NetworkRateTile("Upload", formatNetworkRate(tx), Purple, "↑", Modifier.weight(1f))
+                NetworkRateTile("Upload", formatNetworkRate(tx), Color(0xFF8B83FF), "↑", Modifier.weight(1f))
             }
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -485,11 +485,11 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
                     horizontalAlignment = Alignment.CenterHorizontally) {
                     NetworkTopologyNode("INTERNET", "Upstream route", "◎", Blue, false, Modifier.width(154.dp))
                     Spacer(Modifier.height(43.dp))
-                    NetworkTopologyNode("ROUTER / GATEWAY", gateway ?: "Not detected", "⌁", Purple, gateway != null, Modifier.width(190.dp))
+                    NetworkTopologyNode("ROUTER / GATEWAY", gateway ?: "Not detected", "⌁", Color(0xFF8B83FF), gateway != null, Modifier.width(190.dp))
                     if (sourceIp != null) {
                         Spacer(Modifier.height(12.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                            NetworkTopologyNode("ALLERION SERVER", sourceIp, "▣", Purple, true, Modifier.width(160.dp))
+                            NetworkTopologyNode("ALLERION SERVER", sourceIp, "▣", Color(0xFF8B83FF), true, Modifier.width(160.dp))
                         }
                     }
                     Spacer(Modifier.height(if (sourceIp != null) 43.dp else 70.dp))
@@ -594,7 +594,7 @@ private fun NetworkTopologyNode(title: String, address: String, glyph: String, t
 @Composable
 private fun NetworkDeviceNode(node: JSONObject, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val name = node.optString("hostname").takeIf { it.isNotBlank() && it != "null" } ?: node.optString("ip", "Unknown")
-    val tint = if (selected) Purple else Color(0xFF25DFA0)
+    val tint = if (selected) Color(0xFF8B83FF) else Color(0xFF25DFA0)
     Column(modifier.clip(RoundedCornerShape(15.dp)).background(Color(0xFF14243D))
         .border(1.dp, tint.copy(alpha = if (selected) 0.9f else 0.42f), RoundedCornerShape(15.dp))
         .clickable(onClick = onClick).padding(9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
