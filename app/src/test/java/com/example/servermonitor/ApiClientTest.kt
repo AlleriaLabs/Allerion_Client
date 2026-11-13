@@ -9,6 +9,22 @@ import org.junit.Test
 
 class ApiClientTest {
     @Test
+    fun jfaGoAccountsPageUrlNormalizesToServerRoot() {
+        assertEquals(
+            "https://flixregister.alleriafilmotheque.fyi",
+            normalizeJfaGoBaseUrl("https://flixregister.alleriafilmotheque.fyi/accounts")
+        )
+    }
+
+    @Test
+    fun jfaGoAccountsPathIsRemovedButReverseProxyPrefixIsKept() {
+        assertEquals(
+            "https://example.com/jfa",
+            normalizeJfaGoBaseUrl("https://example.com/jfa/accounts/")
+        )
+    }
+
+    @Test
     fun alertRulesKeepExistingHealthAlertsEnabledByDefault() {
         val defaults = AlertRules()
         assertTrue(defaults.serverAvailability)
