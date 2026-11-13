@@ -37,8 +37,9 @@ fun JellyfinAnalyticsScreen(server: Server, onBack: () -> Unit = {}, onSettings:
         loading = false
     }
     BoxWithConstraints(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
+        val pageWidth = maxWidth.coerceAtMost(1100.dp)
         Column(
-            Modifier.widthIn(max = 1100.dp).fillMaxHeight().fillMaxWidth()
+            Modifier.width(pageWidth).fillMaxHeight()
                 .align(Alignment.TopCenter).verticalScroll(rememberScrollState())
         ) {
             ModulePageHeader("MEDIA INTELLIGENCE", "Jellyfin Analytics", "Viewing trends and playback rankings", onBack, onSettings) {
