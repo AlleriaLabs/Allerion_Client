@@ -40,9 +40,19 @@ fun JellyfinAnalyticsScreen(server: Server, onBack: () -> Unit = {}, onSettings:
         ModulePageHeader("MEDIA INTELLIGENCE", "Jellyfin Analytics", "Viewing trends and playback rankings", onBack, onSettings) {
             IconBtn(Ic.Refresh, "Refresh analytics", plain = true, onClick = { refresh++ })
         }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SummaryStat("Samples", (data?.optInt("sample_count") ?: 0).toString(), Txt, Modifier.weight(1f))
+            SummaryStat("Movies", (data?.optJSONArray("movies")?.length() ?: 0).toString(), Red, Modifier.weight(1f))
+            SummaryStat("Viewers", (data?.optJSONArray("users")?.length() ?: 0).toString(), Green, Modifier.weight(1f))
+        }
         Panel {
-            Label("HISTORICAL VIEWERS")
-            Text("Unique online users per day", color = Mut, fontSize = AppType.small)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Label("VIEWER ACTIVITY")
+                    Text("Unique online users over time", color = Mut, fontSize = AppType.small)
+                }
+                if (loading) Text("Updating", color = Dim, fontSize = AppType.caption)
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("day","week","month","year").forEach { p ->
                     Chip(p.replaceFirstChar { it.uppercase() }, period == p) { period = p }
@@ -55,8 +65,7 @@ fun JellyfinAnalyticsScreen(server: Server, onBack: () -> Unit = {}, onSettings:
                 val values = (0 until (points?.length() ?: 0)).map { points!!.optJSONObject(it).optInt("users") }
                 if (values.isEmpty()) Text("No historical samples yet. Once the backend is configured and deployed, this graph will populate automatically.", color = Mut, fontSize = AppType.small)
                 else {
-                    Text("Daily unique viewers", color = Txt, fontSize = AppType.bodyStrong)
-                    AnalyticsLine(values, Modifier.fillMaxWidth().height(150.dp))
+                    AnalyticsLine(values, Modifier.fillMaxWidth().height(170.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(points!!.optJSONObject(0).optString("day"), color = Dim, fontSize = 10.sp)
                         Text(points.optJSONObject(points.length()-1).optString("day"), color = Dim, fontSize = 10.sp)
