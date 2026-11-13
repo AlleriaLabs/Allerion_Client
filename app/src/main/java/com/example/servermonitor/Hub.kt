@@ -116,9 +116,9 @@ fun StateMessage(text: String, warn: Boolean) {
 
 @Composable
 fun ActionIcon(ic: Ic, desc: String, tint: Color = Mut, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(15.dp)
-    Box(Modifier.size(46.dp).clip(shape).background(Surf2).border(1.dp, Line, shape).tap(onClick),
-        contentAlignment = Alignment.Center) { Icon24(ic, tint, 20.dp, desc = desc) }
+    Box(Modifier.size(46.dp).tap(onClick), contentAlignment = Alignment.Center) {
+        Icon24(ic, tint, 20.dp, desc = desc)
+    }
 }
 
 @Composable
@@ -137,8 +137,8 @@ fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, o
                 onClick = onOpen,
                 modifier = Modifier.weight(1f).height(46.dp),
                 shape = RoundedCornerShape(15.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-                colors = ButtonDefaults.outlinedButtonColors(containerColor = Surf2, contentColor = Txt)
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line.copy(alpha = 0.55f)),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Transparent, contentColor = Txt)
             ) {
                 Icon24(Ic.Dash, Mut, 18.dp); Spacer(Modifier.width(8.dp))
                 Text("Open dashboard", fontWeight = FontWeight.SemiBold)
@@ -261,13 +261,13 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                 Column(Modifier.padding(top = 10.dp, bottom = 3.dp).staggerIn(0), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (serverManagementPage) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            IconBtn(Ic.ChevronL, "Back to control center", onClick = onBack)
+                            IconBtn(Ic.ChevronL, "Back to control center", plain = true, onClick = onBack)
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text("INFRASTRUCTURE", fontSize = AppType.micro, fontWeight = FontWeight.Bold, color = Red, letterSpacing = 1.55.sp)
-                                Text("Server Management", fontSize = AppType.displaySmall, fontWeight = FontWeight.ExtraBold, color = Txt, letterSpacing = (-0.5).sp)
+                                Text("Server Management", fontSize = AppType.title, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = (-0.25).sp)
                             }
-                            IconBtn(Ic.Plus, "Add server", onClick = onAdd)
+                            IconBtn(Ic.Plus, "Add server", plain = true, onClick = onAdd)
                         }
                         Text("Monitor and manage your connected servers.", fontSize = AppType.small, color = Mut)
                     } else {
@@ -293,8 +293,7 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("SERVER MANAGEMENT", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
-                                Text("Your fleet", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
+                                Text("Connected servers", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
                             }
                         }
                 if (servers.isEmpty()) {
