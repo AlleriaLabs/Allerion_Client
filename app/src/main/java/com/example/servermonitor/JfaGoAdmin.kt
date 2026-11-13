@@ -44,7 +44,7 @@ fun normalizeJfaGoBaseUrl(input: String): String {
     if (path.equals("/accounts", ignoreCase = true) || path.endsWith("/accounts", ignoreCase = true)) {
         path = path.dropLast("/accounts".length).trimEnd('/')
     }
-    return URI(parsed.scheme, parsed.userInfo, parsed.host, parsed.port, path.ifBlank { null }, null, null).toASCIIString().trimEnd('/')
+    return URI(parsed.scheme, parsed.userInfo, parsed.host, parsed.port, if (path.isBlank()) null else path, null, null).toASCIIString().trimEnd('/')
 }
 private data class JfaConn(val url: String, val username: String, val password: String)
 private data class JfaAuth(val token: String, val refresh: String)
