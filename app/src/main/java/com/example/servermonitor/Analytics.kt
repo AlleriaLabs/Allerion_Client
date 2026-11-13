@@ -36,81 +36,92 @@ fun JellyfinAnalyticsScreen(server: Server, onBack: () -> Unit = {}, onSettings:
         } catch (e: Exception) { error = friendlyError(e) }
         loading = false
     }
-    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 15.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ModulePageHeader("MEDIA INTELLIGENCE", "Jellyfin Analytics", "Viewing trends and playback rankings", onBack, onSettings) {
-            IconBtn(Ic.Refresh, "Refresh analytics", plain = true, onClick = { refresh++ })
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SummaryStat("Samples", (data?.optInt("sample_count") ?: 0).toString(), Txt, Modifier.weight(1f))
-            SummaryStat("Movies", (data?.optJSONArray("movies")?.length() ?: 0).toString(), Red, Modifier.weight(1f))
-            SummaryStat("Viewers", (data?.optJSONArray("users")?.length() ?: 0).toString(), Green, Modifier.weight(1f))
-        }
-        Panel {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Label("VIEWER ACTIVITY")
-                    Text("Unique online users over time", color = Mut, fontSize = AppType.small)
-                }
-                if (loading) Text("Updating", color = Dim, fontSize = AppType.caption)
+    BoxWithConstraints(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
+        Column(
+            Modifier.widthIn(max = 1100.dp).fillMaxHeight().fillMaxWidth()
+                .align(Alignment.TopCenter).verticalScroll(rememberScrollState())
+        ) {
+            ModulePageHeader("MEDIA INTELLIGENCE", "Jellyfin Analytics", "Viewing trends and playback rankings", onBack, onSettings) {
+                IconBtn(Ic.Refresh, "Refresh analytics", plain = true, onClick = { refresh++ })
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("day","week","month","year").forEach { p ->
-                    Chip(p.replaceFirstChar { it.uppercase() }, period == p) { period = p }
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(13.dp)
+            ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SummaryStat("Samples", (data?.optInt("sample_count") ?: 0).toString(), Txt, Modifier.weight(1f))
+                    SummaryStat("Movies", (data?.optJSONArray("movies")?.length() ?: 0).toString(), Red, Modifier.weight(1f))
+                    SummaryStat("Viewers", (data?.optJSONArray("users")?.length() ?: 0).toString(), Green, Modifier.weight(1f))
                 }
-            }
-            if (loading && data == null) Text("Loading analytics…", color = Mut, fontSize = AppType.small)
-            else if (error != null) Text(error!!, color = Amber, fontSize = AppType.small)
-            else {
-                val points = data?.optJSONArray("data_points")
-                val values = (0 until (points?.length() ?: 0)).map { points!!.optJSONObject(it).optInt("users") }
-                if (values.isEmpty()) Text("No historical samples yet. Once the backend is configured and deployed, this graph will populate automatically.", color = Mut, fontSize = AppType.small)
-                else {
-                    AnalyticsLine(values, Modifier.fillMaxWidth().height(170.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(points!!.optJSONObject(0).optString("day"), color = Dim, fontSize = 10.sp)
-                        Text(points.optJSONObject(points.length()-1).optString("day"), color = Dim, fontSize = 10.sp)
+                Panel {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Label("VIEWER ACTIVITY")
+                            Text("Unique online users over time", color = Mut, fontSize = AppType.small)
+                        }
+                        if (loading) Text("Updating", color = Dim, fontSize = AppType.caption)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("day","week","month","year").forEach { p ->
+                            Chip(p.replaceFirstChar { it.uppercase() }, period == p) { period = p }
+                        }
+                    }
+                    if (loading && data == null) Text("Loading analytics…", color = Mut, fontSize = AppType.small)
+                    else if (error != null) Text(error!!, color = Amber, fontSize = AppType.small)
+                    else {
+                        val points = data?.optJSONArray("data_points")
+                        val values = (0 until (points?.length() ?: 0)).map { points!!.optJSONObject(it).optInt("users") }
+                        if (values.isEmpty()) Text("No historical samples yet. Once the backend is configured and deployed, this graph will populate automatically.", color = Mut, fontSize = AppType.small)
+                        else {
+                            AnalyticsLine(values, Modifier.fillMaxWidth().height(170.dp))
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(points!!.optJSONObject(0).optString("day"), color = Dim, fontSize = 10.sp)
+                                Text(points.optJSONObject(points.length()-1).optString("day"), color = Dim, fontSize = 10.sp)
+                            }
+                        }
                     }
                 }
-            }
-        }
-        Panel {
-            Label("MOST WATCHED MOVIES")
-            Text("Ranked by sampled plays and estimated watch time", color = Mut, fontSize = AppType.small)
-            val movies = data?.optJSONArray("movies")
-            if (movies == null || movies.length() == 0) Text("No movie playback samples recorded yet.", color = Mut, fontSize = AppType.small)
-            else for (i in 0 until movies.length()) {
-                val m=movies.optJSONObject(i)
-                Row(Modifier.fillMaxWidth().padding(vertical=5.dp), verticalAlignment=Alignment.CenterVertically) {
-                    Text("${i+1}", color=Red, fontSize=AppType.bodyStrong)
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(m.optString("title","Unknown title"), color=Txt, fontSize=AppType.bodyStrong)
-                        Text("${m.optInt("plays")} sampled plays · ${m.optDouble("watch_minutes").toInt()} min", color=Mut, fontSize=AppType.caption)
+                Panel {
+                    Label("MOST WATCHED MOVIES")
+                    Text("Ranked by sampled plays and estimated watch time", color = Mut, fontSize = AppType.small)
+                    val movies = data?.optJSONArray("movies")
+                    if (movies == null || movies.length() == 0) Text("No movie playback samples recorded yet.", color = Mut, fontSize = AppType.small)
+                    else for (i in 0 until movies.length()) {
+                        val m=movies.optJSONObject(i)
+                        Row(Modifier.fillMaxWidth().padding(vertical=5.dp), verticalAlignment=Alignment.CenterVertically) {
+                            Text("${i+1}", color=Red, fontSize=AppType.bodyStrong)
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(m.optString("title","Unknown title"), color=Txt, fontSize=AppType.bodyStrong)
+                                Text("${m.optInt("plays")} sampled plays · ${m.optDouble("watch_minutes").toInt()} min", color=Mut, fontSize=AppType.caption)
+                            }
+                        }
                     }
                 }
-            }
-        }
-        Panel {
-            Label("TOP VIEWERS")
-            Text("Ranked by estimated watch time", color = Mut, fontSize = AppType.small)
-            val users = data?.optJSONArray("users")
-            if (users == null || users.length() == 0) Text("No viewer activity has been sampled yet.", color = Mut, fontSize = AppType.small)
-            else for (i in 0 until users.length()) {
-                val u=users.optJSONObject(i)
-                Row(Modifier.fillMaxWidth().padding(vertical=5.dp), verticalAlignment=Alignment.CenterVertically) {
-                    Text("${i+1}", color=Red, fontSize=AppType.bodyStrong)
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(u.optString("name","Unknown user"), color=Txt, fontSize=AppType.bodyStrong)
-                        Text("${u.optInt("titles")} titles · ${u.optInt("plays")} plays", color=Mut, fontSize=AppType.caption)
+                Panel {
+                    Label("TOP VIEWERS")
+                    Text("Ranked by estimated watch time", color = Mut, fontSize = AppType.small)
+                    val users = data?.optJSONArray("users")
+                    if (users == null || users.length() == 0) Text("No viewer activity has been sampled yet.", color = Mut, fontSize = AppType.small)
+                    else for (i in 0 until users.length()) {
+                        val u=users.optJSONObject(i)
+                        Row(Modifier.fillMaxWidth().padding(vertical=5.dp), verticalAlignment=Alignment.CenterVertically) {
+                            Text("${i+1}", color=Red, fontSize=AppType.bodyStrong)
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(u.optString("name","Unknown user"), color=Txt, fontSize=AppType.bodyStrong)
+                                Text("${u.optInt("titles")} titles · ${u.optInt("plays")} plays", color=Mut, fontSize=AppType.caption)
+                            }
+                            Text("%.1f h".format(u.optDouble("watch_minutes")/60.0), color=Txt, fontSize=AppType.bodyStrong)
+                        }
                     }
-                    Text("%.1f h".format(u.optDouble("watch_minutes")/60.0), color=Txt, fontSize=AppType.bodyStrong)
                 }
+                Panel {
+                    Text(data?.optString("note") ?: "Watch time is estimated from periodic Jellyfin session samples.", color=Dim, fontSize=AppType.caption)
+                    Text("Samples collected: ${data?.optInt("sample_count") ?: 0}", color=Dim, fontSize=AppType.caption)
+                }
+                Spacer(Modifier.height(96.dp))
             }
-        }
-        Panel {
-            Text(data?.optString("note") ?: "Watch time is estimated from periodic Jellyfin session samples.", color=Dim, fontSize=AppType.caption)
-            Text("Samples collected: ${data?.optInt("sample_count") ?: 0}", color=Dim, fontSize=AppType.caption)
         }
     }
 }
