@@ -7,6 +7,7 @@ import android.content.ClipboardManager
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -227,6 +228,7 @@ private fun RowScope.JfaAction(label: String, icon: Ic, tint: Color = Red, enabl
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
