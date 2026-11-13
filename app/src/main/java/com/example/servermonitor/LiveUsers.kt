@@ -131,8 +131,7 @@ fun LiveUsersScreen(onBack: () -> Unit = {}, onSettings: () -> Unit = {}) {
     }
 
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 15.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ModulePageHeader("JELLYFIN PRESENCE", "Live Users", "Online devices and current playback", onBack, onSettings) {
-            IconBtn(Ic.Gear, "Connection settings", plain = true, onClick = { editing = !editing })
+        ModulePageHeader("JELLYFIN PRESENCE", "Live Users", "Online devices and current playback", onBack, { editing = !editing }) {
             IconBtn(Ic.Refresh, "Refresh", plain = true, onClick = { refresh++ })
         }
         Panel {
