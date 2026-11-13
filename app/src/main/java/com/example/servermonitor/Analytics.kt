@@ -20,7 +20,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 @Composable
-fun JellyfinAnalyticsScreen(server: Server, onBack: () -> Unit = {}) {
+fun JellyfinAnalyticsScreen(server: Server, onBack: () -> Unit = {}, onSettings: () -> Unit = {}) {
     var period by remember { mutableStateOf("week") }
     var data by remember { mutableStateOf<JSONObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -37,7 +37,7 @@ fun JellyfinAnalyticsScreen(server: Server, onBack: () -> Unit = {}) {
         loading = false
     }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 15.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ModulePageHeader("MEDIA INTELLIGENCE", "Jellyfin Analytics", "Viewing trends and playback rankings", onBack) {
+        ModulePageHeader("MEDIA INTELLIGENCE", "Jellyfin Analytics", "Viewing trends and playback rankings", onBack, onSettings) {
             IconBtn(Ic.Refresh, "Refresh analytics", plain = true, onClick = { refresh++ })
         }
         Panel {
