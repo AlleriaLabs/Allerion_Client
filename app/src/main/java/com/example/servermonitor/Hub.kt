@@ -229,7 +229,8 @@ fun HubModuleCard(icon: Ic, title: String, subtitle: String, accent: Color, modi
 @Composable
 fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit,
          onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit, onIntegrations: () -> Unit, onUsers: () -> Unit,
-         onLiveUsers: () -> Unit, onAnalytics: () -> Unit, onActivity: () -> Unit) {
+         onLiveUsers: () -> Unit, onAnalytics: () -> Unit, onActivity: () -> Unit,
+         onServerManagement: () -> Unit, serverManagementPage: Boolean = false, onBack: () -> Unit = {}) {
     val context = LocalContext.current
     val status = remember { mutableStateMapOf<String, Int>() }
     val groupPreferences = remember(context) {
@@ -258,24 +259,36 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
             HubHeader(onSettings)
             Column(Modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Column(Modifier.padding(top = 10.dp, bottom = 3.dp).staggerIn(0), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("ALLERIA LABS · INFRASTRUCTURE", fontSize = AppType.micro, fontWeight = FontWeight.Bold, color = Red, letterSpacing = 1.55.sp)
-                    Text("Control Center", fontSize = AppType.displaySmall, fontWeight = FontWeight.ExtraBold, color = Txt, letterSpacing = (-0.5).sp)
-                    Text("Your infrastructure, connected and in view.", fontSize = AppType.small, color = Mut)
+                    if (serverManagementPage) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            IconBtn(Ic.ChevronL, "Back to control center", onClick = onBack)
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("INFRASTRUCTURE", fontSize = AppType.micro, fontWeight = FontWeight.Bold, color = Red, letterSpacing = 1.55.sp)
+                                Text("Server Management", fontSize = AppType.displaySmall, fontWeight = FontWeight.ExtraBold, color = Txt, letterSpacing = (-0.5).sp)
+                            }
+                            IconBtn(Ic.Plus, "Add server", onClick = onAdd)
+                        }
+                        Text("Monitor and manage your connected servers.", fontSize = AppType.small, color = Mut)
+                    } else {
+                        Text("ALLERIA LABS · INFRASTRUCTURE", fontSize = AppType.micro, fontWeight = FontWeight.Bold, color = Red, letterSpacing = 1.55.sp)
+                        Text("Control Center", fontSize = AppType.displaySmall, fontWeight = FontWeight.ExtraBold, color = Txt, letterSpacing = (-0.5).sp)
+                        Text("Your infrastructure, connected and in view.", fontSize = AppType.small, color = Mut)
+                    }
                 }
-                var showFleet by remember { mutableStateOf(false) }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (!serverManagementPage) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     HubModuleCard(Ic.Heart, "User management", "Accounts, invitations and access", Color(0xFFFF8294), Modifier.weight(1f).staggerIn(1), onUsers)
                     HubModuleCard(Ic.Plug, "Integration center", "Jellyfin, alerts and services", Color(0xFFD6B4FF), Modifier.weight(1f).staggerIn(2), onIntegrations)
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HubModuleCard(Ic.Server, "Server management", "Fleet, network and diagnostics", Color(0xFF77C7FF), Modifier.weight(1f).staggerIn(3), { showFleet = !showFleet })
+                if (!serverManagementPage) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HubModuleCard(Ic.Server, "Server management", "Fleet, network and diagnostics", Color(0xFF77C7FF), Modifier.weight(1f).staggerIn(3), onServerManagement)
                     HubModuleCard(Ic.Chart, "Jellyfin analytics", "Viewing trends and rankings", Color(0xFFB7A2FF), Modifier.weight(1f).staggerIn(4), onAnalytics)
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (!serverManagementPage) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     HubModuleCard(Ic.Activity, "Live users", "Who's online and watching", Color(0xFF62E0B0), Modifier.weight(1f).staggerIn(5), onLiveUsers, live = true)
                     HubModuleCard(Ic.Bell, "Activity & alerts", "Events, incidents and recovery", Color(0xFFFFC477), Modifier.weight(1f).staggerIn(6), onActivity)
                 }
-                AnimatedVisibility(visible = showFleet, enter = fadeIn(tween(240)) + androidx.compose.animation.expandVertically(tween(260)),
+                AnimatedVisibility(visible = serverManagementPage, enter = fadeIn(tween(240)) + androidx.compose.animation.expandVertically(tween(260)),
                     exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(200))) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -283,7 +296,6 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                                 Text("SERVER MANAGEMENT", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
                                 Text("Your fleet", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
                             }
-                            TextButton(onClick = { showFleet = false }) { Text("Close", color = Mut) }
                         }
                 if (servers.isEmpty()) {
                     Panel(Modifier.staggerIn(1)) {
@@ -294,7 +306,6 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                             Spacer(Modifier.height(4.dp))
                             Text("Add the ALLERION monitoring service running on your home server to start watching it.", fontSize = AppType.body, color = Mut, textAlign = TextAlign.Center)
                             Spacer(Modifier.height(18.dp))
-                            AddFab(onAdd, Modifier)
                         }
                     }
                 } else {
@@ -360,7 +371,7 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                 Spacer(Modifier.height(124.dp))
             }
         }
-        AddFab(onAdd, Modifier.align(Alignment.BottomEnd).padding(20.dp))
+        if (!serverManagementPage) { /* Add Server is available inside Server Management only. */ }
     }
 }
 
