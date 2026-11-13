@@ -121,19 +121,22 @@ private object JfaApi {
         require(next.token.isNotBlank()) { "JFA-Go token refresh failed." }
         return request(c, path, "POST", body, next.token).first to next
     }
-    private fun page(page: Int) = JSONObject().put("searchTerms", JSONArray()).put("queries", JSONArray())
-        .put("limit", 100).put("page", page).put("sortByField", "username").put("ascending", true)
-    fun users(c: JfaConn): List<JSONObject> {
-        var auth = login(c); val out = mutableListOf<JSONObject>(); var page = 0
-        while (page < 20) {
-            val (raw, next) = call(c, auth, "/users", page(page)); auth = next
-            val obj = JSONObject(raw); val arr = obj.optJSONArray("users")
-                ?: throw IllegalStateException("JFA-Go /users response has no 'users' array.")
-            for (i in 0 until arr.length()) arr.optJSONObject(i)?.let(out::add)
-            page++
-            if (obj.optBoolean("last_page", true) || arr.length() == 0) break
+    private fun responseArray(raw: String, key: String): JSONArray {
+        val text = raw.trim()
+        if (text.startsWith("[")) return JSONArray(text)
+        if (!text.startsWith("{")) {
+            val kind = if (text.startsWith("<!DOCTYPE", true) || text.startsWith("<html", true)) "HTML page" else "plain-text response"
+            throw IllegalStateException("JFA-Go $key endpoint returned a $kind instead of JSON. Check the server URL and API route.")
         }
-        return out
+        val root = JSONObject(text)
+        return root.optJSONArray(key) ?: root.optJSONArray("activity") ?: root.optJSONArray("items") ?: JSONArray()
+    }
+    fun users(c: JfaConn): List<JSONObject> {
+        val auth = login(c)
+        // Match Allerium: JFA-Go's normal user directory is GET /users and returns a JSON array.
+        val raw = request(c, "/users", bearer = auth.token).first
+        val arr = responseArray(raw, "users")
+        return (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
     }
     fun test(c: JfaConn) { require(c.username.isNotBlank() && c.password.isNotBlank()) { "Enter the JFA-Go administrator username and password." }; users(c) }
     fun activity(c: JfaConn): List<JSONObject> {
@@ -141,7 +144,7 @@ private object JfaApi {
         val body = JSONObject().put("searchTerms", JSONArray()).put("queries", JSONArray())
             .put("limit", 50).put("page", 0).put("sortByField", "time").put("ascending", false)
         val raw = call(c, a, "/activity", body).first
-        val arr = JSONObject(raw).optJSONArray("activities") ?: JSONArray()
+        val arr = responseArray(raw, "activities")
         return (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
     }
 }
