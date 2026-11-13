@@ -71,7 +71,7 @@ private fun loadJellyfinSessions(config: JfSessionConfig): List<JfSession> {
     http.setRequestProperty("Accept", "application/json")
     http.setRequestProperty("X-Emby-Token", config.key)
     http.setRequestProperty("X-MediaBrowser-Token", config.key)
-    http.setRequestProperty("Authorization", "MediaBrowser Client=\\"Allerion\\", Device=\\"Android\\", DeviceId=\\"allerion-android\\", Version=\\"1.0\\", Token=\\""+config.key+"\\"")
+    http.setRequestProperty("Authorization", "MediaBrowser Client=\"Allerion\", Device=\"Android\", DeviceId=\"allerion-android\", Version=\"1.0\", Token=\""+config.key+"\"")
     try {
         val code = http.responseCode
         if (code !in 200..299) {
