@@ -132,7 +132,7 @@ private object JfaApi {
 }
 
 @Composable
-fun JellyfinUsersScreen(onBack: () -> Unit) {
+fun JfaGoUsersScreen(onBack: () -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var conn by remember { mutableStateOf(JfaStore.load(ctx)) }
