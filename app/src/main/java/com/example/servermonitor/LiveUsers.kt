@@ -25,7 +25,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -66,18 +65,27 @@ private fun loadJellyfinSessions(config: JfSessionConfig): List<JfSession> {
     val base = config.url.trim().trimEnd('/')
     require(base.startsWith("https://") || base.startsWith("http://")) { "Enter a valid Jellyfin server URL." }
     require(config.key.isNotBlank()) { "Enter a Jellyfin API key." }
-    val url = URL(base + "/Sessions?api_key=" + URLEncoder.encode(config.key, "UTF-8"))
+    val url = URL(base + "/Sessions")
     val http = url.openConnection() as HttpURLConnection
     http.connectTimeout = 8000; http.readTimeout = 10000
     http.setRequestProperty("Accept", "application/json")
     http.setRequestProperty("X-Emby-Token", config.key)
+    http.setRequestProperty("X-MediaBrowser-Token", config.key)
+    http.setRequestProperty("Authorization", "MediaBrowser Client=\\"Allerion\\", Device=\\"Android\\", DeviceId=\\"allerion-android\\", Version=\\"1.0\\", Token=\\""+config.key+"\\"")
     try {
         val code = http.responseCode
-        if (code !in 200..299) throw IllegalStateException(when (code) {
-            401, 403 -> "Jellyfin rejected the API key. Check its permissions."
-            404 -> "Jellyfin Sessions endpoint not found. Check the server URL."
-            else -> "Jellyfin returned HTTP " + code + "."
-        })
+        if (code !in 200..299) {
+            val stream = if (code >= 400) http.errorStream else null
+            val body = stream?.bufferedReader()?.use { it.readText() }?.take(240)?.replace(Regex("[\\r\\n]+"), " ")
+            val server = http.getHeaderField("Server")?.take(80)
+            val detail = listOfNotNull(body?.takeIf { it.isNotBlank() }, server?.let { "Server: " + it }).joinToString(" · ")
+            throw IllegalStateException(when (code) {
+                401, 403 -> "Jellyfin authentication failed (HTTP " + code + "). " +
+                    (detail.ifBlank { "Confirm the URL reaches Jellyfin directly and that the key is valid." })
+                404 -> "Jellyfin Sessions endpoint not found (HTTP 404). Check the server URL. " + detail
+                else -> "Jellyfin returned HTTP " + code + ". " + detail
+            })
+        }
         val array = JSONArray(http.inputStream.bufferedReader().use { it.readText() })
         return List(array.length()) { index ->
             val item = array.getJSONObject(index)
