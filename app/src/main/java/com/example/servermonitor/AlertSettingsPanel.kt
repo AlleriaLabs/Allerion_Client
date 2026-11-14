@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -31,10 +32,29 @@ import java.util.Locale
 fun AlertSettingsPanel() {
     val context = LocalContext.current
     val initial = remember { AlertPreferences.load(context) }
+    var rules by remember { mutableStateOf(AlertRulePreferences.load(context)) }
+    fun updateRules(next: AlertRules) {
+        rules = next
+        AlertRulePreferences.save(context, next)
+    }
     var cpu by remember { mutableStateOf(initial.cpu) }
     var memory by remember { mutableStateOf(initial.memory) }
     var temperature by remember { mutableStateOf(initial.temperature) }
     var disk by remember { mutableStateOf(initial.disk) }
+
+    Panel {
+        Label("Alert categories")
+        Text("Choose which events ALLERION should monitor. Optional Docker and LAN rules only run when the backend exposes those features.", color = Mut, fontSize = AppType.small)
+        Spacer(Modifier.height(8.dp))
+        AlertRuleSwitch("Server online / offline", rules.serverAvailability) { updateRules(rules.copy(serverAvailability = it)) }
+        AlertRuleSwitch("CPU usage", rules.cpu) { updateRules(rules.copy(cpu = it)) }
+        AlertRuleSwitch("Memory usage", rules.memory) { updateRules(rules.copy(memory = it)) }
+        AlertRuleSwitch("Temperature", rules.temperature) { updateRules(rules.copy(temperature = it)) }
+        AlertRuleSwitch("Disk usage", rules.disk) { updateRules(rules.copy(disk = it)) }
+        AlertRuleSwitch("Docker container failures", rules.containers) { updateRules(rules.copy(containers = it)) }
+        AlertRuleSwitch("New LAN device detected", rules.newDevices) { updateRules(rules.copy(newDevices = it)) }
+        Text("LAN detection uses the server's passive ARP / neighbor cache only. It does not scan your network.", color = Dim, fontSize = AppType.caption)
+    }
 
     Panel {
         Label("Alert thresholds")
@@ -120,6 +140,37 @@ fun AlertSettingsPanel() {
             }
         }
     }
+    var checkStatus by remember { mutableStateOf(AlertDiagnostics.load(context)) }
+    var notificationTestMessage by remember { mutableStateOf<String?>(null) }
+    Panel {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Label("Notification diagnostics")
+            TextButton(onClick = { checkStatus = AlertDiagnostics.load(context) }) {
+                Text("Refresh", color = Red)
+            }
+        }
+        Text("Last background check", color = Mut, fontSize = AppType.caption)
+        Text(AlertDiagnostics.formatTimestamp(checkStatus.timestamp), color = Txt, fontSize = AppType.bodyStrong)
+        Text(checkStatus.status.uppercase(Locale.getDefault()), color = when (checkStatus.status) {
+            "Success" -> Green
+            "Partial", "Running" -> Amber
+            "Failed" -> Err
+            else -> Mut
+        }, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold)
+        Text(checkStatus.detail, color = Mut, fontSize = AppType.small)
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = {
+                notificationTestMessage = AlertDiagnostics.requestTestNotification(context)
+                    ?: "Test notification sent. Check your notification shade."
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Surf2, contentColor = Txt)
+        ) { Text("Send test notification") }
+        notificationTestMessage?.let { Text(it, color = if (it.startsWith("Test")) Green else Amber, fontSize = AppType.small) }
+        Text("Background checks run approximately every 15 minutes when Android permits. Battery optimization and Do Not Disturb can delay or hide notifications.", color = Dim, fontSize = AppType.caption)
+    }
+
 }
 
 @Composable
@@ -130,5 +181,15 @@ private fun ThresholdSlider(label: String, value: Float, unit: String, range: Cl
             Text("%.0f".format(value) + unit, color = Txt, fontSize = AppType.body, fontWeight = FontWeight.SemiBold)
         }
         Slider(value = value, onValueChange = onChange, valueRange = range, steps = 49)
+    }
+}
+
+
+@Composable
+private fun AlertRuleSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Text(label, color = Txt, fontSize = AppType.body, modifier = Modifier.weight(1f))
+        androidx.compose.material3.Switch(checked = checked, onCheckedChange = onChange)
     }
 }

@@ -123,6 +123,36 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+fun EmptyModuleScreen(
+    title: String,
+    message: String,
+    onBack: () -> Unit,
+    onSettings: () -> Unit = {}
+) {
+    Box(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
+        Column(
+            Modifier.widthIn(max = 1100.dp).fillMaxWidth().fillMaxHeight()
+                .align(Alignment.TopCenter)
+        ) {
+            HubHeader(onSettings = onSettings, onBack = onBack)
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(13.dp)
+            ) {
+                Column(Modifier.padding(top = 10.dp, bottom = 3.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("ALLERION MODULE", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.55.sp)
+                    Text(title, color = Txt, fontSize = AppType.title, fontWeight = FontWeight.Bold)
+                    Text("Connect a server to unlock this module.", color = Mut, fontSize = AppType.small)
+                }
+                Panel {
+                    Text(message, color = Mut, fontSize = AppType.body)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun App(p: SharedPreferences) {
     val appContext = LocalContext.current
     var availableUpdate by remember { mutableStateOf<AllerionUpdate?>(null) }
@@ -137,6 +167,12 @@ fun App(p: SharedPreferences) {
     var edit by remember { mutableStateOf<Int?>(null) } // -1 = new server
     var expanded by remember { mutableStateOf<Int?>(null) }   // every server card starts collapsed
     var hubSettings by remember { mutableStateOf(false) }
+    var showIntegrations by remember { mutableStateOf(false) }
+    var showUsers by remember { mutableStateOf(false) }
+    var showLiveUsers by remember { mutableStateOf(false) }
+    var showAnalytics by remember { mutableStateOf(false) }
+    var showActivity by remember { mutableStateOf(false) }
+    var showServerManagement by remember { mutableStateOf(false) }
     fun commit(l: List<Server>) {
         try {
             saveServers(p, l)
@@ -160,7 +196,17 @@ fun App(p: SharedPreferences) {
     }
     val e = edit
     val o = open
-    BackHandler(enabled = e != null || o != null || hubSettings) { if (e != null) edit = null else if (o != null) open = null else hubSettings = false }
+    BackHandler(enabled = e != null || o != null || hubSettings || showIntegrations || showUsers || showLiveUsers || showAnalytics || showActivity || showServerManagement) {
+        if (e != null) edit = null
+        else if (o != null) open = null
+        else if (showServerManagement) showServerManagement = false
+        else if (showActivity) showActivity = false
+        else if (showAnalytics) showAnalytics = false
+        else if (showLiveUsers) showLiveUsers = false
+        else if (showUsers) showUsers = false
+        else if (showIntegrations) showIntegrations = false
+        else hubSettings = false
+    }
     when {
         e != null -> EditServer(servers.getOrNull(e),
             onSave = { sv -> commit(if (e < 0) servers + sv else servers.toMutableList().also { it[e] = sv }); edit = null },
@@ -168,8 +214,19 @@ fun App(p: SharedPreferences) {
             onCancel = { edit = null })
         o != null && o in servers.indices -> Dashboard(servers[o], { open = null }, { edit = o })
         hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })
+        showIntegrations -> IntegrationCenterScreen(servers, onBack = { showIntegrations = false }, onSettings = { hubSettings = true })
+        showUsers -> JfaGoUsersScreen(onBack = { showUsers = false })
+        showLiveUsers -> LiveUsersScreen(onBack = { showLiveUsers = false })
+        showAnalytics -> if (servers.isNotEmpty()) JellyfinAnalyticsScreen(servers.first(), onBack = { showAnalytics = false }, onSettings = { edit = servers.indexOf(servers.first()) }) else EmptyModuleScreen("Jellyfin Analytics", "No monitoring server is registered yet. Add one in Server Management; the analytics page and Allerion header remain available without a connection.", onBack = { showAnalytics = false }, onSettings = { hubSettings = true })
+        showActivity -> ActivityCenterScreen(onBack = { showActivity = false }, onSettings = { hubSettings = true })
+        showServerManagement -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
+            { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true },
+            { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true },
+            { showServerManagement = true }, serverManagementPage = true, onBack = { showServerManagement = false })
         else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
-            { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true })
+            { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true },
+            { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true },
+            { showServerManagement = true })
     }
     availableUpdate?.let { update ->
         AllerionUpdateDialog(update) {

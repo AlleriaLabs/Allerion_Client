@@ -61,7 +61,7 @@ val LocalReduceMotion = compositionLocalOf { false }
 object AppSettings { var refreshMs by mutableLongStateOf(2000L) }
 
 // ---------------------------------------------------------------- icons (one consistent 24-grid, round stroke set)
-enum class Ic { Dash, Cpu, Memory, Storage, Thermo, Activity, Download, Upload, Zap, Plug, Heart, Server, Globe, Clock, Bell, Gear, Refresh, Chart, ChevronL, ChevronD, Plus, Pencil, Trash }
+enum class Ic { Dash, Cpu, Memory, Storage, Thermo, Activity, Download, Upload, Zap, Plug, Heart, Server, Globe, Clock, Bell, Gear, Refresh, Chart, ChevronL, ChevronD, Plus, Pencil, Trash, Check, Ban }
 
 @Composable
 fun Icon24(kind: Ic, tint: Color, sz: Dp = 20.dp, modifier: Modifier = Modifier, desc: String? = null) {
@@ -115,6 +115,8 @@ fun Icon24(kind: Ic, tint: Color, sz: Dp = 20.dp, modifier: Modifier = Modifier,
             Ic.Plus -> { line(12f, 5f, 12f, 19f); line(5f, 12f, 19f, 12f) }
             Ic.Pencil -> { poly(4f, 20f, 5f, 15f, 16f, 4f, 20f, 8f, 9f, 19f, close = true); line(13.5f, 6.5f, 17.5f, 10.5f) }
             Ic.Trash -> { line(4f, 7f, 20f, 7f); poly(9f, 7f, 9f, 4f, 15f, 4f, 15f, 7f); poly(6f, 7f, 7f, 20f, 17f, 20f, 18f, 7f); line(10f, 11f, 10f, 16f); line(14f, 11f, 14f, 16f) }
+            Ic.Check -> { drawCircle(tint, 9f * u, p(12f, 12f), style = sw); poly(7f, 12f, 10.5f, 15.5f, 17f, 8.5f) }
+            Ic.Ban -> { drawCircle(tint, 9f * u, p(12f, 12f), style = sw); line(5.5f, 18.5f, 18.5f, 5.5f) }
         }
     }
 }
@@ -184,7 +186,7 @@ fun PulseDot(color: Color, pulse: Boolean, dia: Dp = 8.dp) {
 }
 
 @Composable
-fun IconBtn(ic: Ic, desc: String, rotate: Float = 0f, plain: Boolean = false, onClick: () -> Unit) {
+fun IconBtn(ic: Ic, desc: String, rotate: Float = 0f, plain: Boolean = true, onClick: () -> Unit) {
     val buttonModifier = if (plain) Modifier.size(44.dp).clickable(
         interactionSource = remember { MutableInteractionSource() },
         indication = null,
@@ -198,22 +200,27 @@ fun IconBtn(ic: Ic, desc: String, rotate: Float = 0f, plain: Boolean = false, on
 
 @Composable
 fun BottomBar(tab: Int, onTab: (Int) -> Unit) {
-    val items = listOf(Ic.Dash to "Overview", Ic.Globe to "Network", Ic.Zap to "Power", Ic.Server to "System", Ic.Gear to "Settings")
+    val items = listOf(Ic.Dash to "Overview", Ic.Globe to "Network", Ic.Zap to "Power", Ic.Server to "System", Ic.Plus to "More")
     Column(Modifier.fillMaxWidth().background(Bg)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.8f)))
-        Row(Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 5.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
             items.forEachIndexed { i, (ic, label) ->
                 val selected = tab == i
                 val tint by animateColorAsState(if (selected) Red else Dim, tween(220), label = "nav-icon")
                 Column(Modifier.weight(1f).tap { onTab(i) }.padding(vertical = 1.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.width(56.dp).height(34.dp).clip(RoundedCornerShape(13.dp))
-                        .background(if (selected) Red.copy(alpha = 0.13f) else Color.Transparent),
+                    Box(Modifier.fillMaxWidth().height(30.dp).clip(RoundedCornerShape(10.dp))
+                        .background(if (selected) Red.copy(alpha = 0.12f) else Color.Transparent),
                         contentAlignment = Alignment.Center) {
-                        Icon24(ic, tint, 21.dp, desc = label)
+                        Icon24(ic, tint, 19.dp, desc = label)
                     }
-                    Spacer(Modifier.height(3.dp))
-                    Text(label, fontSize = AppType.caption, color = if (selected) Txt else Dim,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
+                    if (selected) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(label, fontSize = AppType.micro, color = Txt,
+                            fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    } else {
+                        Spacer(Modifier.height(2.dp))
+                        Box(Modifier.height(10.dp))
+                    }
                 }
             }
         }

@@ -74,15 +74,47 @@ fun Splash(onDone: () -> Unit) {
 }
 
 @Composable
-fun HubHeader(onSettings: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 10.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+fun ModulePageHeader(
+    category: String,
+    title: String,
+    subtitle: String,
+    onBack: () -> Unit,
+    onSettings: () -> Unit = {},
+    trailing: @Composable RowScope.() -> Unit = {}
+) {
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 5.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        HubHeader(onSettings, onBack, trailing)
+        Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(category.uppercase(), color = Red, fontSize = AppType.micro,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.35.sp, maxLines = 1)
+            Text(title, color = Txt, fontSize = AppType.title,
+                fontWeight = FontWeight.Bold, letterSpacing = (-0.25).sp, maxLines = 1)
+            Text(subtitle, color = Mut, fontSize = AppType.small, maxLines = 2)
+        }
+    }
+}
+
+@Composable
+fun HubHeader(
+    onSettings: () -> Unit,
+    onBack: (() -> Unit)? = null,
+    trailing: @Composable RowScope.() -> Unit = {}
+) {
+    Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (onBack != null) {
+            IconBtn(Ic.ChevronL, "Back to control center", plain = true, onClick = onBack)
+            Spacer(Modifier.width(8.dp))
+        }
         LogoMark(38.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text("ALLERION", fontSize = AppType.title, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = 2.sp)
             Text("ALLERIA LABS", fontSize = AppType.micro, color = Dim, fontWeight = FontWeight.Medium, letterSpacing = 2.2.sp)
         }
-        IconBtn(Ic.Gear, "Settings", onClick = onSettings)
+        trailing()
+        IconBtn(Ic.Gear, "Settings", plain = true, onClick = onSettings)
     }
 }
 
@@ -116,9 +148,9 @@ fun StateMessage(text: String, warn: Boolean) {
 
 @Composable
 fun ActionIcon(ic: Ic, desc: String, tint: Color = Mut, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(15.dp)
-    Box(Modifier.size(46.dp).clip(shape).background(Surf2).border(1.dp, Line, shape).tap(onClick),
-        contentAlignment = Alignment.Center) { Icon24(ic, tint, 20.dp, desc = desc) }
+    Box(Modifier.size(46.dp).tap(onClick), contentAlignment = Alignment.Center) {
+        Icon24(ic, tint, 20.dp, desc = desc)
+    }
 }
 
 @Composable
@@ -137,8 +169,8 @@ fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, o
                 onClick = onOpen,
                 modifier = Modifier.weight(1f).height(46.dp),
                 shape = RoundedCornerShape(15.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-                colors = ButtonDefaults.outlinedButtonColors(containerColor = Surf2, contentColor = Txt)
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line.copy(alpha = 0.55f)),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Transparent, contentColor = Txt)
             ) {
                 Icon24(Ic.Dash, Mut, 18.dp); Spacer(Modifier.width(8.dp))
                 Text("Open dashboard", fontWeight = FontWeight.SemiBold)
@@ -151,11 +183,11 @@ fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, o
 
 @Composable
 fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () -> Unit, onOpen: () -> Unit, onEdit: () -> Unit,
-               onDelete: () -> Unit, onStatus: (Int) -> Unit, modifier: Modifier = Modifier) {
+               onDelete: () -> Unit, onStatus: (Int) -> Unit, modifier: Modifier = Modifier, lastSeen: Long? = null) {
     val r by rememberStats(sv, if (expanded) 3_000L else 10_000L)       // collapsed cards only need status, so they poll slowly
     val j = r.json
     val code = when { j != null && r.error == null -> 1; r.error != null -> 2; else -> 0 }
-    LaunchedEffect(statusKey, code) { onStatus(code) }
+    LaunchedEffect(statusKey, code, j) { onStatus(code) }
     val rot by animateFloatAsState(if (expanded) 180f else 0f, tween(260, easing = FastOutSlowInEasing), label = "chevron")
     var confirm by remember { mutableStateOf(false) }
     Panel(modifier) {
@@ -166,6 +198,15 @@ fun ServerCard(sv: Server, statusKey: String, expanded: Boolean, onToggle: () ->
                 Text(sv.name, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold, color = Txt, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sv.url.removePrefix("http://").removePrefix("https://"), fontSize = AppType.small, color = Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(sv.group.uppercase(), fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = Red, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(lastSeen?.let { FleetPresenceStore.formatAge(it) } ?: "Awaiting first successful check", fontSize = AppType.micro, color = if (FleetPresenceStore.isStale(lastSeen)) Amber else Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                j?.let { stats ->
+                    val metrics = listOfNotNull(
+                        stats.optDouble("cpu", Double.NaN).takeIf { value -> !value.isNaN() }?.let { value -> "CPU ${value.roundToInt()}%" },
+                        stats.optDouble("ram", Double.NaN).takeIf { value -> !value.isNaN() }?.let { value -> "RAM ${value.roundToInt()}%" },
+                        stats.optDouble("temp", Double.NaN).takeIf { value -> !value.isNaN() }?.let { value -> "${value.roundToInt()}°C" }
+                    )
+                    if (metrics.isNotEmpty()) Text(metrics.joinToString("  ·  "), fontSize = AppType.micro, color = Mut, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
             Spacer(Modifier.width(10.dp))
             StatusLabel(code)
@@ -200,23 +241,91 @@ fun AddFab(onClick: () -> Unit, modifier: Modifier) {
 }
 
 @Composable
+fun HubModuleCard(icon: Ic, title: String, subtitle: String, accent: Color, modifier: Modifier = Modifier, onClick: () -> Unit, live: Boolean = false) {
+    Panel(modifier = modifier.heightIn(min = 124.dp).tap(onClick)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = 0.12f))
+                .border(1.dp, accent.copy(alpha = 0.20f), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+                Icon24(icon, accent, 19.dp)
+            }
+            Spacer(Modifier.weight(1f))
+            if (live) PulseDot(accent, true, 7.dp)
+            else Icon24(Ic.ChevronD, Dim, 16.dp, Modifier.graphicsLayer { rotationZ = -90f })
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(title, color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(subtitle, color = Mut, fontSize = AppType.caption, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
 fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit,
-         onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit) {
+         onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit, onIntegrations: () -> Unit, onUsers: () -> Unit,
+         onLiveUsers: () -> Unit, onAnalytics: () -> Unit, onActivity: () -> Unit,
+         onServerManagement: () -> Unit, serverManagementPage: Boolean = false, onBack: () -> Unit = {}) {
+    val context = LocalContext.current
     val status = remember { mutableStateMapOf<String, Int>() }
+    val groupPreferences = remember(context) {
+        context.getSharedPreferences("fleet_preferences", android.content.Context.MODE_PRIVATE)
+    }
+    var selectedGroup by remember(groupPreferences) {
+        mutableStateOf(groupPreferences.getString("selected_group", "All groups") ?: "All groups")
+    }
+    var groupMenuExpanded by remember { mutableStateOf(false) }
     fun keyOf(i: Int, sv: Server) = "$i|${sv.url}"
+    val groups = servers.map { it.group.trim().ifEmpty { "Ungrouped" } }.distinct().sorted()
+    LaunchedEffect(selectedGroup) {
+        groupPreferences.edit().putString("selected_group", selectedGroup).apply()
+    }
+    LaunchedEffect(groups) {
+        if (selectedGroup != "All groups" && selectedGroup !in groups) selectedGroup = "All groups"
+    }
+    val visibleServers = servers.mapIndexed { index, server -> index to server }
+        .filter { (_, server) -> selectedGroup == "All groups" || server.group.trim().ifEmpty { "Ungrouped" } == selectedGroup }
     val codes = servers.mapIndexed { i, sv -> status[keyOf(i, sv)] ?: 0 }
     val online = codes.count { it == 1 }; val offline = codes.count { it == 2 }
     val availability = if (online + offline == 0) "–" else "${(online * 100f / (online + offline)).roundToInt()}%"
     BoxWithConstraints(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
         val wideLayout = maxWidth >= 720.dp
         Column(Modifier.widthIn(max = 1100.dp).fillMaxHeight().fillMaxWidth().align(Alignment.TopCenter).verticalScroll(rememberScrollState())) {
-            HubHeader(onSettings)
+            HubHeader(onSettings, if (serverManagementPage) onBack else null)
             Column(Modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Column(Modifier.padding(top = 10.dp, bottom = 3.dp).staggerIn(0), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("ALLERIA LABS · INFRASTRUCTURE", fontSize = AppType.micro, fontWeight = FontWeight.Bold, color = Red, letterSpacing = 1.55.sp)
-                    Text("Servers", fontSize = AppType.displaySmall, fontWeight = FontWeight.ExtraBold, color = Txt, letterSpacing = (-0.5).sp)
-                    Text("Your connected infrastructure at a glance", fontSize = AppType.small, color = Mut)
+                    if (serverManagementPage) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("INFRASTRUCTURE", fontSize = AppType.micro, fontWeight = FontWeight.Bold, color = Red, letterSpacing = 1.55.sp)
+                                Text("Server Management", fontSize = AppType.title, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = (-0.25).sp)
+                            }
+                            IconBtn(Ic.Plus, "Add server", plain = true, onClick = onAdd)
+                        }
+                        Text("Monitor and manage your connected servers.", fontSize = AppType.small, color = Mut)
+                    } else {
+                        Text("ALLERIA LABS · INFRASTRUCTURE", fontSize = AppType.micro, fontWeight = FontWeight.Bold, color = Red, letterSpacing = 1.55.sp)
+                        Text("Control Center", fontSize = AppType.displaySmall, fontWeight = FontWeight.ExtraBold, color = Txt, letterSpacing = (-0.5).sp)
+                        Text("Your infrastructure, connected and in view.", fontSize = AppType.small, color = Mut)
+                    }
                 }
+                if (!serverManagementPage) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HubModuleCard(Ic.Heart, "User management", "Accounts, invitations and access", Color(0xFFFF8294), Modifier.weight(1f).staggerIn(1), onUsers)
+                    HubModuleCard(Ic.Plug, "Integration center", "Jellyfin, alerts and services", Color(0xFFD6B4FF), Modifier.weight(1f).staggerIn(2), onIntegrations)
+                }
+                if (!serverManagementPage) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HubModuleCard(Ic.Server, "Server management", "Fleet, network and diagnostics", Color(0xFF77C7FF), Modifier.weight(1f).staggerIn(3), onServerManagement)
+                    HubModuleCard(Ic.Chart, "Jellyfin analytics", "Viewing trends and rankings", Color(0xFFB7A2FF), Modifier.weight(1f).staggerIn(4), onAnalytics)
+                }
+                if (!serverManagementPage) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HubModuleCard(Ic.Activity, "Live users", "Who's online and watching", Color(0xFF62E0B0), Modifier.weight(1f).staggerIn(5), onLiveUsers, live = true)
+                    HubModuleCard(Ic.Bell, "Activity & alerts", "Events, incidents and recovery", Color(0xFFFFC477), Modifier.weight(1f).staggerIn(6), onActivity)
+                }
+                AnimatedVisibility(visible = serverManagementPage, enter = fadeIn(tween(240)) + androidx.compose.animation.expandVertically(tween(260)),
+                    exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(200))) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Connected servers", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
                 if (servers.isEmpty()) {
                     Panel(Modifier.staggerIn(1)) {
                         Column(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -226,7 +335,6 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                             Spacer(Modifier.height(4.dp))
                             Text("Add the ALLERION monitoring service running on your home server to start watching it.", fontSize = AppType.body, color = Mut, textAlign = TextAlign.Center)
                             Spacer(Modifier.height(18.dp))
-                            AddFab(onAdd, Modifier)
                         }
                     }
                 } else {
@@ -236,32 +344,64 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                         SummaryStat("Offline", "$offline", if (offline > 0) Err else Txt, Modifier.weight(1f))
                         SummaryStat("Availability", availability, Txt, Modifier.weight(1.25f))
                     }
-                    if (wideLayout) {
-                        servers.chunked(2).forEachIndexed { rowIndex, pair ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Fleet view", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                            Text("${visibleServers.size} of ${servers.size} servers", color = Dim, fontSize = AppType.caption)
+                        }
+                        Box {
+                            OutlinedButton(onClick = { groupMenuExpanded = true }, shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Transparent, contentColor = Txt)) {
+                                Text(selectedGroup, color = Txt, fontSize = AppType.small)
+                                Spacer(Modifier.width(6.dp))
+                                Icon24(Ic.ChevronD, Mut, 16.dp)
+                            }
+                            DropdownMenu(expanded = groupMenuExpanded, onDismissRequest = { groupMenuExpanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("All groups") },
+                                    onClick = { selectedGroup = "All groups"; groupMenuExpanded = false }
+                                )
+                                groups.forEach { group ->
+                                    DropdownMenuItem(
+                                        text = { Text(group) },
+                                        onClick = { selectedGroup = group; groupMenuExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (visibleServers.isEmpty()) {
+                        Panel {
+                            Text("No servers in this group", color = Mut, fontSize = AppType.body)
+                        }
+                    } else if (wideLayout) {
+                        visibleServers.chunked(2).forEachIndexed { rowIndex, pair ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                pair.forEachIndexed { columnIndex, sv ->
-                                    val i = rowIndex * 2 + columnIndex
+                                pair.forEachIndexed { columnIndex, entry ->
+                                    val (i, sv) = entry
                                     key(keyOf(i, sv)) {
                                         ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
-                                            { status[keyOf(i, sv)] = it }, Modifier.weight(1f).staggerIn(i + 2))
+                                            { status[keyOf(i, sv)] = it; if (it == 1) FleetPresenceStore.recordSuccess(context, sv) }, Modifier.weight(1f).staggerIn(rowIndex * 2 + columnIndex + 2), FleetPresenceStore.lastSeen(context, sv))
                                     }
                                 }
                                 if (pair.size == 1) Spacer(Modifier.weight(1f))
                             }
                         }
                     } else {
-                        servers.forEachIndexed { i, sv ->
+                        visibleServers.forEach { (i, sv) ->
                             key(keyOf(i, sv)) {
                                 ServerCard(sv, keyOf(i, sv), expanded == i, { onExpand(if (expanded == i) null else i) }, { onOpen(i) }, { onEdit(i) }, { onDelete(i) },
-                                    { status[keyOf(i, sv)] = it }, Modifier.staggerIn(i + 2))
+                                    { status[keyOf(i, sv)] = it; if (it == 1) FleetPresenceStore.recordSuccess(context, sv) }, Modifier.staggerIn(i + 2), FleetPresenceStore.lastSeen(context, sv))
                             }
                         }
+                    }
+                }
                     }
                 }
                 Spacer(Modifier.height(124.dp))
             }
         }
-        if (servers.isNotEmpty()) AddFab(onAdd, Modifier.align(Alignment.BottomEnd).padding(20.dp))
+        if (!serverManagementPage) { /* Add Server is available inside Server Management only. */ }
     }
 }
 
@@ -440,7 +580,7 @@ fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
                 Column(Modifier.weight(1f)) {
                     Label("Smart health alerts")
                     Spacer(Modifier.height(4.dp))
-                    Text("Check registered servers every 15 minutes and notify when a server goes offline or CPU, memory, temperature or disk usage crosses a critical threshold.", color = Mut, fontSize = AppType.small)
+                    Text("Check registered servers every 15 minutes. Choose alert categories below for availability, resource thresholds, Docker container failures and newly detected LAN devices.", color = Mut, fontSize = AppType.small)
                 }
                 Switch(checked = alertsEnabled, onCheckedChange = { enabled ->
                     if (!enabled) {
@@ -479,7 +619,6 @@ fun HubSettings(onRestore: (List<Server>) -> Unit, onBack: () -> Unit) {
             Text("Keep the backup password safe. It cannot be recovered if lost. Exported backup files contain encrypted credentials.", color = Dim, fontSize = AppType.caption)
             message?.let { Spacer(Modifier.height(8.dp)); Text(it, color = if (it.startsWith("Encrypted")) Green else Amber, fontSize = AppType.small) }
         }
-        AboutPanel()
     }
 
     if (backupAction != null) {

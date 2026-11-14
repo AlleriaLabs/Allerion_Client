@@ -54,7 +54,7 @@ fun KV(label: String, value: String) {
 }
 
 @Composable
-fun AppHeader(sv: Server, j: JSONObject?, err: String?, online: Boolean, onBack: () -> Unit, onRefresh: () -> Unit, onSettings: () -> Unit) {
+fun AppHeader(sv: Server, j: JSONObject?, err: String?, online: Boolean, onBack: () -> Unit, onRefresh: () -> Unit, onActivity: () -> Unit) {
     var spin by remember { mutableStateOf(0) }
     val rot by animateFloatAsState(spin * 360f, tween(700, easing = FastOutSlowInEasing), label = "spin")
     Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 9.dp, top = 8.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -69,7 +69,7 @@ fun AppHeader(sv: Server, j: JSONObject?, err: String?, online: Boolean, onBack:
         }
         Status(online)
         IconBtn(Ic.Refresh, "Refresh", rot, plain = true) { spin++; onRefresh() }
-        IconBtn(Ic.Gear, "Settings", plain = true, onClick = onSettings)
+        IconBtn(Ic.Bell, "Activity center", plain = true, onClick = onActivity)
     }
 }
 
@@ -155,18 +155,24 @@ fun OverviewScreen(sv: Server, j: JSONObject, online: Boolean, onOpen: (String) 
         KV("CPU cores", "${j.optInt("cores")}")
         KV("Memory", "${j.optDouble("ram_total_gb")} GB")
     }
+    val dashboardPrefs = LocalContext.current.getSharedPreferences("cfg", android.content.Context.MODE_PRIVATE)
+    val showCpu = remember { mutableStateOf(dashboardPrefs.getBoolean("dashboard_show_cpu", true)) }
+    val showMemory = remember { mutableStateOf(dashboardPrefs.getBoolean("dashboard_show_memory", true)) }
+    val showTemperature = remember { mutableStateOf(dashboardPrefs.getBoolean("dashboard_show_temperature", true)) }
+    val showStorage = remember { mutableStateOf(dashboardPrefs.getBoolean("dashboard_show_storage", true)) }
+    val showGpu = remember { mutableStateOf(dashboardPrefs.getBoolean("dashboard_show_gpu", true)) }
     Row(Modifier.fillMaxWidth().staggerIn(1), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        MetricTile(Ic.Cpu, "CPU", animNum(cpu), "%", "${j.optInt("cores")} cores", listOf(GSeries(hs("cpu"), Red)), 10.0, Modifier.weight(1f)) { onOpen("cpu") }
-        MetricTile(Ic.Memory, "Memory", animNum(ram), "%", "${j.optDouble("ram_used_gb")} / ${j.optDouble("ram_total_gb")} GB",
+        if (showCpu.value) MetricTile(Ic.Cpu, "CPU", animNum(cpu), "%", "${j.optInt("cores")} cores", listOf(GSeries(hs("cpu"), Red)), 10.0, Modifier.weight(1f)) { onOpen("cpu") }
+        if (showMemory.value) MetricTile(Ic.Memory, "Memory", animNum(ram), "%", "${j.optDouble("ram_used_gb")} / ${j.optDouble("ram_total_gb")} GB",
             listOf(GSeries(hs("ram"), Blue)), 10.0, Modifier.weight(1f)) { onOpen("ram") }
     }
     Row(Modifier.fillMaxWidth().staggerIn(2), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        MetricTile(Ic.Thermo, "Temperature", animNum(temp), if (temp == null) "" else "°C", if (temp == null) "No sensor found" else null,
+        if (showTemperature.value) MetricTile(Ic.Thermo, "Temperature", animNum(temp), if (temp == null) "" else "°C", if (temp == null) "No sensor found" else null,
             listOf(GSeries(hs("temp"), Amber)), 4.0, Modifier.weight(1f), centerValue = true) { onOpen("temp") }
-        MetricTile(Ic.Storage, "Storage", animNum(disk), if (disk == null) "" else "%", "%.0f / %.0f GB".format(usedGb, totGb),
+        if (showStorage.value) MetricTile(Ic.Storage, "Storage", animNum(disk), if (disk == null) "" else "%", "%.0f / %.0f GB".format(usedGb, totGb),
             listOf(GSeries(hs("disk"), Mut)), 2.0, Modifier.weight(1f)) { onOpen("disk") }
     }
-    if (gpu != null) MetricTile(Ic.Chart, "GPU", animNum(gpu), "%", null, listOf(GSeries(hs("gpu"), Mut)), 10.0, Modifier.fillMaxWidth().staggerIn(4)) { onOpen("gpu") }
+    if (gpu != null && showGpu.value) MetricTile(Ic.Chart, "GPU", animNum(gpu), "%", null, listOf(GSeries(hs("gpu"), Mut)), 10.0, Modifier.fillMaxWidth().staggerIn(4)) { onOpen("gpu") }
 }
 
 @Composable
@@ -419,19 +425,28 @@ fun ActionRow(title: String, sub: String, onClick: () -> Unit) {
 fun SettingsScreen(sv: Server, onEdit: () -> Unit) {
     val ctx = LocalContext.current
     ActionRow("Server connection", sv.name + " · " + sv.url.removePrefix("http://"), onEdit)
+    DashboardPreferencesPanel()
     ReportExportPanel(sv)
     RefreshPanel()
-    AboutPanel()
 }
 
 @Composable
-private fun DashboardSectionHeader(tab: Int, server: String) {
+private fun DashboardSectionHeader(tab: Int, server: String, morePage: String) {
     val (eyebrow, title, subtitle) = when (tab) {
         0 -> Triple("SERVER OVERVIEW", "Infrastructure", "Live health and resource utilization for $server")
         1 -> Triple("NETWORK INTELLIGENCE", "Network", "Traffic, connected devices and diagnostics")
         2 -> Triple("ENERGY MONITORING", "Power", "Consumption, cost and energy insights")
         3 -> Triple("SERVER MANAGEMENT", "System", "Processes, containers and system diagnostics")
-        else -> Triple("PREFERENCES", "Settings", "Manage your Allerion experience and server")
+        else -> when (morePage) {
+            "activity" -> Triple("SYSTEM ACTIVITY", "Activity", "Server alerts, events and recovery history")
+            "liveusers" -> Triple("JELLYFIN PRESENCE", "Live users", "Connected users, devices and current playback")
+            "analytics" -> Triple("JELLYFIN ANALYTICS", "Analytics", "Historical viewers, movie rankings and viewer rankings")
+            "settings" -> Triple("PREFERENCES", "Settings", "Manage your Allerion experience")
+            "connection" -> Triple("SERVER CONFIGURATION", "Connection", "Manage this server's connection details")
+            "diagnostics" -> Triple("APP DIAGNOSTICS", "Crash reports", "Inspect and share locally captured crash details")
+            "appinfo" -> Triple("ALLERIA LABS", "App info", "About Allerion and its software environment")
+            else -> Triple("WORKSPACE", "More", "Tools and configuration")
+        }
     }
     Column(Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 3.dp).staggerIn(0), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(eyebrow, color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
@@ -448,28 +463,71 @@ fun Dashboard(sv: Server, onBack: () -> Unit, onEdit: () -> Unit) {
     val online = j != null && r.error == null
     var setup by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf(0) }
+    var morePage by remember { mutableStateOf("menu") }
     var detail by remember { mutableStateOf<String?>(null) }
     if (setup) { PowerSetup(sv) { setup = false }; return }
     val d = detail
     if (d != null && j != null) { MetricDetail(sv, d, j) { detail = null }; return }
+    // Analytics owns its complete branded page. Do not render it inside the legacy dashboard shell,
+    // which adds AppHeader, DashboardSectionHeader, nested scrolling and BottomBar around it.
+    if (tab == 4 && morePage == "analytics") {
+        JellyfinAnalyticsScreen(sv, onBack = { morePage = "menu" }, onSettings = onEdit)
+        return
+    }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
-        AppHeader(sv, j, r.error, online, onBack, { refreshKey++ }, { tab = 4 })
+        AppHeader(sv, j, r.error, online,
+            if (tab == 4 && (morePage == "activity" || morePage == "diagnostics" || morePage == "liveusers")) ({ morePage = "menu" }) else onBack,
+            { refreshKey++ }, {
+            tab = 4
+            morePage = "activity"
+        })
         Box(Modifier.weight(1f)) {
-            Crossfade(tab, animationSpec = tween(220), label = "tabs") { t ->
+            Crossfade("$tab:$morePage", animationSpec = tween(220), label = "tabs") { targetState ->
+                key(targetState) {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                     DashboardSectionHeader(t, sv.name)
-                    if (j == null && t != 4) { Panel { Label("Connecting to server"); Text(r.error ?: "Establishing a secure monitoring connection…", color = Amber, fontSize = AppType.body) }; return@Column }
-                    when (t) {
-                        0 -> OverviewScreen(sv, j!!, online) { detail = it }
-                        1 -> NetworkScreen(sv, j!!) { detail = it }
-                        2 -> PowerTab(sv, j!!.optJSONObject("power")) { setup = true }
-                        3 -> SystemScreen(sv, j!!, online)
-                        else -> SettingsScreen(sv, onEdit)
+                    DashboardSectionHeader(tab, sv.name, morePage)
+                    when (tab) {
+                        0 -> if (j == null) Panel { Label("Connecting to server"); Text(r.error ?: "Establishing a secure monitoring connection…", color = Amber, fontSize = AppType.body) }
+                             else OverviewScreen(sv, j, online) { detail = it }
+                        1 -> if (j == null) Panel { Label("Connecting to server"); Text(r.error ?: "Establishing a secure monitoring connection…", color = Amber, fontSize = AppType.body) }
+                             else NetworkScreen(sv, j) { detail = it }
+                        2 -> if (j == null) Panel { Label("Connecting to server"); Text(r.error ?: "Establishing a secure monitoring connection…", color = Amber, fontSize = AppType.body) }
+                             else PowerTab(sv, j.optJSONObject("power")) { setup = true }
+                        3 -> if (j == null) Panel { Label("Connecting to server"); Text(r.error ?: "Establishing a secure monitoring connection…", color = Amber, fontSize = AppType.body) }
+                             else SystemScreen(sv, j, online)
+                        else -> when (morePage) {
+                            "activity" -> ActivityCenterScreen(onBack = { morePage = "menu" })
+                            "liveusers" -> LiveUsersScreen()
+                            "analytics" -> JellyfinAnalyticsScreen(sv)
+                            "settings" -> SettingsScreen(sv, onEdit)
+                            "diagnostics" -> CrashDiagnosticsScreen(onBack = { morePage = "menu" })
+                            "appinfo" -> AppInfoScreen()
+                            "connection" -> {
+                                Panel {
+                                    Label("Server connection")
+                                    Text("Update the address, access token or display name for this server.", color = Mut, fontSize = AppType.small)
+                                    ActionRow("Edit server connection", sv.name + " · " + sv.url.removePrefix("http://").removePrefix("https://"), onEdit)
+                                }
+                            }
+                            else -> MoreScreen(
+                                onActivity = { morePage = "activity" },
+                                onSettings = { morePage = "settings" },
+                                onConnection = { morePage = "connection" },
+                                onDiagnostics = { morePage = "diagnostics" },
+                                onAppInfo = { morePage = "appinfo" },
+                                onLiveUsers = { morePage = "liveusers" },
+                                onAnalytics = { morePage = "analytics" }
+                            )
+                        }
                     }
+                }
                 }
             }
         }
-        BottomBar(tab) { tab = it }
+        BottomBar(tab) {
+            tab = it
+            if (it == 4) morePage = "menu"
+        }
     }
 }
