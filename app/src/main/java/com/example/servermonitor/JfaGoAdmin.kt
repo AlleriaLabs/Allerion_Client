@@ -435,11 +435,51 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 if (selectedIds.isNotEmpty()) {
                     JfaCompactSurface {
                         Text("${selectedIds.size} selected", color = Txt, fontWeight = FontWeight.SemiBold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(enabled = !actionBusy, onClick = { dialog = "bulk_disable" }) { Text("Disable") }
-                            OutlinedButton(enabled = !actionBusy, onClick = { dialog = "bulk_enable" }) { Text("Enable") }
-                            OutlinedButton(enabled = !actionBusy, onClick = { dialog = "bulk_delete" }) { Text("Delete", color = Color(0xFFFF6878)) }
-                            TextButton(onClick = { selectedIds = emptySet() }) { Text("Clear") }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f).height(38.dp),
+                                enabled = !actionBusy,
+                                onClick = { dialog = "bulk_disable" },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                shape = RoundedCornerShape(11.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Amber)
+                            ) {
+                                Icon24(Ic.Ban, Amber, 14.dp)
+                                Spacer(Modifier.width(5.dp))
+                                Text("Disable", fontSize = 11.sp, maxLines = 1)
+                            }
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f).height(38.dp),
+                                enabled = !actionBusy,
+                                onClick = { dialog = "bulk_enable" },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                shape = RoundedCornerShape(11.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Green)
+                            ) {
+                                Icon24(Ic.Check, Green, 14.dp)
+                                Spacer(Modifier.width(5.dp))
+                                Text("Enable", fontSize = 11.sp, maxLines = 1)
+                            }
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f).height(38.dp),
+                                enabled = !actionBusy,
+                                onClick = { dialog = "bulk_delete" },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                shape = RoundedCornerShape(11.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF6878))
+                            ) {
+                                Icon24(Ic.Trash, Color(0xFFFF6878), 14.dp)
+                                Spacer(Modifier.width(5.dp))
+                                Text("Delete", fontSize = 11.sp, maxLines = 1)
+                            }
+                            TextButton(
+                                onClick = { selectedIds = emptySet() },
+                                contentPadding = PaddingValues(horizontal = 5.dp, vertical = 0.dp)
+                            ) { Text("Clear", fontSize = 11.sp, maxLines = 1) }
                         }
                     }
                 }
