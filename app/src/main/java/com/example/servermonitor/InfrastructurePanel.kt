@@ -892,3 +892,108 @@ private fun TopologyDevice(node: JSONObject, tint: Color, modifier: Modifier, re
         }
     }
 }
+
+@Composable
+private fun NetworkIntelligenceHistoryPanel(intelligence: JSONObject?) {
+    val samples = intelligence?.optJSONArray("samples")
+    val devices = intelligence?.optJSONArray("devices")
+    val alerts = intelligence?.optJSONArray("alerts")
+    val sampleRows = if (samples == null) emptyList() else (0 until samples.length()).mapNotNull { samples.optJSONObject(it) }.takeLast(96)
+    val deviceRows = if (devices == null) emptyList() else (0 until minOf(devices.length(), 250)).mapNotNull { devices.optJSONObject(it) }
+    val alertRows = if (alerts == null) emptyList() else (0 until alerts.length()).mapNotNull { alerts.optJSONObject(it) }.takeLast(8).reversed()
+    fun rateLabel(value: Double): String = when {
+        value >= 1048576 -> "%.1f MB/s".format(value / 1048576.0)
+        value >= 1024 -> "%.1f KB/s".format(value / 1024.0)
+        else -> "%.0f B/s".format(value)
+    }
+    fun seenLabel(value: Long): String {
+        if (value <= 0L) return "Not recorded"
+        return try { java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(value * 1000L)) }
+        catch (_: Exception) { "Recorded" }
+    }
+    Panel {
+        Label("Network activity history")
+        Text("Seven-day metadata history · samples recorded about every 15 seconds while traffic capture is queried.", color = Mut, fontSize = AppType.caption)
+        if (sampleRows.size < 2) Text("History is collecting. Keep the monitoring service running to build a useful trend.", color = Amber, fontSize = AppType.small)
+        else {
+            val maxRate = sampleRows.maxOf { maxOf(it.optDouble("rx_bytes_per_sec"), it.optDouble("tx_bytes_per_sec")) }.coerceAtLeast(1.0)
+            Canvas(Modifier.fillMaxWidth().height(132.dp).padding(top = 8.dp)) {
+                val left = 4.dp.toPx()
+                val right = size.width - 4.dp.toPx()
+                val top = 8.dp.toPx()
+                val bottom = size.height - 8.dp.toPx()
+                for (line in 0..3) {
+                    val y = top + (bottom - top) * line / 3f
+                    drawLine(Color(0xFF344252).copy(alpha = 0.55f), Offset(left, y), Offset(right, y), 1.dp.toPx())
+                }
+                fun drawSeries(key: String, color: Color) {
+                    val values = sampleRows.map { it.optDouble(key).coerceAtLeast(0.0) }
+                    for (i in 1 until values.size) {
+                        val x1 = left + (right - left) * (i - 1) / (values.size - 1).toFloat()
+                        val x2 = left + (right - left) * i / (values.size - 1).toFloat()
+                        val y1 = bottom - (bottom - top) * (values[i - 1] / maxRate).toFloat()
+                        val y2 = bottom - (bottom - top) * (values[i] / maxRate).toFloat()
+                        drawLine(color, Offset(x1, y1), Offset(x2, y2), 2.dp.toPx())
+                    }
+                }
+                drawSeries("rx_bytes_per_sec", Color(0xFF55D6C2))
+                drawSeries("tx_bytes_per_sec", Color(0xFF9B8CFF))
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text("● Download", color = Color(0xFF55D6C2), fontSize = AppType.caption)
+                Text("● Upload", color = Color(0xFF9B8CFF), fontSize = AppType.caption)
+                Spacer(Modifier.weight(1f))
+                Text(sampleRows.size.toString() + " samples", color = Dim, fontSize = AppType.caption)
+            }
+            val latest = sampleRows.last()
+            DiagRow("Latest download", rateLabel(latest.optDouble("rx_bytes_per_sec")), Color(0xFF55D6C2))
+            DiagRow("Latest upload", rateLabel(latest.optDouble("tx_bytes_per_sec")), Color(0xFF9B8CFF))
+            DiagRow("Observed peers", latest.optInt("active_peers").toString(), Mut)
+        }
+    }
+    Panel {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Label("Observed devices")
+            Spacer(Modifier.weight(1f))
+            Text(deviceRows.size.toString() + " tracked", color = Mut, fontSize = AppType.caption)
+        }
+        Text("Passive ARP / neighbor-cache sightings only. A device may disappear from the current cache while remaining in history.", color = Dim, fontSize = AppType.caption)
+        if (deviceRows.isEmpty()) Text("No device sightings have been recorded yet.", color = Mut, fontSize = AppType.small)
+        else deviceRows.take(40).forEach { device ->
+            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        val title = device.optString("hostname").takeIf { it.isNotBlank() && it != "null" } ?: device.optString("ip", "Unknown device")
+                        Text(title, color = Txt, fontSize = AppType.small, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text(device.optString("ip", "IP unavailable") + " · " + device.optString("mac").takeIf { it.isNotBlank() && it != "null" }.orEmpty(), color = Mut, fontSize = AppType.caption, maxLines = 1)
+                    }
+                    val vendor = device.optString("vendor").takeIf { it.isNotBlank() && it != "null" } ?: "Vendor unknown"
+                    Text(vendor, color = Blue, fontSize = AppType.caption, maxLines = 1)
+                }
+                Text("First seen " + seenLabel(device.optLong("first_seen")) + " · Last seen " + seenLabel(device.optLong("last_seen")), color = Dim, fontSize = AppType.micro)
+            }
+            DividerLine()
+        }
+    }
+    Panel {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Label("Network anomalies")
+            Spacer(Modifier.weight(1f))
+            Text(if (alertRows.isEmpty()) "No notices" else alertRows.size.toString() + " recent", color = if (alertRows.isEmpty()) Green else Amber, fontSize = AppType.caption)
+        }
+        if (alertRows.isEmpty()) Text("No traffic-spike or new-device notices have been recorded. This is not a guarantee that the LAN is free of threats.", color = Mut, fontSize = AppType.small)
+        else alertRows.forEach { alert ->
+            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Text(alert.optString("type").replace('_', ' ').uppercase(), color = Amber, fontSize = AppType.caption, fontWeight = FontWeight.Bold)
+                Text(alert.optString("message", "Network activity notice"), color = Txt, fontSize = AppType.small)
+                Text(seenLabel(alert.optLong("ts")) + " · " + alert.optString("severity", "notice"), color = Dim, fontSize = AppType.micro)
+            }
+        }
+        Text(intelligence?.optString("note").orEmpty().ifBlank { "History is supplied by the backend and is limited to metadata visible to the CasaOS host." }, color = Dim, fontSize = AppType.micro)
+    }
+}
+
+@Composable
+private fun DividerLine() {
+    Spacer(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF2A3542)))
+}
