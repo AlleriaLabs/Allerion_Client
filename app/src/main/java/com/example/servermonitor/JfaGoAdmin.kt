@@ -230,7 +230,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var conn by remember { mutableStateOf(JfaStore.load(ctx)) }
     var edit by remember { mutableStateOf(conn == null) }
-    var url by remember { mutableStateOf(conn?.url ?: "https://flixregister.alleriafilmotheque.fyi") }
+    var url by remember { mutableStateOf(conn?.url ?: "https://register.alleriafilmotheque.fyi") }
     var username by remember { mutableStateOf(conn?.username ?: "") }
     var password by remember { mutableStateOf(conn?.password ?: "") }
     var busy by remember { mutableStateOf(false) }
