@@ -338,20 +338,44 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                     }
                 }
                 if (!serverManagementPage) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HubModuleCard(Ic.Heart, "User management", "Accounts, invitations and access", Color(0xFFFF8294), Modifier.weight(1f).staggerIn(1), onUsers)
-                    HubModuleCard(Ic.Plug, "Integration center", "Jellyfin, alerts and services", Color(0xFFD6B4FF), Modifier.weight(1f).staggerIn(2), onIntegrations)
+                    HubModuleCard(Ic.Server, "Server Management", "Fleet, network and diagnostics", Color(0xFF77C7FF), Modifier.weight(1f).staggerIn(1), onServerManagement)
+                    HubModuleCard(Ic.Heart, "User Management", "Accounts, invitations and access", Color(0xFFFF8294), Modifier.weight(1f).staggerIn(2), onUsers)
                 }
                 if (!serverManagementPage) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HubModuleCard(Ic.Server, "Server management", "Fleet, network and diagnostics", Color(0xFF77C7FF), Modifier.weight(1f).staggerIn(3), onServerManagement)
-                    HubModuleCard(Ic.Chart, "Jellyfin analytics", "Viewing trends and rankings", Color(0xFFB7A2FF), Modifier.weight(1f).staggerIn(4), onAnalytics)
+                    HubModuleCard(Ic.Chart, "Jellyfin Analytics", "Viewing trends and rankings", Color(0xFFB7A2FF), Modifier.weight(1f).staggerIn(3), onAnalytics)
+                    HubModuleCard(Ic.Activity, "Live Users", "Who's online and watching", Color(0xFF62E0B0), Modifier.weight(1f).staggerIn(4), onLiveUsers, live = true)
                 }
-                if (!serverManagementPage) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HubModuleCard(Ic.Activity, "Live users", "Who's online and watching", Color(0xFF62E0B0), Modifier.weight(1f).staggerIn(5), onLiveUsers, live = true)
-                    HubModuleCard(Ic.Bell, "Activity & alerts", "Events, incidents and recovery", Color(0xFFFFC477), Modifier.weight(1f).staggerIn(6), onActivity)
+                if (!serverManagementPage) {
+                    Text("ACTIVITY", fontSize = AppType.micro, fontWeight = FontWeight.Bold, color = Red, letterSpacing = 1.4.sp,
+                        modifier = Modifier.padding(top = 5.dp).staggerIn(5))
+                    Panel(Modifier.fillMaxWidth().tap(onActivity)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFFFFC477).copy(alpha = 0.14f)),
+                                contentAlignment = Alignment.Center) { Icon24(Ic.Bell, Color(0xFFFFC477), 20.dp) }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("Activity & Alerts", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                                Text("Recent events, incidents and recoveries", color = Mut, fontSize = AppType.small)
+                            }
+                            Icon24(Ic.ChevronD, Dim, 18.dp, Modifier.graphicsLayer { rotationZ = -90f })
+                        }
+                    }
                 }
                 AnimatedVisibility(visible = serverManagementPage, enter = fadeIn(tween(240)) + androidx.compose.animation.expandVertically(tween(260)),
                     exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(200))) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Panel(Modifier.fillMaxWidth().tap(onIntegrations)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFFD6B4FF).copy(alpha = 0.14f)),
+                                    contentAlignment = Alignment.Center) { Icon24(Ic.Plug, Color(0xFFD6B4FF), 20.dp) }
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text("Integration Center", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                                    Text("Connect Jellyfin, alerts and external services", color = Mut, fontSize = AppType.small)
+                                }
+                                Icon24(Ic.ChevronD, Dim, 18.dp, Modifier.graphicsLayer { rotationZ = -90f })
+                            }
+                        }
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("Connected servers", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
