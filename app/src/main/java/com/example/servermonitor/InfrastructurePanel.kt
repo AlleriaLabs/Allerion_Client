@@ -401,308 +401,51 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
             delay(30000)
         }
     }
-    var selectedNode by remember { mutableStateOf<JSONObject?>(null) }
-    var mapScale by remember { mutableStateOf(1f) }
-    var mapPanX by remember { mutableStateOf(0f) }
-    var mapPanY by remember { mutableStateOf(0f) }
-    val nodes = topology?.optJSONArray("nodes")
-    val links = topology?.optJSONArray("links")
-    val allNodes = if (nodes == null) emptyList() else (0 until minOf(nodes.length(), 80)).mapNotNull { nodes.optJSONObject(it) }
-    val linkItems = if (links == null) emptyList() else (0 until minOf(links.length(), 80)).mapNotNull { links.optJSONObject(it) }
-    val bridgeMacs = topology?.optJSONArray("unmapped_macs")?.let { array ->
-        (0 until minOf(array.length(), 100)).mapNotNull { array.optJSONObject(it) }
-    } ?: emptyList()
-    val gateway = topology?.optString("gateway").orEmpty().takeIf { it.isNotBlank() && it != "null" }
-    val sourceIp = topology?.optString("source_ip").orEmpty().takeIf { it.isNotBlank() && it != "null" }
-    val routeInterface = topology?.optString("interface").orEmpty().takeIf { it.isNotBlank() && it != "null" }
-    val subnet = topology?.optString("subnet").orEmpty().takeIf { it.isNotBlank() && it != "null" }
-    val linkedIps = linkItems.filter { gateway == null || it.optString("source") == gateway }
-        .map { it.optString("target") }.filter { it.isNotBlank() }.toSet()
-    val linkedNodes = allNodes.filter { it.optString("ip") in linkedIps && it.optString("topology_status") != "unmapped" }
-    val unmappedNodes = allNodes.filter { it.optString("topology_status") == "unmapped" }
-    val dns = topology?.optJSONObject("dns")
-    val dnsResolvers = dns?.optJSONArray("servers")?.let { array ->
-        (0 until minOf(array.length(), 12)).mapNotNull { array.optJSONObject(it) }
-    } ?: emptyList()
-    val deviceRows = (linkedNodes.size + 1) / 2
-    val mapHeight = (420 + deviceRows * 84).coerceAtLeast(460)
 
-    Panel {
-
-        if (trafficEnabled) {
-            val rx = traffic?.optDouble("rx_bytes_per_sec", 0.0) ?: 0.0
-            val tx = traffic?.optDouble("tx_bytes_per_sec", 0.0) ?: 0.0
-            fun rate(value: Double): String = when {
-                value >= 1048576 -> "%.2f MB/s".format(value / 1048576.0)
-                value >= 1024 -> "%.1f KB/s".format(value / 1024.0)
-                else -> "%.0f B/s".format(value)
-            }
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF151E2A)).padding(12.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("LIVE NETWORK TRAFFIC", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp)
-                        Text(traffic?.optString("status")?.uppercase()?.takeIf { it != "NULL" } ?: "WAITING FOR CAPTURE",
-                            color = if (traffic?.optBoolean("available") == true) Green else Amber, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
-                    }
-                    Text("5s refresh", color = Mut, fontSize = AppType.micro)
-                }
-                Spacer(Modifier.height(10.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        Text("DOWNLOAD", color = Dim, fontSize = AppType.micro)
-                        Text(rate(rx), color = Color(0xFF55D6C2), fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text("UPLOAD", color = Dim, fontSize = AppType.micro)
-                        Text(rate(tx), color = Color(0xFF9B8CFF), fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text("PACKETS", color = Dim, fontSize = AppType.micro)
-                        Text(traffic?.optLong("packet_count", 0L)?.toString() ?: "—", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
-                    }
-                }
-                Text("Interface: " + (traffic?.optString("interface")?.takeIf { !it.isNullOrBlank() && it != "null" } ?: "Detecting") +
-                    " · Active peers: " + (traffic?.optJSONArray("recent_peers")?.length() ?: 0),
-                    color = Mut, fontSize = AppType.caption)
-                val alerts = intelligence?.optJSONArray("alerts")
-                val latestAlert = alerts?.optJSONObject((alerts.length() - 1).coerceAtLeast(0))
-                if (latestAlert != null) {
-                    Spacer(Modifier.height(6.dp))
-                    Text("NETWORK NOTICE · " + latestAlert.optString("message", "Unusual traffic observed"),
-                        color = Amber, fontSize = AppType.caption)
-                }
-                Text("Traffic is limited to packets visible on the CasaOS monitoring interface; this is not a full switched-LAN capture.",
-                    color = Dim, fontSize = AppType.micro)
-            }
-            Spacer(Modifier.height(12.dp))
+    if (trafficEnabled) {
+        val rx = traffic?.optDouble("rx_bytes_per_sec", 0.0) ?: 0.0
+        val tx = traffic?.optDouble("tx_bytes_per_sec", 0.0) ?: 0.0
+        fun rate(value: Double): String = when {
+            value >= 1048576 -> "%.2f MB/s".format(value / 1048576.0)
+            value >= 1024 -> "%.1f KB/s".format(value / 1024.0)
+            else -> "%.0f B/s".format(value)
         }
-        NetworkIntelligenceHistoryPanel(intelligence)
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Label("Network topology")
-                Text("CasaOS network map", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.SemiBold)
-            }
-            Text(if (enabled && topology != null) "DATA AVAILABLE" else "UNAVAILABLE",
-                color = if (enabled && topology != null) Green else Amber, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
-        }
-        if (!enabled) {
-            Text("Enable passive LAN discovery on the CasaOS backend to load topology data.", color = Dim, fontSize = AppType.caption)
-        } else if (topology == null) {
-            Text("The backend did not return topology data. Check network discovery permissions and the API response.", color = Amber, fontSize = AppType.small)
-        } else {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TopologyStat("LAN DEVICES", linkedNodes.size.toString(), Blue, Modifier.weight(1f))
-                TopologyStat("UNMAPPED IPs", unmappedNodes.size.toString(), if (unmappedNodes.isEmpty()) Green else Amber, Modifier.weight(1f))
-                TopologyStat("BRIDGE MACs", bridgeMacs.size.toString(), Color(0xFF8B83FF), Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(12.dp))
+        Panel {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("LIVE LOGICAL TOPOLOGY", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
-                    Text("Drag to pan · pinch or use controls to zoom", color = Mut, fontSize = AppType.caption)
+                    Label("Live network traffic")
+                    Text(traffic?.optString("status")?.uppercase()?.takeIf { it != "NULL" } ?: "Waiting for capture",
+                        color = if (traffic?.optBoolean("available") == true) Green else Amber,
+                        fontSize = AppType.micro, fontWeight = FontWeight.Bold)
                 }
-                OutlinedButton(onClick = {
-                    mapScale = 1f
-                    mapPanX = 0f
-                    mapPanY = 0f
-                }, modifier = Modifier.heightIn(min = 44.dp)) { Text("RESET", color = Txt, fontSize = AppType.caption) }
+                Text("5s refresh", color = Mut, fontSize = AppType.micro)
             }
-            Spacer(Modifier.height(8.dp))
-            Box(Modifier.fillMaxWidth().height(mapHeight.dp).clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFFF7F8FF)).border(1.dp, Color(0xFFDCE3F2), RoundedCornerShape(18.dp))) {
-                Column(Modifier.fillMaxSize().pointerInput(Unit) {
-                    detectTransformGestures { _, pan, zoom, _ ->
-                        mapScale = (mapScale * zoom).coerceIn(0.5f, 1f)
-                        mapPanX = (mapPanX + pan.x).coerceIn(-520f, 520f)
-                        mapPanY = (mapPanY + pan.y).coerceIn(-720f, 720f)
-                        if (mapScale == 1f) { mapPanX = 0f; mapPanY = 0f }
-                    }
-                }.graphicsLayer {
-                    scaleX = mapScale
-                    scaleY = mapScale
-                    translationX = mapPanX
-                    translationY = mapPanY
-                }.verticalScroll(rememberScrollState()).padding(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("NETWORK TOPOLOGY", color = Color(0xFF172554), fontSize = AppType.titleSmall, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.7.sp)
-                            Text("Passive device discovery", color = Color(0xFF64748B), fontSize = AppType.caption)
-                        }
-                        Text("LIVE MAP", color = Color(0xFF168B68), fontSize = AppType.micro, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(Color(0xFFE5F7EF)).padding(horizontal = 9.dp, vertical = 6.dp))
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        TopologyLightStat("DEVICES", linkedNodes.size.toString(), Color(0xFF5B55D6), Modifier.weight(1f))
-                        TopologyLightStat("UNMAPPED", unmappedNodes.size.toString(), Color(0xFFD59A28), Modifier.weight(1f))
-                        TopologyLightStat("BRIDGE MACs", bridgeMacs.size.toString(), Color(0xFF2787B8), Modifier.weight(1f))
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    // Hierarchical map: WAN -> gateway -> observed LAN endpoints.
-                    TopologyMapNode("INTERNET / WAN", "Upstream network",
-                        "Logical internet edge", Color(0xFF6559D9), true,
-                        Modifier.fillMaxWidth(0.66f))
-                    Canvas(Modifier.width(2.dp).height(22.dp)) {
-                        drawLine(Color(0xFF6B7CE8), Offset(size.width / 2f, 0f),
-                            Offset(size.width / 2f, size.height), 2.dp.toPx())
-                    }
-                    if (gateway != null) {
-                        TopologyMapNode("EDGE ROUTER / GATEWAY", gateway,
-                            "Default route · " + (routeInterface ?: "interface unknown"),
-                            Color(0xFF6559D9), true, Modifier.fillMaxWidth(0.78f))
-                    } else {
-                        TopologyMapNode("GATEWAY", "Not detected",
-                            "Default route unavailable", Color(0xFFD59A28), false,
-                            Modifier.fillMaxWidth(0.78f))
-                    }
-                    if (sourceIp != null || linkedNodes.isNotEmpty()) {
-                        Canvas(Modifier.fillMaxWidth().height(34.dp)) {
-                            val cx = size.width / 2f
-                            val branchY = size.height * 0.72f
-                            drawLine(Color(0xFF6B7CE8), Offset(cx, 0f), Offset(cx, branchY), 2.dp.toPx())
-                            drawLine(Color(0xFF6B7CE8), Offset(size.width * 0.12f, branchY),
-                                Offset(size.width * 0.88f, branchY), 1.8.dp.toPx())
-                            val count = linkedNodes.size + if (sourceIp != null) 1 else 0
-                            if (count > 0) {
-                                val slots = count.coerceAtMost(8)
-                                for (i in 0 until slots) {
-                                    val x = size.width * (0.12f + (0.76f * i / (slots - 1).coerceAtLeast(1)))
-                                    drawLine(Color(0xFF6B7CE8), Offset(x, branchY),
-                                        Offset(x, size.height), 1.6.dp.toPx())
-                                }
-                            }
-                        }
-                        Text("OBSERVED LAN ENDPOINTS", color = Color(0xFF334155),
-                            fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp)
-                        Spacer(Modifier.height(8.dp))
-                        val endpoints = linkedNodes
-                        if (sourceIp != null) {
-                            TopologyMapNode("CASAOS SERVER", sourceIp,
-                                "Monitoring host · " + (routeInterface ?: "interface unknown"),
-                                Color(0xFF2587C7), true, Modifier.fillMaxWidth(0.88f))
-                            Spacer(Modifier.height(8.dp))
-                        }
-                        if (endpoints.isNotEmpty()) {
-                            endpoints.chunked(2).forEachIndexed { rowIndex, pair ->
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    pair.forEach { node ->
-                                        TopologyMapDevice(node,
-                                            selectedNode?.optString("ip") == node.optString("ip"),
-                                            Modifier.weight(1f)) {
-                                            selectedNode = if (selectedNode?.optString("ip") == node.optString("ip")) null else node
-                                        }
-                                    }
-                                    if (pair.size == 1) Spacer(Modifier.weight(1f))
-                                }
-                                if (rowIndex < (endpoints.size - 1) / 2) Spacer(Modifier.height(8.dp))
-                            }
-                        }
-                    } else {
-                        Spacer(Modifier.height(12.dp))
-                        Text("No LAN endpoints are currently visible in the passive neighbor cache.",
-                            color = Color(0xFF64748B), fontSize = AppType.caption, textAlign = TextAlign.Center)
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Text((subnet ?: "Subnet unavailable") + "  ·  " + (routeInterface ?: "Interface unknown"),
-                        color = Color(0xFF64748B), fontSize = AppType.micro)
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("DOWNLOAD", color = Dim, fontSize = AppType.micro)
+                    Text(rate(rx), color = Color(0xFF55D6C2), fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("UPLOAD", color = Dim, fontSize = AppType.micro)
+                    Text(rate(tx), color = Color(0xFF9B8CFF), fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("PACKETS", color = Dim, fontSize = AppType.micro)
+                    Text(traffic?.optLong("packet_count", 0L)?.toString() ?: "—",
+                        color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                Text("ZOOM", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = {
-                    mapScale = (mapScale - 0.10f).coerceAtLeast(0.5f)
-                    if (mapScale == 1f) { mapPanX = 0f; mapPanY = 0f }
-                }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 44.dp)) { Text("−", color = Txt) }
-                Spacer(Modifier.width(6.dp))
-                Text((mapScale * 100).toInt().toString() + "%", color = Mut, fontSize = AppType.caption)
-                Spacer(Modifier.width(6.dp))
-                OutlinedButton(onClick = { mapScale = (mapScale + 0.10f).coerceAtMost(1f) },
-                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 44.dp)) { Text("+", color = Txt) }
-            }
-            Spacer(Modifier.height(8.dp))
-            Text("Cyan shows the detected default route to CasaOS. Purple lines show logical same-subnet associations inferred from passive neighbor entries with MAC addresses. They do not represent verified physical cables, switch ports, or device-to-device traffic paths.",
-                color = Dim, fontSize = AppType.caption)
-            DiagRow("Network interface", routeInterface ?: "Unknown", Mut)
-            DiagRow("IPv4 subnet", subnet ?: "Not determined", Mut)
-            DiagRow("Logical device links", linkItems.size.toString(), Mut)
-
-            selectedNode?.let { node ->
-                Panel {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Label("Selected device")
-                            Text(node.optString("hostname").takeIf { it.isNotBlank() && it != "null" } ?: node.optString("ip", "Unknown device"),
-                                color = Txt, fontSize = AppType.section, fontWeight = FontWeight.Bold)
-                        }
-                        Text("CLOSE", Modifier.clip(RoundedCornerShape(8.dp)).clickable { selectedNode = null }.padding(8.dp),
-                            color = Mut, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
-                    }
-                    DiagRow("IP address", node.optString("ip", "Unavailable"), Mut)
-                    DiagRow("MAC address", node.optString("mac", "Unavailable"), Mut)
-                    DiagRow("Neighbor state", node.optString("state", "Observed"), Mut)
-                    DiagRow("Interface", node.optString("interface", routeInterface ?: "Unknown"), Mut)
-                    DiagRow("Discovery source", node.optString("source", "Passive neighbor cache"), Mut)
-                    node.optString("topology_reason").takeIf { it.isNotBlank() && it != "null" }?.let {
-                        Text(it, color = Dim, fontSize = AppType.caption)
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-            Label("CasaOS configured DNS")
-            if (dnsResolvers.isEmpty()) {
-                Text("No resolver address was readable from the CasaOS host resolver files.", color = Amber, fontSize = AppType.small)
-            } else {
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF14243D)).padding(12.dp)) {
-                    dnsResolvers.forEach { resolver ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(resolver.optString("address", "Unknown resolver"), color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
-                                Text(resolver.optString("type", "configured").replace('_', ' ') + " · " + resolver.optString("source", "Host resolver"),
-                                    color = Mut, fontSize = AppType.caption)
-                            }
-                            Text("CONFIGURED", color = Blue, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                    dns?.optJSONArray("search_domains")?.let { domains ->
-                        if (domains.length() > 0) Text("Search domains: " + (0 until domains.length()).joinToString { domains.optString(it) },
-                            color = Dim, fontSize = AppType.caption)
-                    }
-                }
-            }
-            Text(dns?.optString("note") ?: "DNS is configured on the CasaOS host; it does not prove every LAN client receives the same resolver from PLDT or Deco DHCP.",
-                color = Dim, fontSize = AppType.micro)
-
-            if (unmappedNodes.isNotEmpty()) {
-                Spacer(Modifier.height(14.dp))
-                Label("Unmapped IP observations · " + unmappedNodes.size)
-                unmappedNodes.forEach { node ->
-                    TopologyDevice(node, Amber, Modifier.fillMaxWidth(), node.optString("topology_reason", "Insufficient passive network data"))
-                    Spacer(Modifier.height(6.dp))
-                }
-            }
-            if (bridgeMacs.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Label("Unidentified bridge MACs · " + bridgeMacs.size)
-                Text("These MAC addresses appear in the bridge forwarding table but have no current IP mapping. They are not counted as identified devices.",
-                    color = Dim, fontSize = AppType.caption)
-                bridgeMacs.forEach { entry ->
-                    DiagRow(entry.optString("mac", "Unknown MAC"),
-                        entry.optJSONArray("interfaces")?.let { array -> (0 until array.length()).joinToString { array.optString(it) } } ?: "Bridge table",
-                        Amber)
-                }
-            }
-            topology.optString("note").takeIf { it.isNotBlank() && it != "null" }?.let {
-                Spacer(Modifier.height(8.dp))
-                Text(it, color = Dim, fontSize = AppType.caption)
-            }
-            Text("Packet payloads are never collected. Passive discovery does not perform unsolicited network scans.",
+            Text("Interface: " + (traffic?.optString("interface")?.takeIf { !it.isNullOrBlank() && it != "null" } ?: "Detecting") +
+                " · Active peers: " + (traffic?.optJSONArray("recent_peers")?.length() ?: 0),
+                color = Mut, fontSize = AppType.caption)
+            Text("Traffic is limited to packets visible on the CasaOS monitoring interface.",
                 color = Dim, fontSize = AppType.micro)
         }
     }
+    NetworkIntelligenceHistoryPanel(intelligence)
 }
+
 @Composable
 private fun TopologyLightStat(label: String, value: String, tint: Color, modifier: Modifier = Modifier) {
     Column(modifier.clip(RoundedCornerShape(10.dp)).background(Color.White)
