@@ -112,6 +112,8 @@ class MainActivity : FragmentActivity() {
     private var unlockMessage by mutableStateOf("Authenticate to access your Allerion dashboard.")
     private var promptInProgress = false
     private var biometricPrompt: BiometricPrompt? = null
+    private val notificationPermissionLauncher =
+        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
 
     private val allowedAuthenticators =
         BiometricManager.Authenticators.BIOMETRIC_STRONG or
@@ -142,6 +144,11 @@ class MainActivity : FragmentActivity() {
                     promptInProgress = false
                     unlockMessage = ""
                     isUnlocked = true
+                    if (android.os.Build.VERSION.SDK_INT >= 33 &&
+                        ContextCompat.checkSelfPermission(this@MainActivity, android.Manifest.permission.POST_NOTIFICATIONS) !=
+                        android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
                 }
             }
         )
@@ -310,6 +317,7 @@ fun App(p: SharedPreferences) {
     }
     val initialLoad = remember { runCatching { loadServers(p) } }
     var servers by remember { mutableStateOf(initialLoad.getOrDefault(emptyList())) }
+    LaunchedEffect(servers) { FcmDeviceRegistration.refresh(appContext) }
     var storageError by remember { mutableStateOf(initialLoad.exceptionOrNull()?.message) }
     var open by remember { mutableStateOf<Int?>(null) }
     var edit by remember { mutableStateOf<Int?>(null) } // -1 = new server
