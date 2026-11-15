@@ -9,7 +9,7 @@ android {
         applicationId = "com.example.servermonitor"
         minSdk = 26; targetSdk = 34
         versionCode = (System.getenv("VERSION_CODE") ?: "465").toInt()
-        versionName = System.getenv("VERSION_NAME") ?: "1.3.1"
+        versionName = System.getenv("VERSION_NAME") ?: "1.2.0"
     }
     signingConfigs {
         create("release") {
