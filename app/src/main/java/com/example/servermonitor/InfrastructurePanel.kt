@@ -539,41 +539,68 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
                         TopologyLightStat("BRIDGE MACs", bridgeMacs.size.toString(), Color(0xFF2787B8), Modifier.weight(1f))
                     }
                     Spacer(Modifier.height(16.dp))
-                    if (gateway != null) {
-                        TopologyMapNode("DEFAULT GATEWAY", gateway, "Upstream router · " + (routeInterface ?: "interface unknown"), Color(0xFF6559D9), true,
-                            Modifier.fillMaxWidth(0.78f))
-                        Canvas(Modifier.width(2.dp).height(22.dp)) { drawLine(Color(0xFF6B7CE8), Offset(size.width/2, 0f), Offset(size.width/2, size.height), 2.dp.toPx()) }
-                    } else {
-                        Text("Default gateway not detected", color = Color(0xFFB7791F), fontSize = AppType.caption)
+                    // Hierarchical map: WAN -> gateway -> observed LAN endpoints.
+                    TopologyMapNode("INTERNET / WAN", "Upstream network",
+                        "Logical internet edge", Color(0xFF6559D9), true,
+                        Modifier.fillMaxWidth(0.66f))
+                    Canvas(Modifier.width(2.dp).height(22.dp)) {
+                        drawLine(Color(0xFF6B7CE8), Offset(size.width / 2f, 0f),
+                            Offset(size.width / 2f, size.height), 2.dp.toPx())
                     }
-                    TopologyMapNode("CASAOS SERVER", sourceIp ?: "Host address unavailable",
-                        "Monitoring host · " + (routeInterface ?: "interface unknown"), Color(0xFF2587C7), true,
-                        Modifier.fillMaxWidth(0.88f))
-                    if (linkedNodes.isNotEmpty()) {
-                        Canvas(Modifier.fillMaxWidth().height(28.dp)) {
+                    if (gateway != null) {
+                        TopologyMapNode("EDGE ROUTER / GATEWAY", gateway,
+                            "Default route · " + (routeInterface ?: "interface unknown"),
+                            Color(0xFF6559D9), true, Modifier.fillMaxWidth(0.78f))
+                    } else {
+                        TopologyMapNode("GATEWAY", "Not detected",
+                            "Default route unavailable", Color(0xFFD59A28), false,
+                            Modifier.fillMaxWidth(0.78f))
+                    }
+                    if (sourceIp != null || linkedNodes.isNotEmpty()) {
+                        Canvas(Modifier.fillMaxWidth().height(34.dp)) {
                             val cx = size.width / 2f
-                            val yTop = 0f
-                            val yBranch = size.height * 0.72f
-                            drawLine(Color(0xFF6B7CE8), Offset(cx, yTop), Offset(cx, yBranch), 2.dp.toPx())
-                            drawLine(Color(0xFF6B7CE8), Offset(size.width * 0.16f, yBranch), Offset(size.width * 0.84f, yBranch), 1.6.dp.toPx())
-                            drawLine(Color(0xFF6B7CE8), Offset(cx, yBranch), Offset(cx, size.height), 1.6.dp.toPx())
-                        }
-                        Text("OBSERVED LAN DEVICES", color = Color(0xFF334155), fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp)
-                        Spacer(Modifier.height(8.dp))
-                        linkedNodes.chunked(2).forEachIndexed { rowIndex, pair ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                pair.forEach { node ->
-                                    TopologyMapDevice(node, selectedNode?.optString("ip") == node.optString("ip"), Modifier.weight(1f)) {
-                                        selectedNode = if (selectedNode?.optString("ip") == node.optString("ip")) null else node
-                                    }
+                            val branchY = size.height * 0.72f
+                            drawLine(Color(0xFF6B7CE8), Offset(cx, 0f), Offset(cx, branchY), 2.dp.toPx())
+                            drawLine(Color(0xFF6B7CE8), Offset(size.width * 0.12f, branchY),
+                                Offset(size.width * 0.88f, branchY), 1.8.dp.toPx())
+                            val count = linkedNodes.size + if (sourceIp != null) 1 else 0
+                            if (count > 0) {
+                                val slots = count.coerceAtMost(8)
+                                for (i in 0 until slots) {
+                                    val x = size.width * (0.12f + (0.76f * i / (slots - 1).coerceAtLeast(1)))
+                                    drawLine(Color(0xFF6B7CE8), Offset(x, branchY),
+                                        Offset(x, size.height), 1.6.dp.toPx())
                                 }
-                                if (pair.size == 1) Spacer(Modifier.weight(1f))
                             }
-                            if (rowIndex < (linkedNodes.size - 1) / 2) Spacer(Modifier.height(7.dp))
+                        }
+                        Text("OBSERVED LAN ENDPOINTS", color = Color(0xFF334155),
+                            fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp)
+                        Spacer(Modifier.height(8.dp))
+                        val endpoints = linkedNodes
+                        if (sourceIp != null) {
+                            TopologyMapNode("CASAOS SERVER", sourceIp,
+                                "Monitoring host · " + (routeInterface ?: "interface unknown"),
+                                Color(0xFF2587C7), true, Modifier.fillMaxWidth(0.88f))
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        if (endpoints.isNotEmpty()) {
+                            endpoints.chunked(2).forEachIndexed { rowIndex, pair ->
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    pair.forEach { node ->
+                                        TopologyMapDevice(node,
+                                            selectedNode?.optString("ip") == node.optString("ip"),
+                                            Modifier.weight(1f)) {
+                                            selectedNode = if (selectedNode?.optString("ip") == node.optString("ip")) null else node
+                                        }
+                                    }
+                                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                                }
+                                if (rowIndex < (endpoints.size - 1) / 2) Spacer(Modifier.height(8.dp))
+                            }
                         }
                     } else {
                         Spacer(Modifier.height(12.dp))
-                        Text("No identified same-subnet devices are currently present in the neighbor cache.",
+                        Text("No LAN endpoints are currently visible in the passive neighbor cache.",
                             color = Color(0xFF64748B), fontSize = AppType.caption, textAlign = TextAlign.Center)
                     }
                     Spacer(Modifier.height(12.dp))
