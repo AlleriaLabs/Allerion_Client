@@ -677,7 +677,6 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
     }
 }
 @Composable
-@Composable
 private fun TopologyLightStat(label: String, value: String, tint: Color, modifier: Modifier = Modifier) {
     Column(modifier.clip(RoundedCornerShape(10.dp)).background(Color.White)
         .border(1.dp, Color(0xFFE1E7F0), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 9.dp)) {
