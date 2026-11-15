@@ -379,6 +379,26 @@ private fun IntegrationTestPanel(sv: Server, integrationStatus: JSONObject?, web
 
 @Composable
 private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boolean, trafficEnabled: Boolean) {
+    val traffic by produceState<JSONObject?>(null, sv.url, sv.token, trafficEnabled) {
+        if (!trafficEnabled) { value = null; return@produceState }
+        while (true) {
+            value = withContext(Dispatchers.IO) {
+                try { ApiClient.getJson(sv.url, sv.token, "/api/network/traffic", connectTimeoutMs = 2500, readTimeoutMs = 5000) }
+                catch (_: Exception) { null }
+            }
+            delay(5000)
+        }
+    }
+    val intelligence by produceState<JSONObject?>(null, sv.url, sv.token, trafficEnabled) {
+        if (!trafficEnabled) { value = null; return@produceState }
+        while (true) {
+            value = withContext(Dispatchers.IO) {
+                try { ApiClient.getJson(sv.url, sv.token, "/api/network/intelligence/history", connectTimeoutMs = 2500, readTimeoutMs = 5000) }
+                catch (_: Exception) { null }
+            }
+            delay(30000)
+        }
+    }
     var selectedNode by remember { mutableStateOf<JSONObject?>(null) }
     var mapScale by remember { mutableStateOf(1f) }
     var mapPanX by remember { mutableStateOf(0f) }
@@ -406,6 +426,54 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
     val mapHeight = (310 + deviceRows * 72).coerceAtLeast(390)
 
     Panel {
+
+        if (trafficEnabled) {
+            val rx = traffic?.optDouble("rx_bytes_per_sec", 0.0) ?: 0.0
+            val tx = traffic?.optDouble("tx_bytes_per_sec", 0.0) ?: 0.0
+            fun rate(value: Double): String = when {
+                value >= 1048576 -> "%.2f MB/s".format(value / 1048576.0)
+                value >= 1024 -> "%.1f KB/s".format(value / 1024.0)
+                else -> "%.0f B/s".format(value)
+            }
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF151E2A)).padding(12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("LIVE NETWORK TRAFFIC", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp)
+                        Text(traffic?.optString("status")?.uppercase()?.takeIf { it != "NULL" } ?: "WAITING FOR CAPTURE",
+                            color = if (traffic?.optBoolean("available") == true) Green else Amber, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+                    }
+                    Text("5s refresh", color = Mut, fontSize = AppType.micro)
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text("DOWNLOAD", color = Dim, fontSize = AppType.micro)
+                        Text(rate(rx), color = Color(0xFF55D6C2), fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text("UPLOAD", color = Dim, fontSize = AppType.micro)
+                        Text(rate(tx), color = Color(0xFF9B8CFF), fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text("PACKETS", color = Dim, fontSize = AppType.micro)
+                        Text(traffic?.optLong("packet_count", 0L)?.toString() ?: "—", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Text("Interface: " + (traffic?.optString("interface")?.takeIf { !it.isNullOrBlank() && it != "null" } ?: "Detecting") +
+                    " · Active peers: " + (traffic?.optJSONArray("recent_peers")?.length() ?: 0),
+                    color = Mut, fontSize = AppType.caption)
+                val alerts = intelligence?.optJSONArray("alerts")
+                val latestAlert = alerts?.optJSONObject((alerts.length() - 1).coerceAtLeast(0))
+                if (latestAlert != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Text("NETWORK NOTICE · " + latestAlert.optString("message", "Unusual traffic observed"),
+                        color = Amber, fontSize = AppType.caption)
+                }
+                Text("Traffic is limited to packets visible on the CasaOS monitoring interface; this is not a full switched-LAN capture.",
+                    color = Dim, fontSize = AppType.micro)
+            }
+            Spacer(Modifier.height(12.dp))
+        }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Label("Network topology")
