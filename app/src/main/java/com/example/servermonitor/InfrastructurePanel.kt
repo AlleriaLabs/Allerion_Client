@@ -4,6 +4,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.border
@@ -423,7 +425,7 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
         (0 until minOf(array.length(), 12)).mapNotNull { array.optJSONObject(it) }
     } ?: emptyList()
     val deviceRows = (linkedNodes.size + 1) / 2
-    val mapHeight = (310 + deviceRows * 72).coerceAtLeast(390)
+    val mapHeight = (420 + deviceRows * 84).coerceAtLeast(460)
 
     Panel {
 
@@ -474,6 +476,7 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
             }
             Spacer(Modifier.height(12.dp))
         }
+        NetworkIntelligenceHistoryPanel(intelligence)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Label("Network topology")
@@ -506,8 +509,8 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
             }
             Spacer(Modifier.height(8.dp))
             Box(Modifier.fillMaxWidth().height(mapHeight.dp).clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF0D1729)).border(1.dp, Color(0xFF263B5B), RoundedCornerShape(18.dp))) {
-                Box(Modifier.fillMaxSize().pointerInput(Unit) {
+                .background(Color(0xFFF7F8FF)).border(1.dp, Color(0xFFDCE3F2), RoundedCornerShape(18.dp))) {
+                Column(Modifier.fillMaxSize().pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoom, _ ->
                         mapScale = (mapScale * zoom).coerceIn(0.5f, 1f)
                         mapPanX = (mapPanX + pan.x).coerceIn(-520f, 520f)
@@ -519,55 +522,63 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
                     scaleY = mapScale
                     translationX = mapPanX
                     translationY = mapPanY
-                }) {
-                    Canvas(Modifier.matchParentSize()) {
-                        val centerX = size.width / 2f
-                        val gatewayBottom = 78.dp.toPx()
-                        val hostTop = 108.dp.toPx()
-                        val hostBottom = 184.dp.toPx()
-                        if (gateway != null) {
-                            drawLine(Color(0xFF8B83FF).copy(alpha = 0.72f), Offset(centerX, gatewayBottom), Offset(centerX, hostTop), 1.8.dp.toPx())
-                            drawLine(Blue.copy(alpha = 0.72f), Offset(centerX, hostBottom), Offset(centerX, 224.dp.toPx()), 1.8.dp.toPx())
-                            linkedNodes.indices.map { it / 2 }.distinct().forEach { row ->
-                                val branchY = 224.dp.toPx() + row * 72.dp.toPx()
-                                val leftX = size.width * 0.25f
-                                val rightX = size.width * 0.75f
-                                drawLine(Color(0xFF8B83FF).copy(alpha = 0.58f), Offset(centerX, branchY), Offset(leftX, branchY), 1.35.dp.toPx())
-                                if (row * 2 + 1 < linkedNodes.size) drawLine(Color(0xFF8B83FF).copy(alpha = 0.58f), Offset(centerX, branchY), Offset(rightX, branchY), 1.35.dp.toPx())
-                                drawLine(Color(0xFF8B83FF).copy(alpha = 0.58f), Offset(leftX, branchY), Offset(leftX, branchY + 12.dp.toPx()), 1.35.dp.toPx())
-                                if (row * 2 + 1 < linkedNodes.size) drawLine(Color(0xFF8B83FF).copy(alpha = 0.58f), Offset(rightX, branchY), Offset(rightX, branchY + 12.dp.toPx()), 1.35.dp.toPx())
-                            }
+                }.verticalScroll(rememberScrollState()).padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("NETWORK TOPOLOGY", color = Color(0xFF172554), fontSize = AppType.titleSmall, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.7.sp)
+                            Text("Passive device discovery", color = Color(0xFF64748B), fontSize = AppType.caption)
                         }
+                        Text("LIVE MAP", color = Color(0xFF168B68), fontSize = AppType.micro, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(Color(0xFFE5F7EF)).padding(horizontal = 9.dp, vertical = 6.dp))
                     }
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        TopologyLightStat("DEVICES", linkedNodes.size.toString(), Color(0xFF5B55D6), Modifier.weight(1f))
+                        TopologyLightStat("UNMAPPED", unmappedNodes.size.toString(), Color(0xFFD59A28), Modifier.weight(1f))
+                        TopologyLightStat("BRIDGE MACs", bridgeMacs.size.toString(), Color(0xFF2787B8), Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(16.dp))
                     if (gateway != null) {
-                        TopologyMapNode("DEFAULT GATEWAY", gateway, "ACTIVE DEFAULT ROUTE", Color(0xFF8B83FF), false,
-                            Modifier.align(Alignment.TopCenter).padding(top = 14.dp).fillMaxWidth(0.86f))
+                        TopologyMapNode("DEFAULT GATEWAY", gateway, "Upstream router · " + (routeInterface ?: "interface unknown"), Color(0xFF6559D9), true,
+                            Modifier.fillMaxWidth(0.78f))
+                        Canvas(Modifier.width(2.dp).height(22.dp)) { drawLine(Color(0xFF6B7CE8), Offset(size.width/2, 0f), Offset(size.width/2, size.height), 2.dp.toPx()) }
                     } else {
-                        Text("Default gateway not detected", color = Amber, fontSize = AppType.caption,
-                            modifier = Modifier.align(Alignment.TopCenter).padding(top = 28.dp))
+                        Text("Default gateway not detected", color = Color(0xFFB7791F), fontSize = AppType.caption)
                     }
-                    TopologyMapNode("CASAOS MONITORING HOST", sourceIp ?: "Host address unavailable",
-                        "THIS SERVER · " + (routeInterface ?: "interface unknown"), Blue, false,
-                        Modifier.align(Alignment.TopCenter).padding(top = 108.dp).fillMaxWidth(0.82f))
-                    Column(Modifier.align(Alignment.TopCenter).padding(top = 232.dp, start = 10.dp, end = 10.dp).fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (linkedNodes.isEmpty()) {
-                            Text("No identified same-subnet devices are currently present in the neighbor cache.",
-                                color = Mut, fontSize = AppType.caption, modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                                textAlign = TextAlign.Center)
-                        } else {
-                            linkedNodes.chunked(2).forEach { pair ->
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    pair.forEach { node ->
-                                        TopologyMapDevice(node, selectedNode?.optString("ip") == node.optString("ip"), Modifier.weight(1f)) {
-                                            selectedNode = if (selectedNode?.optString("ip") == node.optString("ip")) null else node
-                                        }
-                                    }
-                                    if (pair.size == 1) Spacer(Modifier.weight(1f))
-                                }
-                            }
+                    TopologyMapNode("CASAOS SERVER", sourceIp ?: "Host address unavailable",
+                        "Monitoring host · " + (routeInterface ?: "interface unknown"), Color(0xFF2587C7), true,
+                        Modifier.fillMaxWidth(0.88f))
+                    if (linkedNodes.isNotEmpty()) {
+                        Canvas(Modifier.fillMaxWidth().height(28.dp)) {
+                            val cx = size.width / 2f
+                            val yTop = 0f
+                            val yBranch = size.height * 0.72f
+                            drawLine(Color(0xFF6B7CE8), Offset(cx, yTop), Offset(cx, yBranch), 2.dp.toPx())
+                            drawLine(Color(0xFF6B7CE8), Offset(size.width * 0.16f, yBranch), Offset(size.width * 0.84f, yBranch), 1.6.dp.toPx())
+                            drawLine(Color(0xFF6B7CE8), Offset(cx, yBranch), Offset(cx, size.height), 1.6.dp.toPx())
                         }
+                        Text("OBSERVED LAN DEVICES", color = Color(0xFF334155), fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp)
+                        Spacer(Modifier.height(8.dp))
+                        linkedNodes.chunked(2).forEachIndexed { rowIndex, pair ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                pair.forEach { node ->
+                                    TopologyMapDevice(node, selectedNode?.optString("ip") == node.optString("ip"), Modifier.weight(1f)) {
+                                        selectedNode = if (selectedNode?.optString("ip") == node.optString("ip")) null else node
+                                    }
+                                }
+                                if (pair.size == 1) Spacer(Modifier.weight(1f))
+                            }
+                            if (rowIndex < (linkedNodes.size - 1) / 2) Spacer(Modifier.height(7.dp))
+                        }
+                    } else {
+                        Spacer(Modifier.height(12.dp))
+                        Text("No identified same-subnet devices are currently present in the neighbor cache.",
+                            color = Color(0xFF64748B), fontSize = AppType.caption, textAlign = TextAlign.Center)
                     }
+                    Spacer(Modifier.height(12.dp))
+                    Text((subnet ?: "Subnet unavailable") + "  ·  " + (routeInterface ?: "Interface unknown"),
+                        color = Color(0xFF64748B), fontSize = AppType.micro)
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
@@ -666,41 +677,53 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
     }
 }
 @Composable
+private fun TopologyLightStat(label: String, value: String, tint: Color, modifier: Modifier = Modifier) {
+    Column(modifier.clip(RoundedCornerShape(10.dp)).background(Color.White)
+        .border(1.dp, Color(0xFFE1E7F0), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 9.dp)) {
+        Text(value, color = tint, fontSize = AppType.titleSmall, fontWeight = FontWeight.ExtraBold)
+        Text(label, color = Color(0xFF64748B), fontSize = AppType.micro, fontWeight = FontWeight.Bold, maxLines = 1)
+    }
+}
+
+@Composable
 private fun TopologyMapNode(title: String, address: String, detail: String, tint: Color, online: Boolean, modifier: Modifier = Modifier) {
     Row(
-        modifier.clip(RoundedCornerShape(11.dp)).background(Color(0xFF1B232D))
-            .border(1.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(11.dp))
-            .padding(horizontal = 10.dp, vertical = 7.dp),
+        modifier.clip(RoundedCornerShape(13.dp)).background(Color.White)
+            .border(1.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(13.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(25.dp).clip(RoundedCornerShape(8.dp)).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(6.dp).clip(CircleShape).background(tint))
+        Box(Modifier.size(34.dp).clip(CircleShape).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(11.dp).clip(CircleShape).background(tint))
         }
-        Spacer(Modifier.width(9.dp))
+        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(title, color = tint, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.45.sp, maxLines = 1)
-            Text(address, color = Txt, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            Text(detail, color = Mut, fontSize = AppType.micro, maxLines = 1)
+            Text(address, color = Color(0xFF172554), fontSize = AppType.caption, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(detail, color = Color(0xFF64748B), fontSize = AppType.micro, maxLines = 1)
         }
+        Text("●", color = if (online) Color(0xFF16A36A) else Color(0xFFD59A28), fontSize = AppType.caption)
     }
 }
 
 @Composable
 private fun TopologyMapDevice(node: JSONObject, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val tint = if (selected) Color(0xFF8B83FF) else Blue
+    val tint = if (selected) Color(0xFF6559D9) else Color(0xFF2587C7)
+    val title = node.optString("hostname").takeIf { it.isNotBlank() && it != "null" } ?: node.optString("ip", "Unknown device")
     Row(
-        modifier.clip(RoundedCornerShape(10.dp))
-            .background(if (selected) Color(0xFF25243B) else Color(0xFF19232D))
-            .border(1.dp, tint.copy(alpha = if (selected) 0.68f else 0.22f), RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 8.dp),
+        modifier.clip(RoundedCornerShape(11.dp))
+            .background(if (selected) Color(0xFFEDEBFF) else Color.White)
+            .border(1.dp, tint.copy(alpha = if (selected) 0.65f else 0.20f), RoundedCornerShape(11.dp))
+            .clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(22.dp).clip(RoundedCornerShape(7.dp)).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(5.dp).clip(CircleShape).background(tint))
+        Box(Modifier.size(26.dp).clip(CircleShape).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Text("●", color = tint, fontSize = AppType.micro)
         }
         Spacer(Modifier.width(7.dp))
         Column(Modifier.weight(1f)) {
-            Text(node.optString("ip", "Unknown IP"), color = Txt, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(title, color = Color(0xFF172554), fontSize = AppType.caption, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(node.optString("ip", "Unknown IP"), color = Color(0xFF64748B), fontSize = AppType.micro, maxLines = 1)
             Text(node.optString("state", "DISCOVERED").uppercase(), color = tint, fontSize = AppType.micro, fontWeight = FontWeight.Bold, maxLines = 1)
         }
     }
@@ -890,4 +913,109 @@ private fun TopologyDevice(node: JSONObject, tint: Color, modifier: Modifier, re
             Text(reason, color = Dim, fontSize = AppType.micro, maxLines = 2, softWrap = true)
         }
     }
+}
+
+@Composable
+private fun NetworkIntelligenceHistoryPanel(intelligence: JSONObject?) {
+    val samples = intelligence?.optJSONArray("samples")
+    val devices = intelligence?.optJSONArray("devices")
+    val alerts = intelligence?.optJSONArray("alerts")
+    val sampleRows = if (samples == null) emptyList() else (0 until samples.length()).mapNotNull { samples.optJSONObject(it) }.takeLast(96)
+    val deviceRows = if (devices == null) emptyList() else (0 until minOf(devices.length(), 250)).mapNotNull { devices.optJSONObject(it) }
+    val alertRows = if (alerts == null) emptyList() else (0 until alerts.length()).mapNotNull { alerts.optJSONObject(it) }.takeLast(8).reversed()
+    fun rateLabel(value: Double): String = when {
+        value >= 1048576 -> "%.1f MB/s".format(value / 1048576.0)
+        value >= 1024 -> "%.1f KB/s".format(value / 1024.0)
+        else -> "%.0f B/s".format(value)
+    }
+    fun seenLabel(value: Long): String {
+        if (value <= 0L) return "Not recorded"
+        return try { java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(value * 1000L)) }
+        catch (_: Exception) { "Recorded" }
+    }
+    Panel {
+        Label("Network activity history")
+        Text("Seven-day metadata history · samples recorded about every 15 seconds while traffic capture is queried.", color = Mut, fontSize = AppType.caption)
+        if (sampleRows.size < 2) Text("History is collecting. Keep the monitoring service running to build a useful trend.", color = Amber, fontSize = AppType.small)
+        else {
+            val maxRate = sampleRows.maxOf { maxOf(it.optDouble("rx_bytes_per_sec"), it.optDouble("tx_bytes_per_sec")) }.coerceAtLeast(1.0)
+            Canvas(Modifier.fillMaxWidth().height(132.dp).padding(top = 8.dp)) {
+                val left = 4.dp.toPx()
+                val right = size.width - 4.dp.toPx()
+                val top = 8.dp.toPx()
+                val bottom = size.height - 8.dp.toPx()
+                for (line in 0..3) {
+                    val y = top + (bottom - top) * line / 3f
+                    drawLine(Color(0xFF344252).copy(alpha = 0.55f), Offset(left, y), Offset(right, y), 1.dp.toPx())
+                }
+                fun drawSeries(key: String, color: Color) {
+                    val values = sampleRows.map { it.optDouble(key).coerceAtLeast(0.0) }
+                    for (i in 1 until values.size) {
+                        val x1 = left + (right - left) * (i - 1) / (values.size - 1).toFloat()
+                        val x2 = left + (right - left) * i / (values.size - 1).toFloat()
+                        val y1 = bottom - (bottom - top) * (values[i - 1] / maxRate).toFloat()
+                        val y2 = bottom - (bottom - top) * (values[i] / maxRate).toFloat()
+                        drawLine(color, Offset(x1, y1), Offset(x2, y2), 2.dp.toPx())
+                    }
+                }
+                drawSeries("rx_bytes_per_sec", Color(0xFF55D6C2))
+                drawSeries("tx_bytes_per_sec", Color(0xFF9B8CFF))
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text("● Download", color = Color(0xFF55D6C2), fontSize = AppType.caption)
+                Text("● Upload", color = Color(0xFF9B8CFF), fontSize = AppType.caption)
+                Spacer(Modifier.weight(1f))
+                Text(sampleRows.size.toString() + " samples", color = Dim, fontSize = AppType.caption)
+            }
+            val latest = sampleRows.last()
+            DiagRow("Latest download", rateLabel(latest.optDouble("rx_bytes_per_sec")), Color(0xFF55D6C2))
+            DiagRow("Latest upload", rateLabel(latest.optDouble("tx_bytes_per_sec")), Color(0xFF9B8CFF))
+            DiagRow("Observed peers", latest.optInt("active_peers").toString(), Mut)
+        }
+    }
+    Panel {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Label("Observed devices")
+            Spacer(Modifier.weight(1f))
+            Text(deviceRows.size.toString() + " tracked", color = Mut, fontSize = AppType.caption)
+        }
+        Text("Passive ARP / neighbor-cache sightings only. A device may disappear from the current cache while remaining in history.", color = Dim, fontSize = AppType.caption)
+        if (deviceRows.isEmpty()) Text("No device sightings have been recorded yet.", color = Mut, fontSize = AppType.small)
+        else deviceRows.take(40).forEach { device ->
+            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        val title = device.optString("hostname").takeIf { it.isNotBlank() && it != "null" } ?: device.optString("ip", "Unknown device")
+                        Text(title, color = Txt, fontSize = AppType.small, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text(device.optString("ip", "IP unavailable") + " · " + device.optString("mac").takeIf { it.isNotBlank() && it != "null" }.orEmpty(), color = Mut, fontSize = AppType.caption, maxLines = 1)
+                    }
+                    val vendor = device.optString("vendor").takeIf { it.isNotBlank() && it != "null" } ?: "Vendor unknown"
+                    Text(vendor, color = Blue, fontSize = AppType.caption, maxLines = 1)
+                }
+                Text("First seen " + seenLabel(device.optLong("first_seen")) + " · Last seen " + seenLabel(device.optLong("last_seen")), color = Dim, fontSize = AppType.micro)
+            }
+            DividerLine()
+        }
+    }
+    Panel {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Label("Network anomalies")
+            Spacer(Modifier.weight(1f))
+            Text(if (alertRows.isEmpty()) "No notices" else alertRows.size.toString() + " recent", color = if (alertRows.isEmpty()) Green else Amber, fontSize = AppType.caption)
+        }
+        if (alertRows.isEmpty()) Text("No traffic-spike or new-device notices have been recorded. This is not a guarantee that the LAN is free of threats.", color = Mut, fontSize = AppType.small)
+        else alertRows.forEach { alert ->
+            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Text(alert.optString("type").replace('_', ' ').uppercase(), color = Amber, fontSize = AppType.caption, fontWeight = FontWeight.Bold)
+                Text(alert.optString("message", "Network activity notice"), color = Txt, fontSize = AppType.small)
+                Text(seenLabel(alert.optLong("ts")) + " · " + alert.optString("severity", "notice"), color = Dim, fontSize = AppType.micro)
+            }
+        }
+        Text(intelligence?.optString("note").orEmpty().ifBlank { "History is supplied by the backend and is limited to metadata visible to the CasaOS host." }, color = Dim, fontSize = AppType.micro)
+    }
+}
+
+@Composable
+private fun DividerLine() {
+    Spacer(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF2A3542)))
 }
