@@ -474,6 +474,7 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
             }
             Spacer(Modifier.height(12.dp))
         }
+        NetworkIntelligenceHistoryPanel(intelligence)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Label("Network topology")
