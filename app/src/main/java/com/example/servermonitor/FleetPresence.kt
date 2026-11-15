@@ -11,8 +11,13 @@ object FleetPresenceStore {
     private const val PREFS = "fleet_presence"
     private const val STALE_AFTER_MS = 5 * 60 * 1000L
 
-    fun key(server: Server): String =
-        (server.url.trimEnd('/') + "|" + server.name.trim()).hashCode().toString()
+    /** URL-based identity survives server renames and avoids 32-bit hash collisions. */
+    fun key(server: Server): String {
+        val endpoint = server.url.trim().trimEnd('/').lowercase()
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(endpoint.toByteArray(Charsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }
+    }
 
     fun recordSuccess(context: Context, server: Server, timestamp: Long = System.currentTimeMillis()) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
