@@ -8,8 +8,8 @@ android {
     defaultConfig {
         applicationId = "com.example.servermonitor"
         minSdk = 26; targetSdk = 34
-        versionCode = (System.getenv("VERSION_CODE") ?: "467").toInt()
-        versionName = System.getenv("VERSION_NAME") ?: "1.2.2"
+        versionCode = (System.getenv("VERSION_CODE") ?: "468").toInt()
+        versionName = System.getenv("VERSION_NAME") ?: "1.2.3"
     }
     signingConfigs {
         create("release") {
@@ -44,6 +44,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.biometric:biometric:1.1.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     testImplementation("junit:junit:4.13.2")
