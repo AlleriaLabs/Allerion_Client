@@ -41,3 +41,27 @@ fun AppInfoScreen() {
         Text("ALLERION uses Android and third-party open-source software. Each component remains the property of its respective authors and is distributed under its applicable license. Refer to the project’s dependency and license notices for the current component list and license texts.", color = Mut, fontSize = AppType.small)
     }
 }
+
+
+@Composable
+fun AppInfoPage(onBack: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().background(Bg).systemBarsPadding()
+            .verticalScroll(rememberScrollState())
+    ) {
+        HubHeader(onSettings = {}, onBack = onBack, showSettings = false)
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("ABOUT THE APP", color = Red, fontSize = AppType.micro,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+            Text("About Allerion", color = Txt, fontSize = AppType.title,
+                fontWeight = FontWeight.Bold)
+            Text("App identity, version and device information.", color = Mut,
+                fontSize = AppType.small)
+            AppInfoScreen()
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
