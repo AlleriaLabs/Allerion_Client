@@ -19,6 +19,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 private data class FleetIntegrationState(
     val server: Server,
@@ -32,9 +34,11 @@ fun IntegrationCenterScreen(servers: List<Server>, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val states by produceState(initialValue = emptyList<FleetIntegrationState>(), servers) {
         while (true) {
+            val gate = Semaphore(4)
             val refreshed = coroutineScope {
                 servers.map { server ->
                     async(Dispatchers.IO) {
+                        gate.withPermit {
                         try {
                             val caps = ApiClient.getJson(server.url, server.token, "/api/capabilities",
                                 connectTimeoutMs = 2500, readTimeoutMs = 5000)
@@ -55,6 +59,7 @@ fun IntegrationCenterScreen(servers: List<Server>, onBack: () -> Unit) {
                             throw cancelled
                         } catch (error: Exception) {
                             FleetIntegrationState(server, detail = friendlyError(error))
+                        }
                         }
                     }
                 }.awaitAll()
