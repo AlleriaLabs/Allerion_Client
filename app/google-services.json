@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "41519190514",
+    "project_id": "allerion-de360",
+    "storage_bucket": "allerion-de360.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:41519190514:android:421837e02809bb75339b6b",
+        "android_client_info": {
+          "package_name": "com.example.servermonitor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB1it1Ei9_8jjNfRbPhUZwUVbetrkkgLDs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
