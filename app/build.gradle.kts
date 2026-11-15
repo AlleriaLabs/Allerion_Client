@@ -14,8 +14,8 @@ android {
     defaultConfig {
         applicationId = "com.example.servermonitor"
         minSdk = 26; targetSdk = 34
-        versionCode = (System.getenv("VERSION_CODE") ?: "469").toInt()
-        versionName = System.getenv("VERSION_NAME") ?: "1.2.4"
+        versionCode = (System.getenv("VERSION_CODE") ?: "471").toInt()
+        versionName = System.getenv("VERSION_NAME") ?: "1.2.6"
     }
     signingConfigs {
         create("release") {
