@@ -679,7 +679,6 @@ private fun NetworkTopologyNode(title: String, address: String, glyph: String, t
             Text(address, color = Txt, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold, maxLines = 1)
             Text(status, color = Mut, fontSize = AppType.micro)
         }
-        Text(status, color = Mut, fontSize = AppType.micro, fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
 
