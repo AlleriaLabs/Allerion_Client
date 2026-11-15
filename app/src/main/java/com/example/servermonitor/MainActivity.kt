@@ -173,6 +173,7 @@ fun App(p: SharedPreferences) {
     var showAnalytics by remember { mutableStateOf(false) }
     var showActivity by remember { mutableStateOf(false) }
     var showServerManagement by remember { mutableStateOf(false) }
+    var showAppInfo by remember { mutableStateOf(false) }
     fun commit(l: List<Server>) {
         try {
             saveServers(p, l)
@@ -196,9 +197,10 @@ fun App(p: SharedPreferences) {
     }
     val e = edit
     val o = open
-    BackHandler(enabled = e != null || o != null || hubSettings || showIntegrations || showUsers || showLiveUsers || showAnalytics || showActivity || showServerManagement) {
+    BackHandler(enabled = e != null || o != null || hubSettings || showIntegrations || showUsers || showLiveUsers || showAnalytics || showActivity || showServerManagement || showAppInfo) {
         if (e != null) edit = null
         else if (o != null) open = null
+        else if (showAppInfo) showAppInfo = false
         else if (showServerManagement) showServerManagement = false
         else if (showActivity) showActivity = false
         else if (showAnalytics) showAnalytics = false
@@ -219,14 +221,16 @@ fun App(p: SharedPreferences) {
         showLiveUsers -> LiveUsersScreen(onBack = { showLiveUsers = false })
         showAnalytics -> if (servers.isNotEmpty()) JellyfinAnalyticsScreen(servers.first(), onBack = { showAnalytics = false }, onSettings = { edit = servers.indexOf(servers.first()) }) else EmptyModuleScreen("Jellyfin Analytics", "No monitoring server is registered yet. Add one in Server Management; the analytics page and Allerion header remain available without a connection.", onBack = { showAnalytics = false }, onSettings = { hubSettings = true })
         showActivity -> ActivityCenterScreen(onBack = { showActivity = false })
+        showAppInfo -> AppInfoPage(onBack = { showAppInfo = false })
         showServerManagement -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true },
             { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true },
-            { showServerManagement = true }, serverManagementPage = true, onBack = { showServerManagement = false })
+            { showServerManagement = true }, serverManagementPage = true, onBack = { showServerManagement = false },
+            onAbout = { showAppInfo = true })
         else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true },
             { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true },
-            { showServerManagement = true })
+            { showServerManagement = true }, onAbout = { showAppInfo = true })
     }
     availableUpdate?.let { update ->
         AllerionUpdateDialog(update) {

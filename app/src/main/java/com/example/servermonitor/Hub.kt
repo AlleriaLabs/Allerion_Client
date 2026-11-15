@@ -105,7 +105,8 @@ fun ModulePageHeader(
 fun HubHeader(
     onSettings: () -> Unit,
     onBack: (() -> Unit)? = null,
-    trailing: @Composable RowScope.() -> Unit = {}
+    trailing: @Composable RowScope.() -> Unit = {},
+    showSettings: Boolean = true
 ) {
     Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         if (onBack != null) {
@@ -119,7 +120,18 @@ fun HubHeader(
             Text("ALLERIA LABS", fontSize = AppType.micro, color = Dim, fontWeight = FontWeight.Medium, letterSpacing = 2.2.sp)
         }
         trailing()
-        IconBtn(Ic.Gear, "Settings", plain = true, onClick = onSettings)
+        if (showSettings) IconBtn(Ic.Gear, "Settings", plain = true, onClick = onSettings)
+    }
+}
+
+@Composable
+private fun AboutInfoButton(onClick: () -> Unit) {
+    Box(
+        Modifier.size(40.dp).clip(CircleShape).border(1.dp, Line, CircleShape)
+            .tap(onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("i", color = Mut, fontSize = 20.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -326,7 +338,8 @@ private fun HomeActivityAlerts(onOpen: () -> Unit, modifier: Modifier = Modifier
 fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit,
          onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit, onIntegrations: () -> Unit, onUsers: () -> Unit,
          onLiveUsers: () -> Unit, onAnalytics: () -> Unit, onActivity: () -> Unit,
-         onServerManagement: () -> Unit, serverManagementPage: Boolean = false, onBack: () -> Unit = {}) {
+         onServerManagement: () -> Unit, serverManagementPage: Boolean = false, onBack: () -> Unit = {},
+         onAbout: () -> Unit = {}) {
     val context = LocalContext.current
     val status = remember { mutableStateMapOf<String, Int>() }
     val groupPreferences = remember(context) {
@@ -378,7 +391,12 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
     BoxWithConstraints(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
         val wideLayout = maxWidth >= 720.dp
         Column(Modifier.widthIn(max = 1100.dp).fillMaxHeight().fillMaxWidth().align(Alignment.TopCenter).verticalScroll(rememberScrollState())) {
-            HubHeader(onSettings, if (serverManagementPage) onBack else null)
+            HubHeader(
+                onSettings = onSettings,
+                onBack = if (serverManagementPage) onBack else null,
+                trailing = { if (!serverManagementPage) AboutInfoButton(onAbout) },
+                showSettings = serverManagementPage
+            )
             Column(Modifier.padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 Column(Modifier.padding(top = 10.dp, bottom = 3.dp).staggerIn(0), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (serverManagementPage) {
