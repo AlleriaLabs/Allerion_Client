@@ -2,7 +2,7 @@ name: Android CI and Release
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feature/phase-2-fleet-monitoring]
   push:
     branches: [main]
   workflow_dispatch:
