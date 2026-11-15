@@ -13,9 +13,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 private data class FleetIntegrationState(
     val server: Server,
@@ -29,32 +34,35 @@ fun IntegrationCenterScreen(servers: List<Server>, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val states by produceState(initialValue = emptyList<FleetIntegrationState>(), servers) {
         while (true) {
-            val refreshed = mutableListOf<FleetIntegrationState>()
-            for (server in servers) {
-                val state = withContext(Dispatchers.IO) {
-                    try {
-                        val caps = ApiClient.getJson(server.url, server.token, "/api/capabilities",
-                            connectTimeoutMs = 2500, readTimeoutMs = 5000)
-                        val integrations = ApiClient.getJson(server.url, server.token, "/api/integrations",
-                            connectTimeoutMs = 2500, readTimeoutMs = 5000)
-                        val items = integrations.optJSONArray("items")
-                        val features = caps.optJSONObject("features")
-                        var webhook = features?.optBoolean("webhooks") ?: false
-                        var telegram = features?.optBoolean("telegram") ?: false
-                        if (items != null) for (i in 0 until items.length()) {
-                            val item = items.optJSONObject(i) ?: continue
-                            val name = item.optString("name").lowercase()
-                            if (name.contains("webhook")) webhook = item.optBoolean("configured", webhook)
-                            if (name.contains("telegram")) telegram = item.optBoolean("configured", telegram)
+            val gate = Semaphore(4)
+            val refreshed = coroutineScope {
+                servers.map { server ->
+                    async(Dispatchers.IO) {
+                        gate.withPermit {
+                        try {
+                            val caps = ApiClient.getJson(server.url, server.token, "/api/capabilities",
+                                connectTimeoutMs = 2500, readTimeoutMs = 5000)
+                            val integrations = ApiClient.getJson(server.url, server.token, "/api/integrations",
+                                connectTimeoutMs = 2500, readTimeoutMs = 5000)
+                            val items = integrations.optJSONArray("items")
+                            val features = caps.optJSONObject("features")
+                            var webhook = features?.optBoolean("webhooks") ?: false
+                            var telegram = features?.optBoolean("telegram") ?: false
+                            if (items != null) for (i in 0 until items.length()) {
+                                val item = items.optJSONObject(i) ?: continue
+                                val name = item.optString("name").lowercase()
+                                if (name.contains("webhook")) webhook = item.optBoolean("configured", webhook)
+                                if (name.contains("telegram")) telegram = item.optBoolean("configured", telegram)
+                            }
+                            FleetIntegrationState(server, webhook, telegram)
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (error: Exception) {
+                            FleetIntegrationState(server, detail = friendlyError(error))
                         }
-                        FleetIntegrationState(server, webhook, telegram)
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (error: Exception) {
-                        FleetIntegrationState(server, detail = friendlyError(error))
+                        }
                     }
-                }
-                refreshed.add(state)
+                }.awaitAll()
             }
             value = refreshed
             delay(60_000L)

@@ -43,9 +43,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
@@ -220,8 +225,34 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
         mutableStateOf(groupPreferences.getString("selected_group", "All groups") ?: "All groups")
     }
     var groupMenuExpanded by remember { mutableStateOf(false) }
-    fun keyOf(i: Int, sv: Server) = "$i|${sv.url}"
+    fun keyOf(i: Int, sv: Server) = sv.url.trim().trimEnd('/').lowercase()
     val groups = servers.map { it.group.trim().ifEmpty { "Ungrouped" } }.distinct().sorted()
+    // Poll every registered server independently of the visible group filter.
+    // A bounded fan-out prevents one slow endpoint from blocking the whole fleet.
+    LaunchedEffect(servers) {
+        while (true) {
+            val gate = Semaphore(4)
+            coroutineScope {
+                servers.mapIndexed { index, server ->
+                    async {
+                        gate.withPermit {
+                            val serverKey = keyOf(index, server)
+                            try {
+                                withContext(Dispatchers.IO) { fetch(server.url, server.token) }
+                                status[serverKey] = 1
+                                FleetPresenceStore.recordSuccess(context, server)
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (_: Exception) {
+                                status[serverKey] = 2
+                            }
+                        }
+                    }
+                }.awaitAll()
+            }
+            delay(10_000L)
+        }
+    }
     LaunchedEffect(selectedGroup) {
         groupPreferences.edit().putString("selected_group", selectedGroup).apply()
     }
