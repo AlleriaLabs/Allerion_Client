@@ -24,6 +24,17 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
+      - name: Configure Firebase Android app
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+            echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > app/google-services.json
+            python3 -c "import json; d=json.load(open('app/google-services.json')); assert d.get('project_info', {}).get('project_id') == 'allerion-de360'"
+            echo "Firebase Android configuration installed for this build."
+          else
+            echo "::warning::ANDROID_GOOGLE_SERVICES_JSON_BASE64 is not configured; this build will not have FCM runtime configuration."
+          fi
       - name: Run unit tests and Android lint
         run: gradle testDebugUnitTest lintDebug --no-daemon --stacktrace
       - name: Assemble debug APK
@@ -49,18 +60,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - name: Check release signing secrets
-        id: signing
+      - name: Check release and Firebase secrets
+        id: readiness
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_BASE64 }}
         run: |
           missing=0
-          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD GOOGLE_SERVICES_JSON_BASE64; do
             if [ -z "${!name}" ]; then
-              echo "::warning::Missing GitHub Actions secret: $name. Signed release publishing is skipped until the persistent signing key is configured."
+              echo "::warning::Missing GitHub Actions secret: $name. Signed FCM release publishing is skipped."
               missing=1
             fi
           done
@@ -70,41 +82,48 @@ jobs:
             echo "ready=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Decode persistent release keystore
-        if: steps.signing.outputs.ready == 'true'
+        if: steps.readiness.outputs.ready == 'true'
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/allerion-release.jks"
           test -s "$RUNNER_TEMP/allerion-release.jks"
+      - name: Configure Firebase Android app
+        if: steps.readiness.outputs.ready == 'true'
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > app/google-services.json
+          python3 -c "import json; d=json.load(open('app/google-services.json')); assert d.get('project_info', {}).get('project_id') == 'allerion-de360'"
       - name: Build signed release APK
-        if: steps.signing.outputs.ready == 'true'
+        if: steps.readiness.outputs.ready == 'true'
         env:
           KEYSTORE_FILE: ${{ runner.temp }}/allerion-release.jks
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          VERSION_CODE: 469
-          VERSION_NAME: 1.2.4
+          VERSION_CODE: 470
+          VERSION_NAME: 1.2.5
         run: gradle assembleRelease --no-daemon --stacktrace
       - name: Rename APK and generate checksum
-        if: steps.signing.outputs.ready == 'true'
+        if: steps.readiness.outputs.ready == 'true'
         run: |
           cp app/build/outputs/apk/release/app-release.apk Allerion.apk
           sha256sum Allerion.apk > Allerion.apk.sha256
       - uses: actions/upload-artifact@v4
-        if: steps.signing.outputs.ready == 'true'
+        if: steps.readiness.outputs.ready == 'true'
         with:
           name: Allerion-release-${{ github.run_number }}
           path: |
             Allerion.apk
             Allerion.apk.sha256
           if-no-files-found: error
-      - name: Publish signed release
-        if: steps.signing.outputs.ready == 'true'
+      - name: Publish signed FCM release
+        if: steps.readiness.outputs.ready == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.2.4
-          name: ALLERION v1.2.4
+          tag_name: v1.2.5
+          name: ALLERION v1.2.5
           generate_release_notes: true
           files: |
             Allerion.apk
