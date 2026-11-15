@@ -402,7 +402,7 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
     val dnsResolvers = dns?.optJSONArray("servers")?.let { array ->
         (0 until minOf(array.length(), 12)).mapNotNull { array.optJSONObject(it) }
     } ?: emptyList()
-    val mapHeight = (260 + ((linkedNodes.size + 1) / 2) * 100 + 24).coerceAtLeast(370)
+    val mapHeight = (260 + ((linkedNodes.size + 1) / 2) * 56 + 24).coerceAtLeast(370)
 
     Panel {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -457,11 +457,11 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
                         val hostTop = 112.dp.toPx()
                         if (gateway != null) {
                             drawLine(Blue.copy(alpha = 0.78f), Offset(centerX, gatewayBottom), Offset(centerX, hostTop), 2.dp.toPx())
-                            val firstDeviceY = 286.dp.toPx()
+                            val firstDeviceY = 268.dp.toPx()
                             linkedNodes.forEachIndexed { index, _ ->
                                 val row = index / 2
                                 val x = if (index % 2 == 0) size.width * 0.25f else size.width * 0.75f
-                                val y = firstDeviceY + row * 100.dp.toPx()
+                                val y = firstDeviceY + row * 56.dp.toPx()
                                 drawLine(Color(0xFF8B83FF).copy(alpha = 0.62f), Offset(centerX, gatewayBottom), Offset(x, y), 1.7.dp.toPx())
                             }
                         }
