@@ -264,6 +264,65 @@ fun HubModuleCard(icon: Ic, title: String, subtitle: String, accent: Color, modi
 }
 
 @Composable
+private fun HomeActivityAlerts(onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var revision by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) { delay(5_000L); revision++ }
+    }
+    val events = remember(revision) { AlertHistoryStore.load(context, 5) }
+    val active = remember(revision) { ActiveAlertStore.load(context) }
+    fun time(ts: Long) = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ts))
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("ACTIVITY & ALERTS", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp,
+                modifier = Modifier.weight(1f))
+            Text(if (active.isEmpty()) "ALL CLEAR" else "${active.size} ACTIVE", color = if (active.isEmpty()) Green else Amber,
+                fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+        }
+        Panel(Modifier.fillMaxWidth().tap(onOpen)) {
+            Text("Active alerts", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+            if (active.isEmpty()) {
+                Text("No active alerts", color = Green, fontSize = AppType.small, modifier = Modifier.padding(top = 5.dp))
+            } else active.take(3).forEach { alert ->
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.Top) {
+                    PulseDot(if (alert.severity == "critical") Err else Amber, true, 7.dp)
+                    Spacer(Modifier.width(9.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(alert.server, color = Txt, fontSize = AppType.small, fontWeight = FontWeight.SemiBold)
+                        Text(alert.message, color = Mut, fontSize = AppType.small)
+                    }
+                    Text(time(alert.timestamp), color = Dim, fontSize = AppType.micro)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Line))
+            Text("Recent activity", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 10.dp))
+            if (events.isEmpty()) {
+                Text("No recent events recorded", color = Mut, fontSize = AppType.small, modifier = Modifier.padding(top = 5.dp))
+            } else events.take(3).forEach { event ->
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.Top) {
+                    Box(Modifier.padding(top = 4.dp).size(7.dp).clip(CircleShape).background(
+                        when { event.recovered -> Green; event.severity == "critical" -> Err; else -> Amber }))
+                    Spacer(Modifier.width(9.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(event.server, color = Txt, fontSize = AppType.small, fontWeight = FontWeight.SemiBold)
+                        Text(event.message, color = Mut, fontSize = AppType.small)
+                        Text(if (event.recovered) "RECOVERED" else event.severity.uppercase(),
+                            color = if (event.recovered) Green else if (event.severity == "critical") Err else Amber,
+                            fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+                    }
+                    Text(time(event.timestamp), color = Dim, fontSize = AppType.micro)
+                }
+            }
+            Text("View all activity  →", color = Red, fontSize = AppType.small, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 12.dp))
+        }
+    }
+}
+
+@Composable
 fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit,
          onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit, onIntegrations: () -> Unit, onUsers: () -> Unit,
          onLiveUsers: () -> Unit, onAnalytics: () -> Unit, onActivity: () -> Unit,
@@ -346,20 +405,7 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                     HubModuleCard(Ic.Activity, "Live Users", "Who's online and watching", Color(0xFF62E0B0), Modifier.weight(1f).staggerIn(4), onLiveUsers, live = true)
                 }
                 if (!serverManagementPage) {
-                    Text("ACTIVITY", fontSize = AppType.micro, fontWeight = FontWeight.Bold, color = Red, letterSpacing = 1.4.sp,
-                        modifier = Modifier.padding(top = 5.dp).staggerIn(5))
-                    Panel(Modifier.fillMaxWidth().tap(onActivity)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(Color(0xFFFFC477).copy(alpha = 0.14f)),
-                                contentAlignment = Alignment.Center) { Icon24(Ic.Bell, Color(0xFFFFC477), 20.dp) }
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text("Activity & Alerts", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
-                                Text("Recent events, incidents and recoveries", color = Mut, fontSize = AppType.small)
-                            }
-                            Icon24(Ic.ChevronD, Dim, 18.dp, Modifier.graphicsLayer { rotationZ = -90f })
-                        }
-                    }
+                    HomeActivityAlerts(onOpen = onActivity, modifier = Modifier.padding(top = 5.dp).staggerIn(5))
                 }
                 AnimatedVisibility(visible = serverManagementPage, enter = fadeIn(tween(240)) + androidx.compose.animation.expandVertically(tween(260)),
                     exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(200))) {
