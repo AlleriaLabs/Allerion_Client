@@ -440,7 +440,7 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
                 .background(Color(0xFF0D1729)).border(1.dp, Color(0xFF263B5B), RoundedCornerShape(18.dp))) {
                 Box(Modifier.fillMaxSize().pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoom, _ ->
-                        mapScale = (mapScale * zoom).coerceIn(1f, 2f)
+                        mapScale = (mapScale * zoom).coerceIn(0.5f, 1f)
                         mapPanX = (mapPanX + pan.x).coerceIn(-520f, 520f)
                         mapPanY = (mapPanY + pan.y).coerceIn(-720f, 720f)
                         if (mapScale == 1f) { mapPanX = 0f; mapPanY = 0f }
@@ -501,13 +501,13 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
                 Text("ZOOM", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(8.dp))
                 OutlinedButton(onClick = {
-                    mapScale = (mapScale - 0.15f).coerceAtLeast(1f)
+                    mapScale = (mapScale - 0.10f).coerceAtLeast(0.5f)
                     if (mapScale == 1f) { mapPanX = 0f; mapPanY = 0f }
                 }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 44.dp)) { Text("−", color = Txt) }
                 Spacer(Modifier.width(6.dp))
                 Text((mapScale * 100).toInt().toString() + "%", color = Mut, fontSize = AppType.caption)
                 Spacer(Modifier.width(6.dp))
-                OutlinedButton(onClick = { mapScale = (mapScale + 0.15f).coerceAtMost(2f) },
+                OutlinedButton(onClick = { mapScale = (mapScale + 0.10f).coerceAtMost(1f) },
                     modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 44.dp)) { Text("+", color = Txt) }
             }
             Spacer(Modifier.height(8.dp))
