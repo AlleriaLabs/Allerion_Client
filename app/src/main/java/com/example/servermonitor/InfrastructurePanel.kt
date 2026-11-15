@@ -400,7 +400,6 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
         }
     }
     var selectedNode by remember { mutableStateOf<JSONObject?>(null) }
-    var selectedNode by remember { mutableStateOf<JSONObject?>(null) }
     var mapScale by remember { mutableStateOf(1f) }
     var mapPanX by remember { mutableStateOf(0f) }
     var mapPanY by remember { mutableStateOf(0f) }
