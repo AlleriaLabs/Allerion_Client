@@ -402,7 +402,8 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
     val dnsResolvers = dns?.optJSONArray("servers")?.let { array ->
         (0 until minOf(array.length(), 12)).mapNotNull { array.optJSONObject(it) }
     } ?: emptyList()
-    val mapHeight = (260 + ((linkedNodes.size + 1) / 2) * 56 + 24).coerceAtLeast(370)
+    val deviceRows = (linkedNodes.size + 1) / 2
+    val mapHeight = (310 + deviceRows * 72).coerceAtLeast(390)
 
     Panel {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -453,16 +454,20 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
                 }) {
                     Canvas(Modifier.matchParentSize()) {
                         val centerX = size.width / 2f
-                        val gatewayBottom = 76.dp.toPx()
-                        val hostTop = 112.dp.toPx()
+                        val gatewayBottom = 78.dp.toPx()
+                        val hostTop = 108.dp.toPx()
+                        val hostBottom = 184.dp.toPx()
                         if (gateway != null) {
-                            drawLine(Blue.copy(alpha = 0.78f), Offset(centerX, gatewayBottom), Offset(centerX, hostTop), 2.dp.toPx())
-                            val firstDeviceY = 268.dp.toPx()
-                            linkedNodes.forEachIndexed { index, _ ->
-                                val row = index / 2
-                                val x = if (index % 2 == 0) size.width * 0.25f else size.width * 0.75f
-                                val y = firstDeviceY + row * 56.dp.toPx()
-                                drawLine(Color(0xFF8B83FF).copy(alpha = 0.62f), Offset(centerX, gatewayBottom), Offset(x, y), 1.7.dp.toPx())
+                            drawLine(Color(0xFF8B83FF).copy(alpha = 0.72f), Offset(centerX, gatewayBottom), Offset(centerX, hostTop), 1.8.dp.toPx())
+                            drawLine(Blue.copy(alpha = 0.72f), Offset(centerX, hostBottom), Offset(centerX, 224.dp.toPx()), 1.8.dp.toPx())
+                            linkedNodes.indices.map { it / 2 }.distinct().forEach { row ->
+                                val branchY = 224.dp.toPx() + row * 72.dp.toPx()
+                                val leftX = size.width * 0.25f
+                                val rightX = size.width * 0.75f
+                                drawLine(Color(0xFF8B83FF).copy(alpha = 0.58f), Offset(centerX, branchY), Offset(leftX, branchY), 1.35.dp.toPx())
+                                if (row * 2 + 1 < linkedNodes.size) drawLine(Color(0xFF8B83FF).copy(alpha = 0.58f), Offset(centerX, branchY), Offset(rightX, branchY), 1.35.dp.toPx())
+                                drawLine(Color(0xFF8B83FF).copy(alpha = 0.58f), Offset(leftX, branchY), Offset(leftX, branchY + 12.dp.toPx()), 1.35.dp.toPx())
+                                if (row * 2 + 1 < linkedNodes.size) drawLine(Color(0xFF8B83FF).copy(alpha = 0.58f), Offset(rightX, branchY), Offset(rightX, branchY + 12.dp.toPx()), 1.35.dp.toPx())
                             }
                         }
                     }
@@ -475,8 +480,8 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
                     }
                     TopologyMapNode("CASAOS MONITORING HOST", sourceIp ?: "Host address unavailable",
                         "THIS SERVER · " + (routeInterface ?: "interface unknown"), Blue, false,
-                        Modifier.align(Alignment.TopCenter).padding(top = 112.dp).fillMaxWidth(0.86f))
-                    Column(Modifier.align(Alignment.TopCenter).padding(top = 244.dp, start = 4.dp, end = 4.dp).fillMaxWidth(),
+                        Modifier.align(Alignment.TopCenter).padding(top = 108.dp).fillMaxWidth(0.82f))
+                    Column(Modifier.align(Alignment.TopCenter).padding(top = 232.dp, start = 10.dp, end = 10.dp).fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (linkedNodes.isEmpty()) {
                             Text("No identified same-subnet devices are currently present in the neighbor cache.",
@@ -594,14 +599,18 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
 }
 @Composable
 private fun TopologyMapNode(title: String, address: String, detail: String, tint: Color, online: Boolean, modifier: Modifier = Modifier) {
-    Row(modifier.clip(RoundedCornerShape(13.dp)).background(Color(0xFF202B34)).border(1.dp, tint.copy(alpha = 0.38f), RoundedCornerShape(13.dp)).padding(horizontal = 12.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(tint.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(7.dp).clip(CircleShape).background(tint))
+    Row(
+        modifier.clip(RoundedCornerShape(11.dp)).background(Color(0xFF1B232D))
+            .border(1.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(11.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(25.dp).clip(RoundedCornerShape(8.dp)).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(6.dp).clip(CircleShape).background(tint))
         }
         Spacer(Modifier.width(9.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, color = tint, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.55.sp)
+            Text(title, color = tint, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.45.sp, maxLines = 1)
             Text(address, color = Txt, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold, maxLines = 1)
             Text(detail, color = Mut, fontSize = AppType.micro, maxLines = 1)
         }
@@ -611,11 +620,15 @@ private fun TopologyMapNode(title: String, address: String, detail: String, tint
 @Composable
 private fun TopologyMapDevice(node: JSONObject, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val tint = if (selected) Color(0xFF8B83FF) else Blue
-    Row(modifier.clip(RoundedCornerShape(12.dp)).background(if (selected) Blue.copy(alpha = 0.12f) else Color(0xFF1B242C))
-        .border(1.dp, tint.copy(alpha = if (selected) 0.75f else 0.28f), RoundedCornerShape(12.dp))
-        .clickable(onClick = onClick).padding(horizontal = 9.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(27.dp).clip(RoundedCornerShape(8.dp)).background(tint.copy(alpha = 0.13f)), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(6.dp).clip(CircleShape).background(tint))
+    Row(
+        modifier.clip(RoundedCornerShape(10.dp))
+            .background(if (selected) Color(0xFF25243B) else Color(0xFF19232D))
+            .border(1.dp, tint.copy(alpha = if (selected) 0.68f else 0.22f), RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(22.dp).clip(RoundedCornerShape(7.dp)).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(5.dp).clip(CircleShape).background(tint))
         }
         Spacer(Modifier.width(7.dp))
         Column(Modifier.weight(1f)) {
