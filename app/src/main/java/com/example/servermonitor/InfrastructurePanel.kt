@@ -4,6 +4,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.border
@@ -423,7 +425,7 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
         (0 until minOf(array.length(), 12)).mapNotNull { array.optJSONObject(it) }
     } ?: emptyList()
     val deviceRows = (linkedNodes.size + 1) / 2
-    val mapHeight = (310 + deviceRows * 72).coerceAtLeast(390)
+    val mapHeight = (420 + deviceRows * 84).coerceAtLeast(460)
 
     Panel {
 
@@ -675,41 +677,54 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
     }
 }
 @Composable
+@Composable
+private fun TopologyLightStat(label: String, value: String, tint: Color, modifier: Modifier = Modifier) {
+    Column(modifier.clip(RoundedCornerShape(10.dp)).background(Color.White)
+        .border(1.dp, Color(0xFFE1E7F0), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 9.dp)) {
+        Text(value, color = tint, fontSize = AppType.titleSmall, fontWeight = FontWeight.ExtraBold)
+        Text(label, color = Color(0xFF64748B), fontSize = AppType.micro, fontWeight = FontWeight.Bold, maxLines = 1)
+    }
+}
+
+@Composable
 private fun TopologyMapNode(title: String, address: String, detail: String, tint: Color, online: Boolean, modifier: Modifier = Modifier) {
     Row(
-        modifier.clip(RoundedCornerShape(11.dp)).background(Color(0xFF1B232D))
-            .border(1.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(11.dp))
-            .padding(horizontal = 10.dp, vertical = 7.dp),
+        modifier.clip(RoundedCornerShape(13.dp)).background(Color.White)
+            .border(1.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(13.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(25.dp).clip(RoundedCornerShape(8.dp)).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(6.dp).clip(CircleShape).background(tint))
+        Box(Modifier.size(34.dp).clip(CircleShape).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(11.dp).clip(CircleShape).background(tint))
         }
-        Spacer(Modifier.width(9.dp))
+        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(title, color = tint, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.45.sp, maxLines = 1)
-            Text(address, color = Txt, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            Text(detail, color = Mut, fontSize = AppType.micro, maxLines = 1)
+            Text(address, color = Color(0xFF172554), fontSize = AppType.caption, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(detail, color = Color(0xFF64748B), fontSize = AppType.micro, maxLines = 1)
         }
+        Text("●", color = if (online) Color(0xFF16A36A) else Color(0xFFD59A28), fontSize = AppType.caption)
     }
 }
 
 @Composable
 private fun TopologyMapDevice(node: JSONObject, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val tint = if (selected) Color(0xFF8B83FF) else Blue
+    val tint = if (selected) Color(0xFF6559D9) else Color(0xFF2587C7)
+    val title = node.optString("hostname").takeIf { it.isNotBlank() && it != "null" } ?: node.optString("ip", "Unknown device")
     Row(
-        modifier.clip(RoundedCornerShape(10.dp))
-            .background(if (selected) Color(0xFF25243B) else Color(0xFF19232D))
-            .border(1.dp, tint.copy(alpha = if (selected) 0.68f else 0.22f), RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 8.dp),
+        modifier.clip(RoundedCornerShape(11.dp))
+            .background(if (selected) Color(0xFFEDEBFF) else Color.White)
+            .border(1.dp, tint.copy(alpha = if (selected) 0.65f else 0.20f), RoundedCornerShape(11.dp))
+            .clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(22.dp).clip(RoundedCornerShape(7.dp)).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(5.dp).clip(CircleShape).background(tint))
+        Box(Modifier.size(26.dp).clip(CircleShape).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Text("●", color = tint, fontSize = AppType.micro)
         }
         Spacer(Modifier.width(7.dp))
         Column(Modifier.weight(1f)) {
-            Text(node.optString("ip", "Unknown IP"), color = Txt, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(title, color = Color(0xFF172554), fontSize = AppType.caption, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(node.optString("ip", "Unknown IP"), color = Color(0xFF64748B), fontSize = AppType.micro, maxLines = 1)
             Text(node.optString("state", "DISCOVERED").uppercase(), color = tint, fontSize = AppType.micro, fontWeight = FontWeight.Bold, maxLines = 1)
         }
     }
