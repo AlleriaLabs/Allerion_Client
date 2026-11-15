@@ -507,8 +507,8 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
             }
             Spacer(Modifier.height(8.dp))
             Box(Modifier.fillMaxWidth().height(mapHeight.dp).clip(RoundedCornerShape(18.dp))
-                .background(Color(0xFF0D1729)).border(1.dp, Color(0xFF263B5B), RoundedCornerShape(18.dp))) {
-                Box(Modifier.fillMaxSize().pointerInput(Unit) {
+                .background(Color(0xFFF7F8FF)).border(1.dp, Color(0xFFDCE3F2), RoundedCornerShape(18.dp))) {
+                Column(Modifier.fillMaxSize().pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoom, _ ->
                         mapScale = (mapScale * zoom).coerceIn(0.5f, 1f)
                         mapPanX = (mapPanX + pan.x).coerceIn(-520f, 520f)
@@ -520,55 +520,63 @@ private fun NetworkTopologyPanel(sv: Server, topology: JSONObject?, enabled: Boo
                     scaleY = mapScale
                     translationX = mapPanX
                     translationY = mapPanY
-                }) {
-                    Canvas(Modifier.matchParentSize()) {
-                        val centerX = size.width / 2f
-                        val gatewayBottom = 78.dp.toPx()
-                        val hostTop = 108.dp.toPx()
-                        val hostBottom = 184.dp.toPx()
-                        if (gateway != null) {
-                            drawLine(Color(0xFF8B83FF).copy(alpha = 0.72f), Offset(centerX, gatewayBottom), Offset(centerX, hostTop), 1.8.dp.toPx())
-                            drawLine(Blue.copy(alpha = 0.72f), Offset(centerX, hostBottom), Offset(centerX, 224.dp.toPx()), 1.8.dp.toPx())
-                            linkedNodes.indices.map { it / 2 }.distinct().forEach { row ->
-                                val branchY = 224.dp.toPx() + row * 72.dp.toPx()
-                                val leftX = size.width * 0.25f
-                                val rightX = size.width * 0.75f
-                                drawLine(Color(0xFF8B83FF).copy(alpha = 0.58f), Offset(centerX, branchY), Offset(leftX, branchY), 1.35.dp.toPx())
-                                if (row * 2 + 1 < linkedNodes.size) drawLine(Color(0xFF8B83FF).copy(alpha = 0.58f), Offset(centerX, branchY), Offset(rightX, branchY), 1.35.dp.toPx())
-                                drawLine(Color(0xFF8B83FF).copy(alpha = 0.58f), Offset(leftX, branchY), Offset(leftX, branchY + 12.dp.toPx()), 1.35.dp.toPx())
-                                if (row * 2 + 1 < linkedNodes.size) drawLine(Color(0xFF8B83FF).copy(alpha = 0.58f), Offset(rightX, branchY), Offset(rightX, branchY + 12.dp.toPx()), 1.35.dp.toPx())
-                            }
+                }.verticalScroll(rememberScrollState()).padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("NETWORK TOPOLOGY", color = Color(0xFF172554), fontSize = AppType.titleSmall, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.7.sp)
+                            Text("Passive device discovery", color = Color(0xFF64748B), fontSize = AppType.caption)
                         }
+                        Text("LIVE MAP", color = Color(0xFF168B68), fontSize = AppType.micro, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(Color(0xFFE5F7EF)).padding(horizontal = 9.dp, vertical = 6.dp))
                     }
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        TopologyLightStat("DEVICES", linkedNodes.size.toString(), Color(0xFF5B55D6), Modifier.weight(1f))
+                        TopologyLightStat("UNMAPPED", unmappedNodes.size.toString(), Color(0xFFD59A28), Modifier.weight(1f))
+                        TopologyLightStat("BRIDGE MACs", bridgeMacs.size.toString(), Color(0xFF2787B8), Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(16.dp))
                     if (gateway != null) {
-                        TopologyMapNode("DEFAULT GATEWAY", gateway, "ACTIVE DEFAULT ROUTE", Color(0xFF8B83FF), false,
-                            Modifier.align(Alignment.TopCenter).padding(top = 14.dp).fillMaxWidth(0.86f))
+                        TopologyMapNode("DEFAULT GATEWAY", gateway, "Upstream router · " + (routeInterface ?: "interface unknown"), Color(0xFF6559D9), true,
+                            Modifier.fillMaxWidth(0.78f))
+                        Canvas(Modifier.width(2.dp).height(22.dp)) { drawLine(Color(0xFF6B7CE8), Offset(size.width/2, 0f), Offset(size.width/2, size.height), 2.dp.toPx()) }
                     } else {
-                        Text("Default gateway not detected", color = Amber, fontSize = AppType.caption,
-                            modifier = Modifier.align(Alignment.TopCenter).padding(top = 28.dp))
+                        Text("Default gateway not detected", color = Color(0xFFB7791F), fontSize = AppType.caption)
                     }
-                    TopologyMapNode("CASAOS MONITORING HOST", sourceIp ?: "Host address unavailable",
-                        "THIS SERVER · " + (routeInterface ?: "interface unknown"), Blue, false,
-                        Modifier.align(Alignment.TopCenter).padding(top = 108.dp).fillMaxWidth(0.82f))
-                    Column(Modifier.align(Alignment.TopCenter).padding(top = 232.dp, start = 10.dp, end = 10.dp).fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (linkedNodes.isEmpty()) {
-                            Text("No identified same-subnet devices are currently present in the neighbor cache.",
-                                color = Mut, fontSize = AppType.caption, modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                                textAlign = TextAlign.Center)
-                        } else {
-                            linkedNodes.chunked(2).forEach { pair ->
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    pair.forEach { node ->
-                                        TopologyMapDevice(node, selectedNode?.optString("ip") == node.optString("ip"), Modifier.weight(1f)) {
-                                            selectedNode = if (selectedNode?.optString("ip") == node.optString("ip")) null else node
-                                        }
-                                    }
-                                    if (pair.size == 1) Spacer(Modifier.weight(1f))
-                                }
-                            }
+                    TopologyMapNode("CASAOS SERVER", sourceIp ?: "Host address unavailable",
+                        "Monitoring host · " + (routeInterface ?: "interface unknown"), Color(0xFF2587C7), true,
+                        Modifier.fillMaxWidth(0.88f))
+                    if (linkedNodes.isNotEmpty()) {
+                        Canvas(Modifier.fillMaxWidth().height(28.dp)) {
+                            val cx = size.width / 2f
+                            val yTop = 0f
+                            val yBranch = size.height * 0.72f
+                            drawLine(Color(0xFF6B7CE8), Offset(cx, yTop), Offset(cx, yBranch), 2.dp.toPx())
+                            drawLine(Color(0xFF6B7CE8), Offset(size.width * 0.16f, yBranch), Offset(size.width * 0.84f, yBranch), 1.6.dp.toPx())
+                            drawLine(Color(0xFF6B7CE8), Offset(cx, yBranch), Offset(cx, size.height), 1.6.dp.toPx())
                         }
+                        Text("OBSERVED LAN DEVICES", color = Color(0xFF334155), fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 0.7.sp)
+                        Spacer(Modifier.height(8.dp))
+                        linkedNodes.chunked(2).forEachIndexed { rowIndex, pair ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                pair.forEach { node ->
+                                    TopologyMapDevice(node, selectedNode?.optString("ip") == node.optString("ip"), Modifier.weight(1f)) {
+                                        selectedNode = if (selectedNode?.optString("ip") == node.optString("ip")) null else node
+                                    }
+                                }
+                                if (pair.size == 1) Spacer(Modifier.weight(1f))
+                            }
+                            if (rowIndex < (linkedNodes.size - 1) / 2) Spacer(Modifier.height(7.dp))
+                        }
+                    } else {
+                        Spacer(Modifier.height(12.dp))
+                        Text("No identified same-subnet devices are currently present in the neighbor cache.",
+                            color = Color(0xFF64748B), fontSize = AppType.caption, textAlign = TextAlign.Center)
                     }
+                    Spacer(Modifier.height(12.dp))
+                    Text((subnet ?: "Subnet unavailable") + "  ·  " + (routeInterface ?: "Interface unknown"),
+                        color = Color(0xFF64748B), fontSize = AppType.micro)
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
