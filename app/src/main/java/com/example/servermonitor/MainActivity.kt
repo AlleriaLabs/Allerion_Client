@@ -2,7 +2,10 @@ package com.example.servermonitor
 
 import android.content.SharedPreferences
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.animateFloatAsState
@@ -104,20 +107,165 @@ fun rememberStats(sv: Server, every: Long, refreshKey: Int = 0): State<StatsResu
     }
 }
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
+    private var isUnlocked by mutableStateOf(false)
+    private var unlockMessage by mutableStateOf("Authenticate to access your Allerion dashboard.")
+    private var promptInProgress = false
+    private var biometricPrompt: BiometricPrompt? = null
+
+    private val allowedAuthenticators =
+        BiometricManager.Authenticators.BIOMETRIC_STRONG or
+            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        biometricPrompt = BiometricPrompt(
+            this,
+            ContextCompat.getMainExecutor(this),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    promptInProgress = false
+                    unlockMessage = when (errorCode) {
+                        BiometricPrompt.ERROR_USER_CANCELED,
+                        BiometricPrompt.ERROR_CANCELED,
+                        BiometricPrompt.ERROR_NEGATIVE_BUTTON ->
+                            "Unlock is required to continue. Tap Authenticate to try again."
+                        else -> errString.toString()
+                    }
+                }
+
+                override fun onAuthenticationFailed() {
+                    unlockMessage = "Biometric not recognized. Try again."
+                }
+
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    promptInProgress = false
+                    unlockMessage = ""
+                    isUnlocked = true
+                }
+            }
+        )
+
         val prefs = getSharedPreferences("cfg", MODE_PRIVATE)
         AppSettings.refreshMs = prefs.getLong("refresh_ms", 2000L)
         AlertScheduler.ensureScheduled(this)
-        val reduce = android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+        val reduce = android.provider.Settings.Global.getFloat(
+            contentResolver,
+            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f
+        ) == 0f
         setContent {
             var showSplash by rememberSaveable { mutableStateOf(true) }
             CompositionLocalProvider(LocalReduceMotion provides reduce) {
-            MaterialTheme(colorScheme = darkColorScheme(primary = Red, onPrimary = Color.White, primaryContainer = DeepRed.copy(alpha = 0.32f), onPrimaryContainer = Txt, secondary = Blue, onSecondary = Bg, background = Bg, onBackground = Txt, surface = Surf, onSurface = Txt, surfaceVariant = Surf2, onSurfaceVariant = Mut, outline = Line, outlineVariant = Line.copy(alpha = 0.72f), error = Err, onError = Color.White), shapes = Shapes(small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(16.dp), large = RoundedCornerShape(22.dp))) {
-                Surface(Modifier.fillMaxSize(), color = Bg) { Box { App(prefs); AnimatedVisibility(visible = showSplash, enter = EnterTransition.None, exit = fadeOut(tween(350))) { Splash { showSplash = false } } } }
+                MaterialTheme(
+                    colorScheme = darkColorScheme(
+                        primary = Red, onPrimary = Color.White,
+                        primaryContainer = DeepRed.copy(alpha = 0.32f), onPrimaryContainer = Txt,
+                        secondary = Blue, onSecondary = Bg, background = Bg, onBackground = Txt,
+                        surface = Surf, onSurface = Txt, surfaceVariant = Surf2, onSurfaceVariant = Mut,
+                        outline = Line, outlineVariant = Line.copy(alpha = 0.72f), error = Err, onError = Color.White
+                    ),
+                    shapes = Shapes(
+                        small = RoundedCornerShape(12.dp),
+                        medium = RoundedCornerShape(16.dp),
+                        large = RoundedCornerShape(22.dp)
+                    )
+                ) {
+                    Surface(Modifier.fillMaxSize(), color = Bg) {
+                        if (isUnlocked) {
+                            Box {
+                                App(prefs)
+                                AnimatedVisibility(
+                                    visible = showSplash,
+                                    enter = EnterTransition.None,
+                                    exit = fadeOut(tween(350))
+                                ) { Splash { showSplash = false } }
+                            }
+                        } else {
+                            BiometricUnlockScreen(unlockMessage, ::requestUnlock)
+                        }
+                    }
+                }
             }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (!isUnlocked) requestUnlock()
+    }
+
+    override fun onStop() {
+        if (!isChangingConfigurations) {
+            isUnlocked = false
+            promptInProgress = false
+            unlockMessage = "Authenticate to access your Allerion dashboard."
+        }
+        super.onStop()
+    }
+
+    private fun requestUnlock() {
+        if (isUnlocked || promptInProgress || isFinishing) return
+        val status = BiometricManager.from(this).canAuthenticate(allowedAuthenticators)
+        if (status != BiometricManager.BIOMETRIC_SUCCESS) {
+            unlockMessage = when (status) {
+                BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
+                    "This device has no supported biometric hardware. Set up a secure device screen lock and try again."
+                BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
+                    "Biometric hardware is temporarily unavailable. Try again."
+                BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
+                    "No biometric or device credential is enrolled. Set up fingerprint/face unlock or a device PIN in Android Settings."
+                else -> "Device authentication is unavailable. Check your Android lock-screen security settings."
             }
+            return
+        }
+        val info = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Unlock Allerion")
+            .setSubtitle("Verify your identity to access all Allerion functions.")
+            .setAllowedAuthenticators(allowedAuthenticators)
+            .build()
+        promptInProgress = true
+        unlockMessage = "Waiting for device authentication…"
+        try {
+            biometricPrompt?.authenticate(info) ?: run {
+                promptInProgress = false
+                unlockMessage = "Authentication is not ready. Tap Authenticate to try again."
+            }
+        } catch (error: Exception) {
+            promptInProgress = false
+            unlockMessage = error.message ?: "Could not start device authentication."
+        }
+    }
+}
+
+@Composable
+private fun BiometricUnlockScreen(message: String, onUnlock: () -> Unit) {
+    Box(
+        Modifier.fillMaxSize().background(Bg).systemBarsPadding().padding(28.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            LogoMark(76.dp)
+            Text("ALLERION", color = Txt, fontSize = AppType.displaySmall,
+                fontWeight = FontWeight.ExtraBold, letterSpacing = 2.4.sp)
+            Text("Secure access", color = Txt, fontSize = AppType.title, fontWeight = FontWeight.Bold)
+            Text(
+                "Use your fingerprint or face to unlock. Your device PIN, pattern, or password is available as a fallback.",
+                color = Mut, fontSize = AppType.body, textAlign = TextAlign.Center
+            )
+            if (message.isNotBlank()) {
+                Text(message, color = Mut, fontSize = AppType.small, textAlign = TextAlign.Center)
+            }
+            Button(onClick = onUnlock, modifier = Modifier.fillMaxWidth()) {
+                Text("Authenticate")
+            }
+            Text(
+                "All four Allerion functions stay locked until you authenticate.",
+                color = Dim, fontSize = AppType.caption, textAlign = TextAlign.Center
+            )
         }
     }
 }
