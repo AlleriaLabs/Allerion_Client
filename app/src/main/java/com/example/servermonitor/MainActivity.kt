@@ -214,11 +214,11 @@ fun App(p: SharedPreferences) {
             onCancel = { edit = null })
         o != null && o in servers.indices -> Dashboard(servers[o], { open = null }, { edit = o })
         hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })
-        showIntegrations -> IntegrationCenterScreen(servers, onBack = { showIntegrations = false }, onSettings = { hubSettings = true })
+        showIntegrations -> IntegrationCenterScreen(servers, onBack = { showIntegrations = false })
         showUsers -> JfaGoUsersScreen(onBack = { showUsers = false })
         showLiveUsers -> LiveUsersScreen(onBack = { showLiveUsers = false })
         showAnalytics -> if (servers.isNotEmpty()) JellyfinAnalyticsScreen(servers.first(), onBack = { showAnalytics = false }, onSettings = { edit = servers.indexOf(servers.first()) }) else EmptyModuleScreen("Jellyfin Analytics", "No monitoring server is registered yet. Add one in Server Management; the analytics page and Allerion header remain available without a connection.", onBack = { showAnalytics = false }, onSettings = { hubSettings = true })
-        showActivity -> ActivityCenterScreen(onBack = { showActivity = false }, onSettings = { hubSettings = true })
+        showActivity -> ActivityCenterScreen(onBack = { showActivity = false })
         showServerManagement -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true },
             { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true },
