@@ -42,13 +42,13 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-/** Accept either the JFA-Go server root or its visible /accounts page URL. */
+/** Accept either the Allerion server root or its visible /accounts page URL. */
 fun normalizeJfaGoBaseUrl(input: String): String {
     val value = input.trim().trimEnd('/')
-    require(value.isNotBlank()) { "Enter your JFA-Go server URL." }
+    require(value.isNotBlank()) { "Enter your Allerion server URL." }
     val parsed = URI(value)
     require((parsed.scheme == "https" || parsed.scheme == "http") && !parsed.host.isNullOrBlank()) {
-        "Enter a full JFA-Go URL beginning with https:// or http://."
+        "Enter a full Allerion URL beginning with https:// or http://."
     }
     var path = parsed.path.orEmpty().trimEnd('/')
     if (path.equals("/accounts", ignoreCase = true) || path.endsWith("/accounts", ignoreCase = true)) {
@@ -56,7 +56,7 @@ fun normalizeJfaGoBaseUrl(input: String): String {
     }
     return URI(parsed.scheme, parsed.userInfo, parsed.host, parsed.port, if (path.isBlank()) null else path, null, null).toASCIIString().trimEnd('/')
 }
-private data class JfaConn(val url: String, val username: String, val password: String)
+private data class JfaConn(val url: String, val username: String, val password: String, val serverName: String = "My Server")
 private data class JfaAuth(val token: String, val refresh: String)
 
 private object JfaStore {
@@ -83,10 +83,10 @@ private object JfaStore {
     }
     fun load(ctx: Context): JfaConn? = runCatching {
         val raw = ctx.getSharedPreferences(PREF, 0).getString(KEY, null) ?: return null
-        val j = JSONObject(open(raw)); JfaConn(normalizeJfaGoBaseUrl(j.getString("url")), j.getString("username"), j.getString("password"))
+        val j = JSONObject(open(raw)); JfaConn(normalizeJfaGoBaseUrl(j.getString("url")), j.getString("username"), j.getString("password"), j.optString("server_name").ifBlank { "My Server" })
     }.getOrNull()
     fun save(ctx: Context, c: JfaConn) {
-        val j = JSONObject().put("url", c.url).put("username", c.username).put("password", c.password)
+        val j = JSONObject().put("url", c.url).put("username", c.username).put("password", c.password).put("server_name", c.serverName)
         check(ctx.getSharedPreferences(PREF, 0).edit().putString(KEY, seal(j.toString())).commit())
     }
     fun clear(ctx: Context) { ctx.getSharedPreferences(PREF, 0).edit().remove(KEY).apply() }
@@ -96,7 +96,7 @@ private object JfaApi {
     private fun request(c: JfaConn, path: String, method: String = "GET", body: JSONObject? = null,
                         bearer: String? = null, basic: Boolean = false, cookie: String? = null): Pair<String, String?> {
         val u = URL(normalizeJfaGoBaseUrl(c.url) + path)
-        require(u.protocol == "https" || u.protocol == "http") { "Use a valid JFA-Go HTTP or HTTPS URL." }
+        require(u.protocol == "https" || u.protocol == "http") { "Use a valid Allerion HTTP or HTTPS URL." }
         val h = u.openConnection() as HttpURLConnection
         try {
             h.requestMethod = method; h.connectTimeout = 10000; h.readTimeout = 15000
@@ -110,7 +110,7 @@ private object JfaApi {
             if (code !in 200..299) {
                 val detail = runCatching { JSONObject(raw).optString("error") }.getOrNull().orEmpty()
                 val html = raw.trimStart().startsWith("<")
-                throw IllegalStateException("JFA-Go HTTP " + code + if (detail.isNotBlank()) ": " + detail else if (html) ". The endpoint returned HTML, not API JSON; check the base URL/path." else ".")
+                throw IllegalStateException("Allerion HTTP " + code + if (detail.isNotBlank()) ": " + detail else if (html) ". The endpoint returned HTML, not API JSON; check the base URL/path." else ".")
             }
             val refresh = h.getHeaderField("Set-Cookie")?.split(";")?.firstOrNull { it.startsWith("refresh=") }?.substringAfter("refresh=")
             return raw to refresh
@@ -119,7 +119,7 @@ private object JfaApi {
     private fun login(c: JfaConn): JfaAuth {
         val (raw, cookie) = request(c, "/token/login", basic = true)
         val token = JSONObject(raw).optString("token")
-        require(token.isNotBlank()) { "JFA-Go did not return an administrator token." }
+        require(token.isNotBlank()) { "Allerion did not return an administrator token." }
         return JfaAuth(token, cookie.orEmpty())
     }
     private fun call(c: JfaConn, a: JfaAuth, path: String, body: JSONObject): Pair<String, JfaAuth> {
@@ -128,7 +128,7 @@ private object JfaApi {
         if (a.refresh.isBlank()) throw first.exceptionOrNull()!!
         val (refreshedRaw, nextCookie) = request(c, "/token/refresh", cookie = a.refresh)
         val next = JfaAuth(JSONObject(refreshedRaw).optString("token"), nextCookie ?: a.refresh)
-        require(next.token.isNotBlank()) { "JFA-Go token refresh failed." }
+        require(next.token.isNotBlank()) { "Allerion token refresh failed." }
         return request(c, path, "POST", body, next.token).first to next
     }
     private fun responseArray(raw: String, key: String): JSONArray {
@@ -136,21 +136,21 @@ private object JfaApi {
         if (text.startsWith("[")) return JSONArray(text)
         if (!text.startsWith("{")) {
             val kind = if (text.startsWith("<!DOCTYPE", true) || text.startsWith("<html", true)) "HTML page" else "plain-text response"
-            throw IllegalStateException("JFA-Go $key endpoint returned a $kind instead of JSON. Check the server URL and API route.")
+            throw IllegalStateException("Allerion $key endpoint returned a $kind instead of JSON. Check the server URL and API route.")
         }
         val root = JSONObject(text)
         val arr = root.optJSONArray(key) ?: root.optJSONArray("activity") ?: root.optJSONArray("items")
         if (arr != null) return arr
-        throw IllegalStateException("JFA-Go returned JSON but the expected '$key' list was missing.")
+        throw IllegalStateException("Allerion returned JSON but the expected '$key' list was missing.")
     }
     fun users(c: JfaConn): List<JSONObject> {
         val auth = login(c)
-        // Match Allerium: JFA-Go's normal user directory is GET /users and returns a JSON array.
+        // Match Allerium: Allerion's normal user directory is GET /users and returns a JSON array.
         val raw = request(c, "/users", bearer = auth.token).first
         val arr = responseArray(raw, "users")
         return (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
     }
-    fun test(c: JfaConn) { require(c.username.isNotBlank() && c.password.isNotBlank()) { "Enter the JFA-Go administrator username and password." }; users(c) }
+    fun test(c: JfaConn) { require(c.username.isNotBlank() && c.password.isNotBlank()) { "Enter the Allerion administrator username and password." }; users(c) }
     fun setEnabled(c: JfaConn, id: String, enabled: Boolean) = setEnabled(c, listOf(id), enabled)
     fun setEnabled(c: JfaConn, ids: List<String>, enabled: Boolean, notify: Boolean = false, reason: String = "") { require(ids.isNotEmpty()); val a = login(c); request(c, "/users/enable", "POST", JSONObject().put("users", JSONArray(ids)).put("enabled", enabled).put("notify", notify).put("reason", reason), a.token) }
     fun deleteUser(c: JfaConn, id: String) = deleteUsers(c, listOf(id))
@@ -228,7 +228,7 @@ private object JfaApi {
     fun activity(c: JfaConn): List<JSONObject> {
         var auth = login(c)
         val all = mutableListOf<JSONObject>()
-        // JFA-Go uses zero-indexed pages and reports last_page in its response.
+        // Allerion uses zero-indexed pages and reports last_page in its response.
         for (page in 0 until 100) {
             val body = JSONObject().put("searchTerms", JSONArray()).put("queries", JSONArray())
                 .put("limit", 100).put("page", page).put("sortByField", "time").put("ascending", false)
@@ -236,7 +236,7 @@ private object JfaApi {
             auth = result.second
             val root = JSONObject(result.first)
             val arr = root.optJSONArray("activities")
-                ?: throw IllegalStateException("JFA-Go activity response did not include an activities list.")
+                ?: throw IllegalStateException("Allerion activity response did not include an activities list.")
             for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { all.add(it) }
             if (root.optBoolean("last_page", arr.length() < 100) || arr.length() == 0) break
         }
@@ -246,7 +246,7 @@ private object JfaApi {
 
 private fun copyText(ctx: Context, value: String) {
     val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText("JFA-Go", value))
+    clipboard.setPrimaryClip(ClipData.newPlainText("Allerion", value))
 }
 private fun shareText(ctx: Context, value: String) {
     val intent = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, value)
@@ -295,6 +295,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     var conn by remember { mutableStateOf(JfaStore.load(ctx)) }
     var edit by remember { mutableStateOf(conn == null) }
     var url by remember { mutableStateOf(conn?.url ?: "https://register.alleriafilmotheque.fyi") }
+    var serverName by remember { mutableStateOf(conn?.serverName ?: "Home Server") }
     var username by remember { mutableStateOf(conn?.username ?: "") }
     var password by remember { mutableStateOf(conn?.password ?: "") }
     var busy by remember { mutableStateOf(false) }
@@ -359,7 +360,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             activityLoadError = result.second.exceptionOrNull()?.message
             inviteLoadError = result.third.first.exceptionOrNull()?.message
         } catch (e: CancellationException) { throw e }
-        catch (e: Exception) { error = e.message ?: "Unable to load JFA-Go users." }
+        catch (e: Exception) { error = e.message ?: "Unable to load Allerion users." }
         finally { busy = false }
     }
     Box(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
@@ -373,22 +374,23 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             IconBtn(Ic.Refresh, "Refresh", plain = true, onClick = { refresh++ })
         }
         if (edit) Panel {
-            Label("JFA-Go administrator")
-            Text("Your JFA-Go server is the account source. Credentials are encrypted using Android Keystore.", color = Mut, fontSize = AppType.small)
-            OutlinedTextField(url, { url = it; error = null }, label = { Text("JFA-Go server URL") }, placeholder = { Text("https://your-jfa-go-domain") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Text("Enter the server address only. If you paste the /accounts page URL, Allerion will remove that page path automatically.", color = Dim, fontSize = AppType.caption)
+            Text("Connect a server", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
+            Text("Choose a display name and connect your account directory. Login details are encrypted on this device.", color = Mut, fontSize = AppType.small)
+            OutlinedTextField(serverName, { serverName = it; error = null }, label = { Text("Server name") }, placeholder = { Text("e.g. Home Server") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(url, { url = it; error = null }, label = { Text("Server address") }, placeholder = { Text("https://server.example.com:port") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Text("Enter the full address, including port if required. The friendly name is what Allerion will show in the app.", color = Dim, fontSize = AppType.caption)
             OutlinedTextField(username, { username = it; error = null }, label = { Text("Admin username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(password, { password = it; error = null }, label = { Text("Admin password") }, singleLine = true,
                 visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
             Button(onClick = {
-                val candidate = JfaConn(normalizeJfaGoBaseUrl(url), username.trim(), password)
+                val candidate = JfaConn(normalizeJfaGoBaseUrl(url), username.trim(), password, serverName.trim().ifBlank { "My Server" })
                 busy = true; error = null
                 scope.launch {
                     try {
                         withContext(Dispatchers.IO) { JfaApi.test(candidate) }
-                        JfaStore.save(ctx, candidate); conn = candidate; url = candidate.url; edit = false
+                        JfaStore.save(ctx, candidate); conn = candidate; url = candidate.url; serverName = candidate.serverName; edit = false
                     } catch (e: CancellationException) { throw e }
-                    catch (e: Exception) { error = e.message ?: "JFA-Go connection failed." }
+                    catch (e: Exception) { error = e.message ?: "Allerion connection failed." }
                     finally { busy = false }
                 }
             }, enabled = !busy && url.isNotBlank() && username.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
@@ -399,15 +401,15 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             }
         }
         error?.let { StateMessage(it, true) }
-        if (conn == null) Panel { Text("Connect your JFA-Go administrator account to view registered users.", color = Mut) }
+        if (conn == null) Panel { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { Text("Your account workspace starts here", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold); Text("Connect a server to manage accounts, invitations and access in one place.", color = Mut) } }
         else {
             JfaCompactSurface {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("CONNECTED SERVER", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.0.sp)
-                        Text(conn!!.url.removePrefix("https://").removePrefix("http://"), color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold,
+                        Text("SERVER WORKSPACE", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.0.sp)
+                        Text(conn!!.serverName, color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                        Text("Account directory · Registration control", color = Mut, fontSize = AppType.caption)
+                        Text(conn!!.url.removePrefix("https://").removePrefix("http://"), color = Dim, fontSize = AppType.caption, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                     Row(Modifier.clip(RoundedCornerShape(18.dp)).background((if (busy) Amber else Green).copy(alpha = 0.10f))
                         .padding(horizontal = 9.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -441,12 +443,12 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 }
             }
             actionMessage?.let { StateMessage(it, false) }
-            if (busy && users.isEmpty()) Panel { Text("Loading JFA-Go data…", color = Mut) }
+            if (busy && users.isEmpty()) Panel { Text("Loading Allerion data…", color = Mut) }
             else if (tab == "Users") {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Registered users", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
-                        Text(users.size.toString() + " accounts connected", color = Mut, fontSize = AppType.caption)
+                        Text("Accounts", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold)
+                        Text("Manage people, permissions and account status", color = Mut, fontSize = AppType.caption)
                     }
                     Button(onClick = { newName = ""; newPassword = ""; newEmail = ""; newProfile = ""; dialog = "create" }, enabled = !actionBusy) {
                         Icon24(Ic.Plus, Color.White, 16.dp); Spacer(Modifier.width(6.dp)); Text("Add user")
@@ -572,7 +574,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                         }
                     }
                 }
-                if (filteredUsers.isEmpty()) Panel { Text(if (users.isEmpty()) "No accounts returned by JFA-Go." else "No users match this search and filter.", color = Mut) }
+                if (filteredUsers.isEmpty()) Panel { Text(if (users.isEmpty()) "No accounts returned by Allerion." else "No users match this search and filter.", color = Mut) }
                 pageUsers.forEach { u ->
                     val disabled = u.optBoolean("disabled")
                     val expiry = u.optLong("expiry")
@@ -617,7 +619,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                                     Text(if (disabled) "DISABLED" else "ACTIVE", color = if (disabled) Amber else Green, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
                                 }
                                 if (u.optBoolean("admin")) Text("Jellyfin admin", color = Mut, fontSize = AppType.caption)
-                                if (u.optBoolean("accounts_admin")) Text("JFA-Go admin", color = Red, fontSize = AppType.caption)
+                                if (u.optBoolean("accounts_admin")) Text("Allerion admin", color = Red, fontSize = AppType.caption)
                             }
                         }
                         Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.55f)))
@@ -671,7 +673,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                         Text("Uses remaining: " + inv.optString("remaining-uses", "—"), color = Dim, fontSize = AppType.caption)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick = { copyText(ctx, inv.optString("code")) ; actionMessage = "Invitation code copied." }) { Text("Copy code") }
-                            TextButton(onClick = { shareText(ctx, "JFA-Go invitation: " + inv.optString("code")) }) { Text("Share") }
+                            TextButton(onClick = { shareText(ctx, "Allerion invitation: " + inv.optString("code")) }) { Text("Share") }
                         }
                         TextButton(enabled = !actionBusy, onClick = { selected = inv; dialog = "delete_invite" }) { Text("Delete invitation", color = Color(0xFFFF6878)) }
                     }
@@ -721,20 +723,20 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 }
             }
         }
-        Text("JFA-Go manages account registration and expiry. Jellyfin playback sessions and connected-device monitoring are separate.", color = Dim, fontSize = AppType.caption)
+        Text("Allerion manages account registration and expiry. Jellyfin playback sessions and connected-device monitoring are separate.", color = Dim, fontSize = AppType.caption)
       }
     }
 
-    if (dialog == "create") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Create JFA-Go user", color = Txt) },
+    if (dialog == "create") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Create Allerion user", color = Txt) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedTextField(newName, { newName = it }, label = { Text("Username") })
             OutlinedTextField(newPassword, { newPassword = it }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation())
             OutlinedTextField(newEmail, { newEmail = it }, label = { Text("Email (optional)") })
             Text("Jellyfin permission profile (optional)", color = Mut, fontSize = AppType.caption)
             Box {
-                OutlinedButton(onClick = { profileMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(if (newProfile.isBlank()) "Use JFA-Go default profile" else newProfile) }
+                OutlinedButton(onClick = { profileMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(if (newProfile.isBlank()) "Use Allerion default profile" else newProfile) }
                 DropdownMenu(expanded = profileMenu, onDismissRequest = { profileMenu = false }) {
-                    DropdownMenuItem(text = { Text("JFA-Go default profile") }, onClick = { newProfile = ""; profileMenu = false })
+                    DropdownMenuItem(text = { Text("Server default profile") }, onClick = { newProfile = ""; profileMenu = false })
                     profileNames.forEach { p -> DropdownMenuItem(text = { Text(p) }, onClick = { newProfile = p; profileMenu = false }) }
                 }
             }
@@ -781,7 +783,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     if (dialog == "expiry_automation") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
         title = { Text("Automatic account expiry", color = Txt) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("These are JFA-Go server-wide expiry rules. They apply to accounts with an expiry set.", color = Mut, fontSize = AppType.caption)
+            Text("These are Allerion server-wide expiry rules. They apply to accounts with an expiry set.", color = Mut, fontSize = AppType.caption)
             Box {
                 OutlinedButton(onClick = { expiryBehaviourMenu = true }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (expiryBehaviour == "delete_user") "Delete account on expiry" else "Disable account on expiry", color = Txt)
@@ -803,7 +805,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             scope.launch { try {
                 withContext(Dispatchers.IO) { JfaApi.saveExpiryAutomation(conn!!, expiryBehaviour, if (expiryBehaviour == "disable_user") expiryAutoDeleteDays.ifBlank { "0" } else "0", expirySendEmail, reminders) }
                 expiryAutoSettings = withContext(Dispatchers.IO) { JfaApi.expiryAutomation(conn!!) }
-                dialog = ""; actionMessage = "JFA-Go expiry automation updated."
+                dialog = ""; actionMessage = "Allerion expiry automation updated."
             } catch (e: Exception) { actionMessage = e.message ?: "Could not update expiry automation." }
             finally { actionBusy = false } }
         }) { Text("Save rules", color = Red) } },
@@ -829,7 +831,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     if (dialog == "access") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
         title = { Text("Account access & profile", color = Txt) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(editAccountsAdmin, { editAccountsAdmin = it }); Text("JFA-Go administrator access", color = Mut) }
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(editAccountsAdmin, { editAccountsAdmin = it }); Text("Server administrator access", color = Mut) }
             Text("Apply a saved profile to update Jellyfin policy, including administrator and library permissions.", color = Mut, fontSize = AppType.caption)
             Box {
                 OutlinedButton(onClick = { profileMenu = true }, modifier = Modifier.fillMaxWidth()) {
@@ -839,7 +841,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                     profileNames.forEach { p -> DropdownMenuItem(text = { Text(p) }, onClick = { selectedProfile = p; profileMenu = false }) }
                 }
             }
-            if (profileNames.isEmpty()) Text("No profiles were returned by JFA-Go.", color = Amber, fontSize = AppType.caption)
+            if (profileNames.isEmpty()) Text("No profiles were returned by Allerion.", color = Amber, fontSize = AppType.caption)
         } },
         confirmButton = { TextButton(enabled = !actionBusy, onClick = {
             actionBusy = true; val u = editingUser ?: return@TextButton
@@ -872,14 +874,14 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             catch (e: Exception) { actionMessage = e.message ?: "Invitation deletion failed." } finally { actionBusy = false }
         } }) { Text("Delete", color = Color(0xFFFF6878)) } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
-    if (dialog == "reset") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Generate password reset", color = Txt) }, text = { Text("Generate a JFA-Go password reset link for " + selected?.optString("name").orEmpty() + "?", color = Mut) },
+    if (dialog == "reset") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Generate password reset", color = Txt) }, text = { Text("Generate a Allerion password reset link for " + selected?.optString("name").orEmpty() + "?", color = Mut) },
         confirmButton = { TextButton(enabled = !actionBusy, onClick = { actionBusy = true; scope.launch { try { val result = withContext(Dispatchers.IO) { JfaApi.resetPassword(conn!!, selected!!.getString("id")) }; val link = result.optString("link").ifBlank { result.optString("url") }
                             resetLink = link
-                            actionMessage = if (link.isBlank()) "JFA-Go accepted the reset request, but returned no link." else "Password reset link is ready."
+                            actionMessage = if (link.isBlank()) "Allerion accepted the reset request, but returned no link." else "Password reset link is ready."
                             dialog = "" } catch (e: Exception) { actionMessage = e.message ?: "Password reset failed." } finally { actionBusy = false } } }) { Text("Generate", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (dialog == "delete") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Delete account?", color = Txt) },
         text = { Column {
-            Text("Permanently delete " + selected?.optString("name").orEmpty() + " from JFA-Go?", color = Mut)
+            Text("Permanently delete " + selected?.optString("name").orEmpty() + " from Allerion?", color = Mut)
             Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(actionNotify, { actionNotify = it }); Text("Notify user", color = Mut) }
             OutlinedTextField(actionReason, { actionReason = it }, label = { Text("Reason (optional)") }, modifier = Modifier.fillMaxWidth())
         } },
@@ -891,7 +893,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             listOf("Email" to u.optString("email"), "Label" to u.optString("label"), "ID" to u.optString("id"),
                 "Expiry" to u.optLong("expiry").let { if (it <= 0) "No expiry" else java.text.SimpleDateFormat("d MMM yyyy, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it)) },
                 "Status" to if (u.optBoolean("disabled")) "Disabled" else "Active",
-                "Jellyfin admin" to u.optBoolean("admin").toString(), "JFA-Go admin" to u.optBoolean("accounts_admin").toString()).forEach { (k,v) ->
+                "Jellyfin admin" to u.optBoolean("admin").toString(), "Allerion admin" to u.optBoolean("accounts_admin").toString()).forEach { (k,v) ->
                 if (v.isNotBlank()) Text("$k · $v", color = Mut)
             }
         } },
