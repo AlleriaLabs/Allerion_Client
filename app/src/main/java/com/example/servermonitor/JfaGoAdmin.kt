@@ -392,7 +392,10 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
         "email_confirmation" to setOf("enabled", "subject"),
         "captcha" to setOf("enabled", "recaptcha", "recaptcha_site_key", "recaptcha_secret_key", "recaptcha_hostname"),
         "password_validation" to setOf("enabled", "min_length", "upper", "lower", "number", "special"),
-        "invite_emails" to setOf("enabled", "subject")
+        "invite_emails" to setOf("enabled", "subject"),
+        "discord" to setOf("show_on_reg"),
+        "telegram" to setOf("show_on_reg"),
+        "matrix" to setOf("show_on_reg")
     )
     val registrationSections = registrationSettingKeys.keys.toList()
 
@@ -778,7 +781,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 }
             } else if (tab == "Registration") {
                 Text("Registration controls", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold)
-                Text("Configure signup fields, email verification, CAPTCHA and password rules. Settings are read from and saved to the connected server. Changes marked as requiring restart need a server restart before taking effect.", color = Mut, fontSize = AppType.caption)
+                Text("Configure signup fields, email verification, CAPTCHA and password rules. Signups remain invitation-based: the server requires a valid invitation code. Settings are read from and saved to the connected server. Changes marked as requiring restart need a server restart before taking effect.", color = Mut, fontSize = AppType.caption)
                 if (registrationConfig == null) {
                     Panel { Text("Registration settings are unavailable from this server. Check its version and administrator permissions.", color = Amber) }
                 } else {
