@@ -758,6 +758,14 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                         val used = inv.optJSONObject("used_by")?.length() ?: 0
                         val validTill = inv.optLong("valid_till")
                         Text((if (noLimit) "Unlimited uses" else "$remaining uses remaining") + " · $used registrations", color = Dim, fontSize = AppType.caption)
+                        inv.optJSONObject("used_by")?.let { registrations ->
+                            registrations.keys().asSequence().toList().sortedByDescending { registrations.optLong(it) }.take(5).forEach { registeredUser ->
+                                val registeredAt = registrations.optLong(registeredUser)
+                                val registeredDate = if (registeredAt > 0L) java.text.SimpleDateFormat("d MMM yyyy, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(registeredAt * 1000L)) else "Date unavailable"
+                                Text("Registered by $registeredUser · $registeredDate", color = Mut, fontSize = AppType.caption)
+                            }
+                            if (registrations.length() > 5) Text("+ ${registrations.length() - 5} more registrations", color = Dim, fontSize = AppType.caption)
+                        }
                         Text("Expires · " + if (validTill > 0) java.text.SimpleDateFormat("d MMM yyyy, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(validTill * 1000L)) else "—", color = Dim, fontSize = AppType.caption)
                         if (inv.optString("profile").isNotBlank()) Text("Profile · " + inv.optString("profile"), color = Mut, fontSize = AppType.caption)
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
