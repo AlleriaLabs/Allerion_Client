@@ -487,7 +487,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                             OutlinedButton(
                                 modifier = Modifier.weight(1f).height(38.dp),
                                 enabled = !actionBusy,
-                                onClick = { dialog = "bulk_disable" },
+                                onClick = { actionNotify = false; actionReason = ""; dialog = "bulk_disable" },
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                 shape = RoundedCornerShape(11.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Amber)
@@ -499,7 +499,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                             OutlinedButton(
                                 modifier = Modifier.weight(1f).height(38.dp),
                                 enabled = !actionBusy,
-                                onClick = { dialog = "bulk_enable" },
+                                onClick = { actionNotify = false; actionReason = ""; dialog = "bulk_enable" },
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                 shape = RoundedCornerShape(11.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Green)
@@ -511,7 +511,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                             OutlinedButton(
                                 modifier = Modifier.weight(1f).height(38.dp),
                                 enabled = !actionBusy,
-                                onClick = { dialog = "bulk_delete" },
+                                onClick = { actionNotify = false; actionReason = ""; dialog = "bulk_delete" },
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                 shape = RoundedCornerShape(11.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF6878))
@@ -577,7 +577,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                         }
                         Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.55f)))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                            JfaAction("Extend expiry", Ic.Clock) { selected = u; expiryDays = "30"; dialog = "expiry" }
+                            JfaAction("Extend expiry", Ic.Clock) { selected = u; expiryMonths = "0"; expiryDays = "30"; expiryHours = "0"; expiryMinutes = "0"; expiryNotify = false; expiryReason = ""; dialog = "expiry" }
                             Spacer(Modifier.width(6.dp))
                             JfaAction("Reset password", Ic.Refresh) { selected = u; dialog = "reset" }
                             Spacer(Modifier.width(6.dp))
@@ -585,7 +585,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                                 selected = u; actionNotify = false; actionReason = ""; dialog = "status"
                             }
                             Spacer(Modifier.width(6.dp))
-                            JfaAction("Delete account", Ic.Trash, Color(0xFFFF6878), !actionBusy) { selected = u; dialog = "delete" }
+                            JfaAction("Delete account", Ic.Trash, Color(0xFFFF6878), !actionBusy) { selected = u; actionNotify = false; actionReason = ""; dialog = "delete" }
                         }
                     }
                 }
@@ -703,13 +703,17 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     if (dialog == "bulk_enable" || dialog == "bulk_disable" || dialog == "bulk_delete") AlertDialog(
         onDismissRequest = { if (!actionBusy) dialog = "" },
         title = { Text(if (dialog == "bulk_delete") "Delete selected accounts?" else "Change selected accounts?", color = Txt) },
-        text = { Text(if (dialog == "bulk_delete") "Permanently delete ${selectedIds.size} selected accounts?" else "Apply this status change to ${selectedIds.size} selected accounts?", color = Mut) },
+        text = { Column {
+            Text(if (dialog == "bulk_delete") "Permanently delete ${selectedIds.size} selected accounts?" else "Apply this status change to ${selectedIds.size} selected accounts?", color = Mut)
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(actionNotify, { actionNotify = it }); Text("Notify affected users", color = Mut) }
+            OutlinedTextField(actionReason, { actionReason = it }, label = { Text("Reason (optional)") }, modifier = Modifier.fillMaxWidth())
+        } },
         confirmButton = { TextButton(enabled = !actionBusy && selectedIds.isNotEmpty(), onClick = {
             val mode = dialog; actionBusy = true
             scope.launch { try {
                 withContext(Dispatchers.IO) {
-                    if (mode == "bulk_delete") JfaApi.deleteUsers(conn!!, selectedIds.toList())
-                    else JfaApi.setEnabled(conn!!, selectedIds.toList(), mode == "bulk_enable")
+                    if (mode == "bulk_delete") JfaApi.deleteUsers(conn!!, selectedIds.toList(), actionNotify, actionReason)
+                    else JfaApi.setEnabled(conn!!, selectedIds.toList(), mode == "bulk_enable", actionNotify, actionReason)
                 }
                 selectedIds = emptySet(); dialog = ""; refresh++; actionMessage = "Bulk action completed."
             } catch (e: Exception) { actionMessage = e.message ?: "Bulk action failed." }
@@ -786,8 +790,13 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                             resetLink = link
                             actionMessage = if (link.isBlank()) "JFA-Go accepted the reset request, but returned no link." else "Password reset link is ready."
                             dialog = "" } catch (e: Exception) { actionMessage = e.message ?: "Password reset failed." } finally { actionBusy = false } } }) { Text("Generate", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
-    if (dialog == "delete") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Delete account?", color = Txt) }, text = { Text("Permanently delete " + selected?.optString("name").orEmpty() + " from JFA-Go?", color = Mut) },
-        confirmButton = { TextButton(enabled = !actionBusy, onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.deleteUser(conn!!, selected!!.getString("id")) }; dialog = ""; refresh++; actionMessage = "Account deleted." } catch (e: Exception) { actionMessage = e.message ?: "Account deletion failed." } finally { actionBusy = false } } }) { Text("Delete", color = Color(0xFFFF6878)) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    if (dialog == "delete") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Delete account?", color = Txt) },
+        text = { Column {
+            Text("Permanently delete " + selected?.optString("name").orEmpty() + " from JFA-Go?", color = Mut)
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(actionNotify, { actionNotify = it }); Text("Notify user", color = Mut) }
+            OutlinedTextField(actionReason, { actionReason = it }, label = { Text("Reason (optional)") }, modifier = Modifier.fillMaxWidth())
+        } },
+        confirmButton = { TextButton(enabled = !actionBusy, onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.deleteUsers(conn!!, listOf(selected!!.getString("id")), actionNotify, actionReason) }; dialog = ""; refresh++; actionMessage = "Account deleted." } catch (e: Exception) { actionMessage = e.message ?: "Account deletion failed." } finally { actionBusy = false } } }) { Text("Delete", color = Color(0xFFFF6878)) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (detailUser != null) AlertDialog(onDismissRequest = { detailUser = null },
         title = { Text(detailUser?.optString("name", "Account") ?: "Account", color = Txt) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -809,6 +818,13 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 selectedProfile = profileNames.firstOrNull().orEmpty()
                 detailUser = null; dialog = "access"
             }) { Text("Access & profile", color = Red) }
+            TextButton(onClick = {
+                val u = detailUser!!
+                selected = u
+                detailUser = null
+                scope.launch { try { withContext(Dispatchers.IO) { JfaApi.removeExpiry(conn!!, u.getString("id")) }; refresh++; actionMessage = "Account expiry removed." }
+                    catch (e: Exception) { actionMessage = e.message ?: "Could not remove expiry." } }
+            }, enabled = detailUser?.optLong("expiry", 0L) ?: 0L > 0L) { Text("Remove expiry", color = Amber) }
             TextButton(onClick = { detailUser = null }) { Text("Close", color = Mut) }
         } })
     resetLink?.let { link ->
