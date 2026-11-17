@@ -386,7 +386,15 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     var registrationConfig by remember { mutableStateOf<JSONObject?>(null) }
     var registrationValues by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var registrationSaving by remember { mutableStateOf(false) }
-    val registrationSections = listOf("ui", "email", "email_confirmation", "captcha", "password_validation", "invite_emails")
+    val registrationSettingKeys = mapOf(
+        "ui" to setOf("help_message", "success_message"),
+        "email" to setOf("collect", "required", "require_unique", "no_username"),
+        "email_confirmation" to setOf("enabled", "subject"),
+        "captcha" to setOf("enabled", "recaptcha", "recaptcha_site_key", "recaptcha_secret_key", "recaptcha_hostname"),
+        "password_validation" to setOf("enabled", "min_length", "upper", "lower", "number", "special"),
+        "invite_emails" to setOf("enabled", "subject")
+    )
+    val registrationSections = registrationSettingKeys.keys.toList()
 
     LaunchedEffect(conn, refresh) {
         val c = conn ?: return@LaunchedEffect
@@ -418,7 +426,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                     for (j in 0 until settings.length()) {
                         val item = settings.optJSONObject(j) ?: continue
                         val key = item.optString("setting")
-                        if (key.isBlank()) continue
+                        if (key.isBlank() || key !in registrationSettingKeys[sectionName].orEmpty()) continue
                         val raw = item.opt("value")
                         put("$sectionName.$key", if (raw == null || raw == JSONObject.NULL) "" else raw.toString())
                     }
@@ -762,7 +770,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 }
             } else if (tab == "Registration") {
                 Text("Registration controls", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold)
-                Text("These settings are read from and saved to the connected server. Changes marked as requiring restart may need a server restart before they take effect.", color = Mut, fontSize = AppType.caption)
+                Text("Configure signup fields, email verification, CAPTCHA and password rules. Settings are read from and saved to the connected server. Changes marked as requiring restart need a server restart before taking effect.", color = Mut, fontSize = AppType.caption)
                 if (registrationConfig == null) {
                     Panel { Text("Registration settings are unavailable from this server. Check its version and administrator permissions.", color = Amber) }
                 } else {
@@ -781,7 +789,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                                     val item = settings.optJSONObject(i) ?: continue
                                     val key = item.optString("setting")
                                     val type = item.optString("type")
-                                    if (key.isBlank() || type == "note") continue
+                                    if (key.isBlank() || type == "note" || key !in registrationSettingKeys[sectionName].orEmpty()) continue
                                     val stateKey = "$sectionName.$key"
                                     val label = item.optString("name").ifBlank { key }
                                     val description = item.optString("description")
