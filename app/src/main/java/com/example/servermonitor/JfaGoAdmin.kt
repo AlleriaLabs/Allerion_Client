@@ -152,11 +152,44 @@ private object JfaApi {
     }
     fun test(c: JfaConn) { require(c.username.isNotBlank() && c.password.isNotBlank()) { "Enter the JFA-Go administrator username and password." }; users(c) }
     fun setEnabled(c: JfaConn, id: String, enabled: Boolean) = setEnabled(c, listOf(id), enabled)
-    fun setEnabled(c: JfaConn, ids: List<String>, enabled: Boolean) { require(ids.isNotEmpty()); val a = login(c); request(c, "/users/enable", "POST", JSONObject().put("users", JSONArray(ids)).put("enabled", enabled).put("notify", false), a.token) }
+    fun setEnabled(c: JfaConn, ids: List<String>, enabled: Boolean, notify: Boolean = false, reason: String = "") { require(ids.isNotEmpty()); val a = login(c); request(c, "/users/enable", "POST", JSONObject().put("users", JSONArray(ids)).put("enabled", enabled).put("notify", notify).put("reason", reason), a.token) }
     fun deleteUser(c: JfaConn, id: String) = deleteUsers(c, listOf(id))
-    fun deleteUsers(c: JfaConn, ids: List<String>) { require(ids.isNotEmpty()); val a = login(c); request(c, "/users", "DELETE", JSONObject().put("users", JSONArray(ids)).put("notify", false), a.token) }
+    fun deleteUsers(c: JfaConn, ids: List<String>, notify: Boolean = false, reason: String = "") { require(ids.isNotEmpty()); val a = login(c); request(c, "/users", "DELETE", JSONObject().put("users", JSONArray(ids)).put("notify", notify).put("reason", reason), a.token) }
     fun resetPassword(c: JfaConn, id: String): JSONObject { val a = login(c); return JSONObject(request(c, "/users/password-reset", "POST", JSONObject().put("users", JSONArray().put(id)), a.token).first) }
     fun setExpiry(c: JfaConn, id: String, days: Int) { require(days > 0) { "Days must be greater than zero." }; val a = login(c); request(c, "/users/extend", "POST", JSONObject().put("users", JSONArray().put(id)).put("months", 0).put("days", days).put("hours", 0).put("minutes", 0).put("notify", false), a.token) }
+    fun setExpiry(c: JfaConn, id: String, months: Int, days: Int, hours: Int, minutes: Int, notify: Boolean, reason: String) {
+        require(months >= 0 && days >= 0 && hours >= 0 && minutes >= 0 && (months + days + hours + minutes) > 0) { "Enter a positive expiry duration." }
+        val a = login(c)
+        request(c, "/users/extend", "POST", JSONObject().put("users", JSONArray().put(id))
+            .put("months", months).put("days", days).put("hours", hours).put("minutes", minutes)
+            .put("notify", notify).put("reason", reason).put("tryExtendFromPreviousExpiry", true), a.token)
+    }
+    fun removeExpiry(c: JfaConn, id: String) {
+        val a = login(c)
+        request(c, "/users/" + java.net.URLEncoder.encode(id, "UTF-8") + "/expiry", "DELETE", bearer = a.token)
+    }
+    fun updateEmail(c: JfaConn, id: String, email: String) {
+        val a = login(c); request(c, "/users/emails", "POST", JSONObject().put(id, email), a.token)
+    }
+    fun updateLabel(c: JfaConn, id: String, label: String) {
+        val a = login(c); request(c, "/users/labels", "POST", JSONObject().put(id, label), a.token)
+    }
+    fun setAccountsAdmin(c: JfaConn, id: String, enabled: Boolean) {
+        val a = login(c); request(c, "/users/accounts-admin", "POST", JSONObject().put(id, enabled), a.token)
+    }
+    fun profiles(c: JfaConn): List<String> {
+        val a = login(c); val raw = request(c, "/profiles/names", bearer = a.token).first
+        val arr = JSONObject(raw).optJSONArray("profiles") ?: JSONArray()
+        return (0 until arr.length()).mapNotNull { arr.optString(it).takeIf(String::isNotBlank) }
+    }
+    fun applyProfile(c: JfaConn, id: String, profile: String) {
+        require(profile.isNotBlank()) { "Choose a profile." }
+        val a = login(c)
+        val body = JSONObject().put("from", "profile").put("profile", profile)
+            .put("applyTo", JSONArray().put(id)).put("policy", true)
+            .put("homescreen", false).put("ombi", false).put("jellyseerr", false)
+        request(c, "/users/settings", "POST", body, a.token)
+    }
     fun createUser(c: JfaConn, name: String, password: String, email: String) { require(name.isNotBlank() && password.isNotBlank()) { "Username and password are required." }; val a = login(c); request(c, "/user", "POST", JSONObject().put("username", name.trim()).put("password", password).put("email", email.trim()), a.token) }
     fun invites(c: JfaConn): List<JSONObject> { val a = login(c); val raw = request(c, "/invites", bearer = a.token).first; val arr = responseArray(raw, "invites"); return (0 until arr.length()).mapNotNull { arr.optJSONObject(it) } }
     fun createInvite(c: JfaConn, days: Int, uses: Int) { val a = login(c); val body = JSONObject().put("days", days).put("hours", 0).put("minutes", 0).put("multiple-uses", uses > 1).put("no-limit", false).put("remaining-uses", uses); request(c, "/invites", "POST", body, a.token) }
