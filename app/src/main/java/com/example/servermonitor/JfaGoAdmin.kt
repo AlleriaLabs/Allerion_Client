@@ -886,36 +886,107 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             OutlinedTextField(actionReason, { actionReason = it }, label = { Text("Reason (optional)") }, modifier = Modifier.fillMaxWidth())
         } },
         confirmButton = { TextButton(enabled = !actionBusy, onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.deleteUsers(conn!!, listOf(selected!!.getString("id")), actionNotify, actionReason) }; dialog = ""; refresh++; actionMessage = "Account deleted." } catch (e: Exception) { actionMessage = e.message ?: "Account deletion failed." } finally { actionBusy = false } } }) { Text("Delete", color = Color(0xFFFF6878)) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
-    if (detailUser != null) AlertDialog(onDismissRequest = { detailUser = null },
-        title = { Text(detailUser?.optString("name", "Account") ?: "Account", color = Txt) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            val u = detailUser!!
-            listOf("Email" to u.optString("email"), "Label" to u.optString("label"), "ID" to u.optString("id"),
-                "Expiry" to u.optLong("expiry").let { if (it <= 0) "No expiry" else java.text.SimpleDateFormat("d MMM yyyy, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it)) },
-                "Status" to if (u.optBoolean("disabled")) "Disabled" else "Active",
-                "Jellyfin admin" to u.optBoolean("admin").toString(), "Allerion admin" to u.optBoolean("accounts_admin").toString()).forEach { (k,v) ->
-                if (v.isNotBlank()) Text("$k · $v", color = Mut)
+    if (detailUser != null) {
+        val u = detailUser!!
+        val displayName = u.optString("name").ifBlank { "Account" }
+        val expiryValue = u.optLong("expiry", 0L)
+        val expiryText = if (expiryValue <= 0L) "No expiry" else
+            java.text.SimpleDateFormat("d MMM yyyy, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(expiryValue))
+        val active = !u.optBoolean("disabled")
+        val jellyfinAdmin = u.optBoolean("admin")
+        val allerionAdmin = u.optBoolean("accounts_admin")
+        AlertDialog(
+            onDismissRequest = { detailUser = null },
+            title = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(
+                            Modifier.size(48.dp).clip(CircleShape).background(Red.copy(alpha = 0.13f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(displayName.take(1).uppercase(), color = Red, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(displayName, color = Txt, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
+                            Text("ACCOUNT DETAILS", color = Dim, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = (if (active) Color(0xFF35C98A) else Color(0xFFFF6878)).copy(alpha = 0.13f)
+                        ) {
+                            Text(if (active) "ACTIVE" else "DISABLED",
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                color = if (active) Color(0xFF35C98A) else Color(0xFFFF6878),
+                                fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
+                        Surface(shape = RoundedCornerShape(8.dp), color = Surf2) {
+                            Text(if (jellyfinAdmin) "Jellyfin admin" else "Standard access",
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                color = Mut, fontSize = 11.sp)
+                        }
+                        if (allerionAdmin) Surface(shape = RoundedCornerShape(8.dp), color = Red.copy(alpha = 0.12f)) {
+                            Text("Allerion admin", modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                color = Red, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    @Composable fun DetailRow(label: String, value: String, emphasize: Boolean = false) {
+                        if (value.isNotBlank()) {
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(label.uppercase(), color = Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                                Text(value, color = if (emphasize) Txt else Mut, fontSize = 13.sp,
+                                    fontWeight = if (emphasize) FontWeight.Medium else FontWeight.Normal)
+                            }
+                        }
+                    }
+                    Surface(shape = RoundedCornerShape(12.dp), color = Surf2.copy(alpha = 0.65f)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            DetailRow("Expiry", expiryText, true)
+                            if (u.optString("email").isNotBlank()) DetailRow("Email", u.optString("email"))
+                            if (u.optString("label").isNotBlank()) DetailRow("Account label", u.optString("label"))
+                        }
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("ACCOUNT ID", color = Dim, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                        Text(u.optString("id"), color = Dim, fontSize = 10.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(modifier = Modifier.weight(1f), onClick = {
+                            editingUser = u; editEmail = u.optString("email"); editLabel = u.optString("label")
+                            detailUser = null; dialog = "edit"
+                        }) { Text("Edit details", color = Red, maxLines = 1) }
+                        TextButton(modifier = Modifier.weight(1f), onClick = {
+                            editingUser = u; editAccountsAdmin = u.optBoolean("accounts_admin")
+                            selectedProfile = ""; detailUser = null; dialog = "access"
+                        }) { Text("Access & profile", color = Red, maxLines = 1) }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(modifier = Modifier.weight(1f), enabled = expiryValue > 0L, onClick = {
+                            detailUser = null
+                            scope.launch {
+                                try {
+                                    withContext(Dispatchers.IO) { JfaApi.removeExpiry(conn!!, u.getString("id")) }
+                                    refresh++; actionMessage = "Account expiry removed."
+                                } catch (e: Exception) { actionMessage = e.message ?: "Could not remove expiry." }
+                            }
+                        }) { Text("Remove expiry", color = if (expiryValue > 0L) Amber else Dim, maxLines = 1) }
+                        TextButton(modifier = Modifier.weight(1f), onClick = { detailUser = null }) {
+                            Text("Close", color = Mut, maxLines = 1)
+                        }
+                    }
+                }
             }
-        } },
-        confirmButton = { Row {
-            TextButton(onClick = {
-                val u = detailUser!!; editingUser = u; editEmail = u.optString("email"); editLabel = u.optString("label")
-                detailUser = null; dialog = "edit"
-            }) { Text("Edit details", color = Red) }
-            TextButton(onClick = {
-                val u = detailUser!!; editingUser = u; editAccountsAdmin = u.optBoolean("accounts_admin")
-                selectedProfile = ""
-                detailUser = null; dialog = "access"
-            }) { Text("Access & profile", color = Red) }
-            TextButton(onClick = {
-                val u = detailUser!!
-                selected = u
-                detailUser = null
-                scope.launch { try { withContext(Dispatchers.IO) { JfaApi.removeExpiry(conn!!, u.getString("id")) }; refresh++; actionMessage = "Account expiry removed." }
-                    catch (e: Exception) { actionMessage = e.message ?: "Could not remove expiry." } }
-            }, enabled = (detailUser?.optLong("expiry", 0L) ?: 0L) > 0L) { Text("Remove expiry", color = Amber) }
-            TextButton(onClick = { detailUser = null }) { Text("Close", color = Mut) }
-        } })
+        )
+    }
     resetLink?.let { link ->
         AlertDialog(onDismissRequest = { resetLink = null }, title = { Text("Password reset link", color = Txt) },
             text = { Text(link, color = Mut) },
