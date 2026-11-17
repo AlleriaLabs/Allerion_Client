@@ -139,18 +139,31 @@ private object JfaApi {
             throw IllegalStateException("Allerion $key endpoint returned a $kind instead of JSON. Check the server URL and API route.")
         }
         val root = JSONObject(text)
-        val candidates = listOf(key, "items", "results", "data", "response")
+        val candidates = listOf(key, "items", "results", "data", "response", "list", "invite")
         fun findList(value: JSONObject, depth: Int = 0): JSONArray? {
-            if (depth > 3) return null
+            if (depth > 4) return null
             for (candidate in candidates) {
                 val child = value.opt(candidate)
                 when (child) {
                     is JSONArray -> return child
-                    is JSONObject -> findList(child, depth + 1)?.let { return it }
-                    is String -> if (child.trim().startsWith("[")) return runCatching { JSONArray(child) }.getOrNull()
+                    is JSONObject -> {
+                        findList(child, depth + 1)?.let { return it }
+                        // An empty object is a valid empty collection on servers that
+                        // serialize maps instead of arrays (e.g. {"invites": {}}).
+                        if (child.length() == 0) return JSONArray()
+                    }
+                    is String -> {
+                        val encoded = child.trim()
+                        if (encoded.startsWith("[")) return runCatching { JSONArray(encoded) }.getOrNull()
+                        if (encoded.startsWith("{")) {
+                            val nested = runCatching { JSONObject(encoded) }.getOrNull()
+                            if (nested != null) findList(nested, depth + 1)?.let { return it }
+                        }
+                    }
                 }
             }
-            // Some compatible servers serialize keyed collections as { "code": { ... } }.
+            // Some compatible servers serialize collections as keyed maps:
+            // {"INVITE_CODE": { ...invite fields... }}.
             val values = value.keys().asSequence().mapNotNull { name ->
                 value.optJSONObject(name)?.let { item ->
                     if (item.has("code")) item else JSONObject(item.toString()).put("code", name)
