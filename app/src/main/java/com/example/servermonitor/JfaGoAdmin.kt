@@ -177,6 +177,37 @@ private object JfaApi {
     fun setAccountsAdmin(c: JfaConn, id: String, enabled: Boolean) {
         val a = login(c); request(c, "/users/accounts-admin", "POST", JSONObject().put(id, enabled), a.token)
     }
+    fun expiryAutomation(c: JfaConn): JSONObject {
+        val a = login(c)
+        val root = JSONObject(request(c, "/config", bearer = a.token).first)
+        val sections = root.optJSONArray("sections") ?: JSONArray()
+        var settings = JSONObject()
+        for (i in 0 until sections.length()) {
+            val section = sections.optJSONObject(i) ?: continue
+            if (section.optString("section") != "user_expiry") continue
+            val entries = section.optJSONArray("settings") ?: JSONArray()
+            for (j in 0 until entries.length()) {
+                val entry = entries.optJSONObject(j) ?: continue
+                val key = entry.optString("setting")
+                if (key.isBlank()) continue
+                val value = entry.opt("value")
+                settings.put(key, if (value == null || value == JSONObject.NULL) "" else if (value is JSONArray) {
+                    (0 until value.length()).map { value.optString(it) }.joinToString("|")
+                } else value.toString())
+            }
+            break
+        }
+        return settings
+    }
+    fun saveExpiryAutomation(c: JfaConn, behaviour: String, deleteAfterDays: String, sendEmail: Boolean, reminders: String) {
+        val section = JSONObject()
+            .put("behaviour", behaviour)
+            .put("delete_expired_after_days", deleteAfterDays)
+            .put("send_email", sendEmail.toString())
+            .put("send_reminder_n_days_before", reminders)
+        val a = login(c)
+        request(c, "/config", "POST", JSONObject().put("user_expiry", section), a.token)
+    }
     fun profiles(c: JfaConn): List<String> {
         val a = login(c); val raw = request(c, "/profiles/names", bearer = a.token).first
         val arr = JSONObject(raw).optJSONArray("profiles") ?: JSONArray()
@@ -270,6 +301,10 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     var error by remember { mutableStateOf<String?>(null) }
     var users by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var profileNames by remember { mutableStateOf<List<String>>(emptyList()) }
+    var expiryAutoSettings by remember { mutableStateOf<JSONObject?>(null) }
+    var expiryBehaviour by remember { mutableStateOf("disable_user") }; var expiryAutoDeleteDays by remember { mutableStateOf("0") }
+    var expirySendEmail by remember { mutableStateOf(true) }; var expiryReminderDays by remember { mutableStateOf("7") }
+    var expiryBehaviourMenu by remember { mutableStateOf(false) }
     var activity by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var inviteLoadError by remember { mutableStateOf<String?>(null) }
     var activityLoadError by remember { mutableStateOf<String?>(null) }
@@ -313,12 +348,14 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 val loadedActivity = runCatching { JfaApi.activity(c) }
                 val loadedInvites = runCatching { JfaApi.invites(c) }
                 val loadedProfiles = runCatching { JfaApi.profiles(c) }
-                Triple(loadedUsers, loadedActivity, Pair(loadedInvites, loadedProfiles))
+                val loadedExpiryAutomation = runCatching { JfaApi.expiryAutomation(c) }
+                Triple(loadedUsers, loadedActivity, Triple(loadedInvites, loadedProfiles, loadedExpiryAutomation))
             }
             users = result.first
             activity = result.second.getOrDefault(emptyList())
             invites = result.third.first.getOrDefault(emptyList())
             profileNames = result.third.second.getOrDefault(emptyList())
+            expiryAutoSettings = result.third.third.getOrNull()
             activityLoadError = result.second.exceptionOrNull()?.message
             inviteLoadError = result.third.first.exceptionOrNull()?.message
         } catch (e: CancellationException) { throw e }
@@ -385,6 +422,14 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                     JfaMetric(invites.size.toString(), "INVITES", Ic.Plus, Modifier.weight(1f))
                     JfaMetric(activity.size.toString(), "EVENTS", Ic.Activity, Modifier.weight(1f))
                 }
+                OutlinedButton(onClick = {
+                    val cfg = expiryAutoSettings ?: JSONObject()
+                    expiryBehaviour = cfg.optString("behaviour", "disable_user")
+                    expiryAutoDeleteDays = cfg.optString("delete_expired_after_days", "0")
+                    expirySendEmail = cfg.optString("send_email", "true").toBoolean()
+                    expiryReminderDays = cfg.optString("send_reminder_n_days_before", "7").replace("|", ", ")
+                    dialog = "expiry_automation"
+                }, modifier = Modifier.fillMaxWidth()) { Text("Expiry automation & reminders") }
             }
             Row(Modifier.fillMaxWidth().background(Surf, RoundedCornerShape(13.dp))
                 .border(1.dp, Line, RoundedCornerShape(13.dp)).padding(4.dp)) {
@@ -732,6 +777,36 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             finally { actionBusy = false }
             }
         }) { Text(if (dialog == "bulk_delete") "Delete" else "Confirm", color = if (dialog == "bulk_delete") Color(0xFFFF6878) else Red) } },
+        dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    if (dialog == "expiry_automation") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
+        title = { Text("Automatic account expiry", color = Txt) },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("These are JFA-Go server-wide expiry rules. They apply to accounts with an expiry set.", color = Mut, fontSize = AppType.caption)
+            Box {
+                OutlinedButton(onClick = { expiryBehaviourMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (expiryBehaviour == "delete_user") "Delete account on expiry" else "Disable account on expiry", color = Txt)
+                }
+                DropdownMenu(expanded = expiryBehaviourMenu, onDismissRequest = { expiryBehaviourMenu = false }) {
+                    DropdownMenuItem(text = { Text("Disable account on expiry") }, onClick = { expiryBehaviour = "disable_user"; expiryBehaviourMenu = false })
+                    DropdownMenuItem(text = { Text("Delete account on expiry") }, onClick = { expiryBehaviour = "delete_user"; expiryBehaviourMenu = false })
+                }
+            }
+            if (expiryBehaviour == "disable_user") OutlinedTextField(expiryAutoDeleteDays, { expiryAutoDeleteDays = it.filter(Char::isDigit) },
+                label = { Text("Delete disabled account after days (0 = never)") }, modifier = Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(expirySendEmail, { expirySendEmail = it }); Text("Email users when their account expires", color = Mut) }
+            OutlinedTextField(expiryReminderDays, { expiryReminderDays = it }, label = { Text("Reminder days before expiry") },
+                supportingText = { Text("Separate multiple values with commas, e.g. 7, 3, 1") }, modifier = Modifier.fillMaxWidth())
+        } },
+        confirmButton = { TextButton(enabled = !actionBusy, onClick = {
+            actionBusy = true
+            val reminders = expiryReminderDays.split(",").map { it.trim() }.filter { it.isNotBlank() }.joinToString("|")
+            scope.launch { try {
+                withContext(Dispatchers.IO) { JfaApi.saveExpiryAutomation(conn!!, expiryBehaviour, if (expiryBehaviour == "disable_user") expiryAutoDeleteDays.ifBlank { "0" } else "0", expirySendEmail, reminders) }
+                expiryAutoSettings = withContext(Dispatchers.IO) { JfaApi.expiryAutomation(conn!!) }
+                dialog = ""; actionMessage = "JFA-Go expiry automation updated."
+            } catch (e: Exception) { actionMessage = e.message ?: "Could not update expiry automation." }
+            finally { actionBusy = false } }
+        }) { Text("Save rules", color = Red) } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (dialog == "edit") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
         title = { Text("Edit user details", color = Txt) },
