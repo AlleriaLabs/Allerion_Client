@@ -152,12 +152,76 @@ private object JfaApi {
     }
     fun test(c: JfaConn) { require(c.username.isNotBlank() && c.password.isNotBlank()) { "Enter the JFA-Go administrator username and password." }; users(c) }
     fun setEnabled(c: JfaConn, id: String, enabled: Boolean) = setEnabled(c, listOf(id), enabled)
-    fun setEnabled(c: JfaConn, ids: List<String>, enabled: Boolean) { require(ids.isNotEmpty()); val a = login(c); request(c, "/users/enable", "POST", JSONObject().put("users", JSONArray(ids)).put("enabled", enabled).put("notify", false), a.token) }
+    fun setEnabled(c: JfaConn, ids: List<String>, enabled: Boolean, notify: Boolean = false, reason: String = "") { require(ids.isNotEmpty()); val a = login(c); request(c, "/users/enable", "POST", JSONObject().put("users", JSONArray(ids)).put("enabled", enabled).put("notify", notify).put("reason", reason), a.token) }
     fun deleteUser(c: JfaConn, id: String) = deleteUsers(c, listOf(id))
-    fun deleteUsers(c: JfaConn, ids: List<String>) { require(ids.isNotEmpty()); val a = login(c); request(c, "/users", "DELETE", JSONObject().put("users", JSONArray(ids)).put("notify", false), a.token) }
+    fun deleteUsers(c: JfaConn, ids: List<String>, notify: Boolean = false, reason: String = "") { require(ids.isNotEmpty()); val a = login(c); request(c, "/users", "DELETE", JSONObject().put("users", JSONArray(ids)).put("notify", notify).put("reason", reason), a.token) }
     fun resetPassword(c: JfaConn, id: String): JSONObject { val a = login(c); return JSONObject(request(c, "/users/password-reset", "POST", JSONObject().put("users", JSONArray().put(id)), a.token).first) }
     fun setExpiry(c: JfaConn, id: String, days: Int) { require(days > 0) { "Days must be greater than zero." }; val a = login(c); request(c, "/users/extend", "POST", JSONObject().put("users", JSONArray().put(id)).put("months", 0).put("days", days).put("hours", 0).put("minutes", 0).put("notify", false), a.token) }
-    fun createUser(c: JfaConn, name: String, password: String, email: String) { require(name.isNotBlank() && password.isNotBlank()) { "Username and password are required." }; val a = login(c); request(c, "/user", "POST", JSONObject().put("username", name.trim()).put("password", password).put("email", email.trim()), a.token) }
+    fun setExpiry(c: JfaConn, id: String, months: Int, days: Int, hours: Int, minutes: Int, notify: Boolean, reason: String) {
+        require(months >= 0 && days >= 0 && hours >= 0 && minutes >= 0 && (months + days + hours + minutes) > 0) { "Enter a positive expiry duration." }
+        val a = login(c)
+        request(c, "/users/extend", "POST", JSONObject().put("users", JSONArray().put(id))
+            .put("months", months).put("days", days).put("hours", hours).put("minutes", minutes)
+            .put("notify", notify).put("reason", reason).put("try_extend_from_previous_expiry", true), a.token)
+    }
+    fun removeExpiry(c: JfaConn, id: String) {
+        val a = login(c)
+        request(c, "/users/" + java.net.URLEncoder.encode(id, "UTF-8") + "/expiry", "DELETE", bearer = a.token)
+    }
+    fun updateEmail(c: JfaConn, id: String, email: String) {
+        val a = login(c); request(c, "/users/emails", "POST", JSONObject().put(id, email), a.token)
+    }
+    fun updateLabel(c: JfaConn, id: String, label: String) {
+        val a = login(c); request(c, "/users/labels", "POST", JSONObject().put(id, label), a.token)
+    }
+    fun setAccountsAdmin(c: JfaConn, id: String, enabled: Boolean) {
+        val a = login(c); request(c, "/users/accounts-admin", "POST", JSONObject().put(id, enabled), a.token)
+    }
+    fun expiryAutomation(c: JfaConn): JSONObject {
+        val a = login(c)
+        val root = JSONObject(request(c, "/config", bearer = a.token).first)
+        val sections = root.optJSONArray("sections") ?: JSONArray()
+        var settings = JSONObject()
+        for (i in 0 until sections.length()) {
+            val section = sections.optJSONObject(i) ?: continue
+            if (section.optString("section") != "user_expiry") continue
+            val entries = section.optJSONArray("settings") ?: JSONArray()
+            for (j in 0 until entries.length()) {
+                val entry = entries.optJSONObject(j) ?: continue
+                val key = entry.optString("setting")
+                if (key.isBlank()) continue
+                val value = entry.opt("value")
+                settings.put(key, if (value == null || value == JSONObject.NULL) "" else if (value is JSONArray) {
+                    (0 until value.length()).map { value.optString(it) }.joinToString("|")
+                } else value.toString())
+            }
+            break
+        }
+        return settings
+    }
+    fun saveExpiryAutomation(c: JfaConn, behaviour: String, deleteAfterDays: String, sendEmail: Boolean, reminders: String) {
+        val section = JSONObject()
+            .put("behaviour", behaviour)
+            .put("delete_expired_after_days", deleteAfterDays)
+            .put("send_email", sendEmail.toString())
+            .put("send_reminder_n_days_before", reminders)
+        val a = login(c)
+        request(c, "/config", "POST", JSONObject().put("user_expiry", section), a.token)
+    }
+    fun profiles(c: JfaConn): List<String> {
+        val a = login(c); val raw = request(c, "/profiles/names", bearer = a.token).first
+        val arr = JSONObject(raw).optJSONArray("profiles") ?: JSONArray()
+        return (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { value -> value.isNotBlank() } }
+    }
+    fun applyProfile(c: JfaConn, id: String, profile: String) {
+        require(profile.isNotBlank()) { "Choose a profile." }
+        val a = login(c)
+        val body = JSONObject().put("from", "profile").put("profile", profile)
+            .put("apply_to", JSONArray().put(id)).put("configuration", true)
+            .put("homescreen", false).put("ombi", false).put("jellyseerr", false)
+        request(c, "/users/settings", "POST", body, a.token)
+    }
+    fun createUser(c: JfaConn, name: String, password: String, email: String, profile: String = "") { require(name.isNotBlank() && password.isNotBlank()) { "Username and password are required." }; val a = login(c); val body = JSONObject().put("username", name.trim()).put("password", password).put("email", email.trim()); if (profile.isNotBlank()) body.put("profile", profile); request(c, "/user", "POST", body, a.token) }
     fun invites(c: JfaConn): List<JSONObject> { val a = login(c); val raw = request(c, "/invites", bearer = a.token).first; val arr = responseArray(raw, "invites"); return (0 until arr.length()).mapNotNull { arr.optJSONObject(it) } }
     fun createInvite(c: JfaConn, days: Int, uses: Int) { val a = login(c); val body = JSONObject().put("days", days).put("hours", 0).put("minutes", 0).put("multiple-uses", uses > 1).put("no-limit", false).put("remaining-uses", uses); request(c, "/invites", "POST", body, a.token) }
     fun deleteInvite(c: JfaConn, code: String) { val a = login(c); request(c, "/invites", "DELETE", JSONObject().put("code", code), a.token) }
@@ -236,6 +300,11 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var users by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var profileNames by remember { mutableStateOf<List<String>>(emptyList()) }
+    var expiryAutoSettings by remember { mutableStateOf<JSONObject?>(null) }
+    var expiryBehaviour by remember { mutableStateOf("disable_user") }; var expiryAutoDeleteDays by remember { mutableStateOf("0") }
+    var expirySendEmail by remember { mutableStateOf(true) }; var expiryReminderDays by remember { mutableStateOf("7") }
+    var expiryBehaviourMenu by remember { mutableStateOf(false) }
     var activity by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var inviteLoadError by remember { mutableStateOf<String?>(null) }
     var activityLoadError by remember { mutableStateOf<String?>(null) }
@@ -260,8 +329,16 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     var activityPage by remember { mutableIntStateOf(0) }
     var detailUser by remember { mutableStateOf<JSONObject?>(null) }
     var resetLink by remember { mutableStateOf<String?>(null) }
-    var newName by remember { mutableStateOf("") }; var newPassword by remember { mutableStateOf("") }; var newEmail by remember { mutableStateOf("") }
-    var expiryDays by remember { mutableStateOf("30") }; var inviteDays by remember { mutableStateOf("7") }; var inviteUses by remember { mutableStateOf("1") }
+    var newName by remember { mutableStateOf("") }; var newPassword by remember { mutableStateOf("") }; var newEmail by remember { mutableStateOf("") }; var newProfile by remember { mutableStateOf("") }
+    var editEmail by remember { mutableStateOf("") }; var editLabel by remember { mutableStateOf("") }
+    var editingUser by remember { mutableStateOf<JSONObject?>(null) }
+    var editAccountsAdmin by remember { mutableStateOf(false) }; var selectedProfile by remember { mutableStateOf("") }
+    var profileMenu by remember { mutableStateOf(false) }
+    var expiryMonths by remember { mutableStateOf("0") }; var expiryDays by remember { mutableStateOf("30") }
+    var expiryHours by remember { mutableStateOf("0") }; var expiryMinutes by remember { mutableStateOf("0") }
+    var expiryNotify by remember { mutableStateOf(false) }; var expiryReason by remember { mutableStateOf("") }
+    var actionNotify by remember { mutableStateOf(false) }; var actionReason by remember { mutableStateOf("") }
+    var inviteDays by remember { mutableStateOf("7") }; var inviteUses by remember { mutableStateOf("1") }
     LaunchedEffect(conn, refresh) {
         val c = conn ?: return@LaunchedEffect
         busy = true; error = null
@@ -270,13 +347,17 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 val loadedUsers = JfaApi.users(c)
                 val loadedActivity = runCatching { JfaApi.activity(c) }
                 val loadedInvites = runCatching { JfaApi.invites(c) }
-                Triple(loadedUsers, loadedActivity, loadedInvites)
+                val loadedProfiles = runCatching { JfaApi.profiles(c) }
+                val loadedExpiryAutomation = runCatching { JfaApi.expiryAutomation(c) }
+                Triple(loadedUsers, loadedActivity, Triple(loadedInvites, loadedProfiles, loadedExpiryAutomation))
             }
             users = result.first
             activity = result.second.getOrDefault(emptyList())
-            invites = result.third.getOrDefault(emptyList())
+            invites = result.third.first.getOrDefault(emptyList())
+            profileNames = result.third.second.getOrDefault(emptyList())
+            expiryAutoSettings = result.third.third.getOrNull()
             activityLoadError = result.second.exceptionOrNull()?.message
-            inviteLoadError = result.third.exceptionOrNull()?.message
+            inviteLoadError = result.third.first.exceptionOrNull()?.message
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { error = e.message ?: "Unable to load JFA-Go users." }
         finally { busy = false }
@@ -341,6 +422,14 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                     JfaMetric(invites.size.toString(), "INVITES", Ic.Plus, Modifier.weight(1f))
                     JfaMetric(activity.size.toString(), "EVENTS", Ic.Activity, Modifier.weight(1f))
                 }
+                OutlinedButton(onClick = {
+                    val cfg = expiryAutoSettings ?: JSONObject()
+                    expiryBehaviour = cfg.optString("behaviour", "disable_user")
+                    expiryAutoDeleteDays = cfg.optString("delete_expired_after_days", "0")
+                    expirySendEmail = cfg.optString("send_email", "true").toBoolean()
+                    expiryReminderDays = cfg.optString("send_reminder_n_days_before", "7").replace("|", ", ")
+                    dialog = "expiry_automation"
+                }, modifier = Modifier.fillMaxWidth()) { Text("Expiry automation & reminders") }
             }
             Row(Modifier.fillMaxWidth().background(Surf, RoundedCornerShape(13.dp))
                 .border(1.dp, Line, RoundedCornerShape(13.dp)).padding(4.dp)) {
@@ -359,7 +448,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                         Text("Registered users", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
                         Text(users.size.toString() + " accounts connected", color = Mut, fontSize = AppType.caption)
                     }
-                    Button(onClick = { newName = ""; newPassword = ""; newEmail = ""; dialog = "create" }, enabled = !actionBusy) {
+                    Button(onClick = { newName = ""; newPassword = ""; newEmail = ""; newProfile = ""; dialog = "create" }, enabled = !actionBusy) {
                         Icon24(Ic.Plus, Color.White, 16.dp); Spacer(Modifier.width(6.dp)); Text("Add user")
                     }
                 }
@@ -443,7 +532,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                             OutlinedButton(
                                 modifier = Modifier.weight(1f).height(38.dp),
                                 enabled = !actionBusy,
-                                onClick = { dialog = "bulk_disable" },
+                                onClick = { actionNotify = false; actionReason = ""; dialog = "bulk_disable" },
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                 shape = RoundedCornerShape(11.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Amber)
@@ -455,7 +544,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                             OutlinedButton(
                                 modifier = Modifier.weight(1f).height(38.dp),
                                 enabled = !actionBusy,
-                                onClick = { dialog = "bulk_enable" },
+                                onClick = { actionNotify = false; actionReason = ""; dialog = "bulk_enable" },
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                 shape = RoundedCornerShape(11.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Green)
@@ -467,7 +556,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                             OutlinedButton(
                                 modifier = Modifier.weight(1f).height(38.dp),
                                 enabled = !actionBusy,
-                                onClick = { dialog = "bulk_delete" },
+                                onClick = { actionNotify = false; actionReason = ""; dialog = "bulk_delete" },
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                 shape = RoundedCornerShape(11.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFF6878))
@@ -533,17 +622,15 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                         }
                         Box(Modifier.fillMaxWidth().height(1.dp).background(Line.copy(alpha = 0.55f)))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                            JfaAction("Extend expiry", Ic.Clock) { selected = u; expiryDays = "30"; dialog = "expiry" }
+                            JfaAction("Extend expiry", Ic.Clock) { selected = u; expiryMonths = "0"; expiryDays = "30"; expiryHours = "0"; expiryMinutes = "0"; expiryNotify = false; expiryReason = ""; dialog = "expiry" }
                             Spacer(Modifier.width(6.dp))
                             JfaAction("Reset password", Ic.Refresh) { selected = u; dialog = "reset" }
                             Spacer(Modifier.width(6.dp))
                             JfaAction(if (disabled) "Enable account" else "Disable account", if (disabled) Ic.Check else Ic.Ban, if (disabled) Green else Amber, !actionBusy) {
-                                val id = u.optString("id"); actionBusy = true
-                                scope.launch { try { withContext(Dispatchers.IO) { JfaApi.setEnabled(conn!!, id, u.optBoolean("disabled")) }; refresh++; actionMessage = "Account status updated." }
-                                    catch (e: Exception) { actionMessage = e.message ?: "Account update failed." } finally { actionBusy = false } }
+                                selected = u; actionNotify = false; actionReason = ""; dialog = "status"
                             }
                             Spacer(Modifier.width(6.dp))
-                            JfaAction("Delete account", Ic.Trash, Color(0xFFFF6878), !actionBusy) { selected = u; dialog = "delete" }
+                            JfaAction("Delete account", Ic.Trash, Color(0xFFFF6878), !actionBusy) { selected = u; actionNotify = false; actionReason = ""; dialog = "delete" }
                         }
                     }
                 }
@@ -639,27 +726,143 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     }
 
     if (dialog == "create") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Create JFA-Go user", color = Txt) },
-        text = { Column { OutlinedTextField(newName, { newName = it }, label = { Text("Username") }); OutlinedTextField(newPassword, { newPassword = it }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation()); OutlinedTextField(newEmail, { newEmail = it }, label = { Text("Email (optional)") }) } },
-        confirmButton = { TextButton(enabled = !actionBusy && newName.isNotBlank() && newPassword.isNotBlank(), onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.createUser(conn!!, newName, newPassword, newEmail) }; dialog = ""; refresh++; actionMessage = "User created successfully." } catch (e: Exception) { actionMessage = e.message ?: "User creation failed." } finally { actionBusy = false } } }) { Text("Create", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
-    if (dialog == "expiry") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Extend account expiry", color = Txt) },
-        text = { OutlinedTextField(expiryDays, { expiryDays = it.filter(Char::isDigit) }, label = { Text("Additional days") }) },
-        confirmButton = { TextButton(enabled = !actionBusy && (expiryDays.toIntOrNull() ?: 0) > 0, onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.setExpiry(conn!!, selected!!.getString("id"), expiryDays.toInt()) }; dialog = ""; refresh++; actionMessage = "Expiry extended." } catch (e: Exception) { actionMessage = e.message ?: "Expiry update failed." } finally { actionBusy = false } } }) { Text("Apply", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+        text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedTextField(newName, { newName = it }, label = { Text("Username") })
+            OutlinedTextField(newPassword, { newPassword = it }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation())
+            OutlinedTextField(newEmail, { newEmail = it }, label = { Text("Email (optional)") })
+            Text("Jellyfin permission profile (optional)", color = Mut, fontSize = AppType.caption)
+            Box {
+                OutlinedButton(onClick = { profileMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(if (newProfile.isBlank()) "Use JFA-Go default profile" else newProfile) }
+                DropdownMenu(expanded = profileMenu, onDismissRequest = { profileMenu = false }) {
+                    DropdownMenuItem(text = { Text("JFA-Go default profile") }, onClick = { newProfile = ""; profileMenu = false })
+                    profileNames.forEach { p -> DropdownMenuItem(text = { Text(p) }, onClick = { newProfile = p; profileMenu = false }) }
+                }
+            }
+        } },
+        confirmButton = { TextButton(enabled = !actionBusy && newName.isNotBlank() && newPassword.isNotBlank(), onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.createUser(conn!!, newName, newPassword, newEmail, newProfile) }; dialog = ""; refresh++; actionMessage = "User created successfully." } catch (e: Exception) { actionMessage = e.message ?: "User creation failed." } finally { actionBusy = false } } }) { Text("Create", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    if (dialog == "expiry") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Account expiry", color = Txt) },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("Extend from the current expiry, or create one if the account has none.", color = Mut, fontSize = AppType.caption)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedTextField(expiryMonths, { expiryMonths = it.filter(Char::isDigit) }, label = { Text("Months") }, modifier = Modifier.weight(1f))
+                OutlinedTextField(expiryDays, { expiryDays = it.filter(Char::isDigit) }, label = { Text("Days") }, modifier = Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedTextField(expiryHours, { expiryHours = it.filter(Char::isDigit) }, label = { Text("Hours") }, modifier = Modifier.weight(1f))
+                OutlinedTextField(expiryMinutes, { expiryMinutes = it.filter(Char::isDigit) }, label = { Text("Minutes") }, modifier = Modifier.weight(1f))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(expiryNotify, { expiryNotify = it }); Text("Notify user", color = Mut) }
+            OutlinedTextField(expiryReason, { expiryReason = it }, label = { Text("Reason (optional)") }, modifier = Modifier.fillMaxWidth())
+        } },
+        confirmButton = { TextButton(enabled = !actionBusy && ((expiryMonths.toIntOrNull() ?: 0) + (expiryDays.toIntOrNull() ?: 0) + (expiryHours.toIntOrNull() ?: 0) + (expiryMinutes.toIntOrNull() ?: 0) > 0), onClick = {
+            actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.setExpiry(conn!!, selected!!.getString("id"), expiryMonths.toIntOrNull() ?: 0, expiryDays.toIntOrNull() ?: 0, expiryHours.toIntOrNull() ?: 0, expiryMinutes.toIntOrNull() ?: 0, expiryNotify, expiryReason) }; dialog = ""; refresh++; actionMessage = "Expiry updated." } catch (e: Exception) { actionMessage = e.message ?: "Expiry update failed." } finally { actionBusy = false } }
+        }) { Text("Apply", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (dialog == "bulk_enable" || dialog == "bulk_disable" || dialog == "bulk_delete") AlertDialog(
         onDismissRequest = { if (!actionBusy) dialog = "" },
         title = { Text(if (dialog == "bulk_delete") "Delete selected accounts?" else "Change selected accounts?", color = Txt) },
-        text = { Text(if (dialog == "bulk_delete") "Permanently delete ${selectedIds.size} selected accounts?" else "Apply this status change to ${selectedIds.size} selected accounts?", color = Mut) },
+        text = { Column {
+            Text(if (dialog == "bulk_delete") "Permanently delete ${selectedIds.size} selected accounts?" else "Apply this status change to ${selectedIds.size} selected accounts?", color = Mut)
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(actionNotify, { actionNotify = it }); Text("Notify affected users", color = Mut) }
+            OutlinedTextField(actionReason, { actionReason = it }, label = { Text("Reason (optional)") }, modifier = Modifier.fillMaxWidth())
+        } },
         confirmButton = { TextButton(enabled = !actionBusy && selectedIds.isNotEmpty(), onClick = {
             val mode = dialog; actionBusy = true
             scope.launch { try {
                 withContext(Dispatchers.IO) {
-                    if (mode == "bulk_delete") JfaApi.deleteUsers(conn!!, selectedIds.toList())
-                    else JfaApi.setEnabled(conn!!, selectedIds.toList(), mode == "bulk_enable")
+                    if (mode == "bulk_delete") JfaApi.deleteUsers(conn!!, selectedIds.toList(), actionNotify, actionReason)
+                    else JfaApi.setEnabled(conn!!, selectedIds.toList(), mode == "bulk_enable", actionNotify, actionReason)
                 }
                 selectedIds = emptySet(); dialog = ""; refresh++; actionMessage = "Bulk action completed."
             } catch (e: Exception) { actionMessage = e.message ?: "Bulk action failed." }
             finally { actionBusy = false }
             }
         }) { Text(if (dialog == "bulk_delete") "Delete" else "Confirm", color = if (dialog == "bulk_delete") Color(0xFFFF6878) else Red) } },
+        dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    if (dialog == "expiry_automation") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
+        title = { Text("Automatic account expiry", color = Txt) },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("These are JFA-Go server-wide expiry rules. They apply to accounts with an expiry set.", color = Mut, fontSize = AppType.caption)
+            Box {
+                OutlinedButton(onClick = { expiryBehaviourMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (expiryBehaviour == "delete_user") "Delete account on expiry" else "Disable account on expiry", color = Txt)
+                }
+                DropdownMenu(expanded = expiryBehaviourMenu, onDismissRequest = { expiryBehaviourMenu = false }) {
+                    DropdownMenuItem(text = { Text("Disable account on expiry") }, onClick = { expiryBehaviour = "disable_user"; expiryBehaviourMenu = false })
+                    DropdownMenuItem(text = { Text("Delete account on expiry") }, onClick = { expiryBehaviour = "delete_user"; expiryBehaviourMenu = false })
+                }
+            }
+            if (expiryBehaviour == "disable_user") OutlinedTextField(expiryAutoDeleteDays, { expiryAutoDeleteDays = it.filter(Char::isDigit) },
+                label = { Text("Delete disabled account after days (0 = never)") }, modifier = Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(expirySendEmail, { expirySendEmail = it }); Text("Email users when their account expires", color = Mut) }
+            OutlinedTextField(expiryReminderDays, { expiryReminderDays = it }, label = { Text("Reminder days before expiry") },
+                supportingText = { Text("Separate multiple values with commas, e.g. 7, 3, 1") }, modifier = Modifier.fillMaxWidth())
+        } },
+        confirmButton = { TextButton(enabled = !actionBusy, onClick = {
+            actionBusy = true
+            val reminders = expiryReminderDays.split(",").map { it.trim() }.filter { it.isNotBlank() }.joinToString("|")
+            scope.launch { try {
+                withContext(Dispatchers.IO) { JfaApi.saveExpiryAutomation(conn!!, expiryBehaviour, if (expiryBehaviour == "disable_user") expiryAutoDeleteDays.ifBlank { "0" } else "0", expirySendEmail, reminders) }
+                expiryAutoSettings = withContext(Dispatchers.IO) { JfaApi.expiryAutomation(conn!!) }
+                dialog = ""; actionMessage = "JFA-Go expiry automation updated."
+            } catch (e: Exception) { actionMessage = e.message ?: "Could not update expiry automation." }
+            finally { actionBusy = false } }
+        }) { Text("Save rules", color = Red) } },
+        dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    if (dialog == "edit") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
+        title = { Text("Edit user details", color = Txt) },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Update the contact email and account label.", color = Mut, fontSize = AppType.caption)
+            OutlinedTextField(editEmail, { editEmail = it }, label = { Text("Email address") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedTextField(editLabel, { editLabel = it }, label = { Text("User label") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        } },
+        confirmButton = { TextButton(enabled = !actionBusy, onClick = {
+            actionBusy = true; val u = editingUser ?: return@TextButton
+            scope.launch { try {
+                withContext(Dispatchers.IO) {
+                    JfaApi.updateEmail(conn!!, u.getString("id"), editEmail.trim())
+                    JfaApi.updateLabel(conn!!, u.getString("id"), editLabel.trim())
+                }
+                dialog = ""; refresh++; actionMessage = "User details updated."
+            } catch (e: Exception) { actionMessage = e.message ?: "User details could not be updated." }
+            finally { actionBusy = false } }
+        }) { Text("Save", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    if (dialog == "access") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
+        title = { Text("Account access & profile", color = Txt) },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(editAccountsAdmin, { editAccountsAdmin = it }); Text("JFA-Go administrator access", color = Mut) }
+            Text("Apply a saved profile to update Jellyfin policy, including administrator and library permissions.", color = Mut, fontSize = AppType.caption)
+            Box {
+                OutlinedButton(onClick = { profileMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (selectedProfile.isBlank()) "Choose profile" else selectedProfile, color = Txt)
+                }
+                DropdownMenu(expanded = profileMenu, onDismissRequest = { profileMenu = false }) {
+                    profileNames.forEach { p -> DropdownMenuItem(text = { Text(p) }, onClick = { selectedProfile = p; profileMenu = false }) }
+                }
+            }
+            if (profileNames.isEmpty()) Text("No profiles were returned by JFA-Go.", color = Amber, fontSize = AppType.caption)
+        } },
+        confirmButton = { TextButton(enabled = !actionBusy, onClick = {
+            actionBusy = true; val u = editingUser ?: return@TextButton
+            scope.launch { try {
+                withContext(Dispatchers.IO) {
+                    JfaApi.setAccountsAdmin(conn!!, u.getString("id"), editAccountsAdmin)
+                    if (selectedProfile.isNotBlank()) JfaApi.applyProfile(conn!!, u.getString("id"), selectedProfile)
+                }
+                dialog = ""; refresh++; actionMessage = "Access settings updated."
+            } catch (e: Exception) { actionMessage = e.message ?: "Access settings could not be updated." }
+            finally { actionBusy = false } }
+        }) { Text("Apply", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    if (dialog == "status") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
+        title = { Text("Change account status", color = Txt) },
+        text = { Column {
+            Text("Set " + selected?.optString("name").orEmpty() + " to " + if (selected?.optBoolean("disabled") == true) "active" else "disabled" + "?", color = Mut)
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(actionNotify, { actionNotify = it }); Text("Notify user", color = Mut) }
+            OutlinedTextField(actionReason, { actionReason = it }, label = { Text("Reason (optional)") }, modifier = Modifier.fillMaxWidth())
+        } },
+        confirmButton = { TextButton(enabled = !actionBusy, onClick = { actionBusy = true; scope.launch { try {
+            withContext(Dispatchers.IO) { JfaApi.setEnabled(conn!!, listOf(selected!!.getString("id")), selected!!.optBoolean("disabled"), actionNotify, actionReason) }
+            dialog = ""; refresh++; actionMessage = "Account status updated."
+        } catch (e: Exception) { actionMessage = e.message ?: "Account update failed." } finally { actionBusy = false } } }) { Text("Confirm", color = Red) } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (dialog == "delete_invite") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
         title = { Text("Delete invitation?", color = Txt) },
@@ -674,8 +877,13 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                             resetLink = link
                             actionMessage = if (link.isBlank()) "JFA-Go accepted the reset request, but returned no link." else "Password reset link is ready."
                             dialog = "" } catch (e: Exception) { actionMessage = e.message ?: "Password reset failed." } finally { actionBusy = false } } }) { Text("Generate", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
-    if (dialog == "delete") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Delete account?", color = Txt) }, text = { Text("Permanently delete " + selected?.optString("name").orEmpty() + " from JFA-Go?", color = Mut) },
-        confirmButton = { TextButton(enabled = !actionBusy, onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.deleteUser(conn!!, selected!!.getString("id")) }; dialog = ""; refresh++; actionMessage = "Account deleted." } catch (e: Exception) { actionMessage = e.message ?: "Account deletion failed." } finally { actionBusy = false } } }) { Text("Delete", color = Color(0xFFFF6878)) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    if (dialog == "delete") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Delete account?", color = Txt) },
+        text = { Column {
+            Text("Permanently delete " + selected?.optString("name").orEmpty() + " from JFA-Go?", color = Mut)
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(actionNotify, { actionNotify = it }); Text("Notify user", color = Mut) }
+            OutlinedTextField(actionReason, { actionReason = it }, label = { Text("Reason (optional)") }, modifier = Modifier.fillMaxWidth())
+        } },
+        confirmButton = { TextButton(enabled = !actionBusy, onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.deleteUsers(conn!!, listOf(selected!!.getString("id")), actionNotify, actionReason) }; dialog = ""; refresh++; actionMessage = "Account deleted." } catch (e: Exception) { actionMessage = e.message ?: "Account deletion failed." } finally { actionBusy = false } } }) { Text("Delete", color = Color(0xFFFF6878)) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (detailUser != null) AlertDialog(onDismissRequest = { detailUser = null },
         title = { Text(detailUser?.optString("name", "Account") ?: "Account", color = Txt) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -687,7 +895,25 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 if (v.isNotBlank()) Text("$k · $v", color = Mut)
             }
         } },
-        confirmButton = { TextButton(onClick = { detailUser = null }) { Text("Close", color = Red) } })
+        confirmButton = { Row {
+            TextButton(onClick = {
+                val u = detailUser!!; editingUser = u; editEmail = u.optString("email"); editLabel = u.optString("label")
+                detailUser = null; dialog = "edit"
+            }) { Text("Edit details", color = Red) }
+            TextButton(onClick = {
+                val u = detailUser!!; editingUser = u; editAccountsAdmin = u.optBoolean("accounts_admin")
+                selectedProfile = ""
+                detailUser = null; dialog = "access"
+            }) { Text("Access & profile", color = Red) }
+            TextButton(onClick = {
+                val u = detailUser!!
+                selected = u
+                detailUser = null
+                scope.launch { try { withContext(Dispatchers.IO) { JfaApi.removeExpiry(conn!!, u.getString("id")) }; refresh++; actionMessage = "Account expiry removed." }
+                    catch (e: Exception) { actionMessage = e.message ?: "Could not remove expiry." } }
+            }, enabled = (detailUser?.optLong("expiry", 0L) ?: 0L) > 0L) { Text("Remove expiry", color = Amber) }
+            TextButton(onClick = { detailUser = null }) { Text("Close", color = Mut) }
+        } })
     resetLink?.let { link ->
         AlertDialog(onDismissRequest = { resetLink = null }, title = { Text("Password reset link", color = Txt) },
             text = { Text(link, color = Mut) },
