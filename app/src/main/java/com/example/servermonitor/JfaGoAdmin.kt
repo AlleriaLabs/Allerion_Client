@@ -673,6 +673,14 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                     }
                 }
             } else if (tab == "Invites") {
+                val now = System.currentTimeMillis() / 1000L
+                val activeCount = invites.count { (it.optBoolean("no_limit") || it.optInt("remaining_uses", 1) > 0) && (it.optLong("valid_till") <= 0 || it.optLong("valid_till") >= now) }
+                val usedCount = invites.count { (it.optJSONObject("used_by")?.length() ?: 0) > 0 }
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    JfaMetric(activeCount.toString(), "ACTIVE", Ic.Check, Modifier.weight(1f))
+                    JfaMetric(usedCount.toString(), "USED", Ic.Users, Modifier.weight(1f))
+                    JfaMetric((invites.size - activeCount).coerceAtLeast(0).toString(), "INACTIVE", Ic.Clock, Modifier.weight(1f))
+                }
                 Button(onClick = { inviteMonths = "0"; inviteDays = "7"; inviteHours = "0"; inviteMinutes = "0"; inviteUses = "1"; inviteUnlimited = false; inviteLabel = ""; inviteUserLabel = ""; inviteProfile = ""; inviteUserExpiry = false; inviteUserMonths = "0"; inviteUserDays = "30"; inviteUserHours = "0"; inviteUserMinutes = "0"; dialog = "invite" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) { Text("Create invitation") }
                 inviteLoadError?.let { StateMessage("Invitations could not be loaded: $it", true) }
                 OutlinedTextField(inviteSearch, { inviteSearch = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search invitation code") })
@@ -685,11 +693,11 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 val visibleInvites = invites.filter { inv ->
                     val code = inv.optString("code")
                     val remaining = inv.optInt("remaining-uses", -1)
-                    val expiry = inv.optLong("expiry", inv.optLong("expires"))
+                    val expiry = inv.optLong("valid_till", inv.optLong("expiry", inv.optLong("expires")))
                     val match = when (inviteFilter) {
-                        "Used" -> remaining == 0
+                        "Used" -> (inv.optJSONObject("used_by")?.length() ?: 0) > 0
                         "Expired" -> expiry > 0 && expiry < nowSeconds
-                        "Active" -> remaining != 0 && (expiry <= 0 || expiry >= nowSeconds)
+                        "Active" -> (noLimit || remaining > 0) && (expiry <= 0 || expiry >= nowSeconds)
                         else -> true
                     }
                     match && (inviteSearch.isBlank() || code.contains(inviteSearch, true) || inv.optString("label").contains(inviteSearch, true))
@@ -954,6 +962,13 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             Text("Code · " + selected?.optString("code").orEmpty(), color = Dim, fontSize = AppType.caption)
             OutlinedTextField(inviteLabel, { inviteLabel = it }, label = { Text("Invitation label") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(inviteUserLabel, { inviteUserLabel = it }, label = { Text("New account label") }, modifier = Modifier.fillMaxWidth())
+            Box {
+                OutlinedButton(onClick = { profileMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(if (inviteProfile.isBlank()) "Server default profile" else inviteProfile) }
+                DropdownMenu(expanded = profileMenu, onDismissRequest = { profileMenu = false }) {
+                    DropdownMenuItem(text = { Text("Server default profile") }, onClick = { inviteProfile = ""; profileMenu = false })
+                    profileNames.forEach { p -> DropdownMenuItem(text = { Text(p) }, onClick = { inviteProfile = p; profileMenu = false }) }
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(inviteNotifyCreation, { inviteNotifyCreation = it }); Text("Notify me when used", color = Mut) }
             Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(inviteNotifyExpiry, { inviteNotifyExpiry = it }); Text("Notify me when expired", color = Mut) }
             Divider(color = Line)
