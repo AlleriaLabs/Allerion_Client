@@ -824,7 +824,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 detailUser = null
                 scope.launch { try { withContext(Dispatchers.IO) { JfaApi.removeExpiry(conn!!, u.getString("id")) }; refresh++; actionMessage = "Account expiry removed." }
                     catch (e: Exception) { actionMessage = e.message ?: "Could not remove expiry." } }
-            }, enabled = detailUser?.optLong("expiry", 0L) ?: 0L > 0L) { Text("Remove expiry", color = Amber) }
+            }, enabled = (detailUser?.optLong("expiry", 0L) ?: 0L) > 0L) { Text("Remove expiry", color = Amber) }
             TextButton(onClick = { detailUser = null }) { Text("Close", color = Mut) }
         } })
     resetLink?.let { link ->
