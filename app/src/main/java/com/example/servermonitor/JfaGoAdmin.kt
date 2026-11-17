@@ -139,9 +139,29 @@ private object JfaApi {
             throw IllegalStateException("Allerion $key endpoint returned a $kind instead of JSON. Check the server URL and API route.")
         }
         val root = JSONObject(text)
-        val arr = root.optJSONArray(key) ?: root.optJSONArray("activity") ?: root.optJSONArray("items")
-        if (arr != null) return arr
-        throw IllegalStateException("Allerion returned JSON but the expected '$key' list was missing.")
+        val candidates = listOf(key, "items", "results", "data", "response")
+        fun findList(value: JSONObject, depth: Int = 0): JSONArray? {
+            if (depth > 3) return null
+            for (candidate in candidates) {
+                val child = value.opt(candidate)
+                when (child) {
+                    is JSONArray -> return child
+                    is JSONObject -> findList(child, depth + 1)?.let { return it }
+                    is String -> if (child.trim().startsWith("[")) return runCatching { JSONArray(child) }.getOrNull()
+                }
+            }
+            // Some compatible servers serialize keyed collections as { "code": { ... } }.
+            val values = value.keys().asSequence().mapNotNull { name ->
+                value.optJSONObject(name)?.let { item ->
+                    if (item.has("code")) item else JSONObject(item.toString()).put("code", name)
+                }
+            }.toList()
+            if (values.isNotEmpty()) return JSONArray().apply { values.forEach { put(it) } }
+            return null
+        }
+        findList(root)?.let { return it }
+        val keys = root.keys().asSequence().toList().sorted().joinToString(", ").ifBlank { "(none)" }
+        throw IllegalStateException("Allerion returned JSON for '$key' but no compatible list was found (fields: $keys).")
     }
     fun users(c: JfaConn): List<JSONObject> {
         val auth = login(c)
