@@ -804,7 +804,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                     JfaMetric(usedCount.toString(), "USED", Ic.Activity, Modifier.weight(1f))
                     JfaMetric((invites.size - activeCount).coerceAtLeast(0).toString(), "INACTIVE", Ic.Clock, Modifier.weight(1f))
                 }
-                Button(onClick = { inviteMonths = "0"; inviteDays = "7"; inviteHours = "0"; inviteMinutes = "0"; inviteUses = "1"; inviteUnlimited = false; inviteLabel = ""; inviteUserLabel = ""; inviteProfile = ""; inviteUserExpiry = false; inviteUserMonths = "0"; inviteUserDays = "30"; inviteUserHours = "0"; inviteUserMinutes = "0"; dialog = "invite" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) { Text("Create invitation") }
+                Button(onClick = { inviteMonths = "0"; inviteDays = "7"; inviteHours = "0"; inviteMinutes = "0"; inviteUses = "1"; inviteUnlimited = false; inviteLabel = ""; inviteUserLabel = ""; inviteProfile = ""; inviteUserExpiry = false; inviteUserMonths = "0"; inviteUserDays = "30"; inviteUserHours = "0"; inviteUserMinutes = "0"; inviteSendAddress = ""; dialog = "invite" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) { Text("Create invitation") }
                 inviteLoadError?.let { StateMessage("Invitations could not be loaded: $it", true) }
                 OutlinedTextField(inviteSearch, { inviteSearch = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search invitation code") })
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
