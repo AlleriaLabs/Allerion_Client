@@ -377,7 +377,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             Text("Connect a server", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
             Text("Choose a display name and connect your account directory. Login details are encrypted on this device.", color = Mut, fontSize = AppType.small)
             OutlinedTextField(serverName, { serverName = it; error = null }, label = { Text("Server name") }, placeholder = { Text("e.g. Home Server") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(url, { url = it; error = null }, label = { Text("Server address") }, placeholder = { Text("https://your-Allerion-domain") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(url, { url = it; error = null }, label = { Text("Server address") }, placeholder = { Text("https://server.example.com:port") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Text("Enter the full address, including port if required. The friendly name is what Allerion will show in the app.", color = Dim, fontSize = AppType.caption)
             OutlinedTextField(username, { username = it; error = null }, label = { Text("Admin username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(password, { password = it; error = null }, label = { Text("Admin password") }, singleLine = true,
