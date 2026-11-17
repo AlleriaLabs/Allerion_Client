@@ -692,12 +692,12 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 val nowSeconds = System.currentTimeMillis() / 1000L
                 val visibleInvites = invites.filter { inv ->
                     val code = inv.optString("code")
-                    val remaining = inv.optInt("remaining-uses", -1)
+                    val remaining = inv.optInt("remaining_uses", -1)
                     val expiry = inv.optLong("valid_till", inv.optLong("expiry", inv.optLong("expires")))
                     val match = when (inviteFilter) {
                         "Used" -> (inv.optJSONObject("used_by")?.length() ?: 0) > 0
                         "Expired" -> expiry > 0 && expiry < nowSeconds
-                        "Active" -> (noLimit || remaining > 0) && (expiry <= 0 || expiry >= nowSeconds)
+                        "Active" -> (inv.optBoolean("no_limit") || remaining > 0) && (expiry <= 0 || expiry >= nowSeconds)
                         else -> true
                     }
                     match && (inviteSearch.isBlank() || code.contains(inviteSearch, true) || inv.optString("label").contains(inviteSearch, true))
@@ -984,7 +984,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                     dialog = ""; refresh++; actionMessage = "Invitation updated."
                 } catch (e: Exception) { actionMessage = e.message ?: "Invitation update failed." } finally { actionBusy = false } }
             }) { Text("Save & send", color = Red) }
-        } } },
+        } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (dialog == "delete_invite") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
         title = { Text("Delete invitation?", color = Txt) },
