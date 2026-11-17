@@ -407,9 +407,9 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text("SERVER WORKSPACE", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.0.sp)
-                        Text(conn!!.url.removePrefix("https://").removePrefix("http://"), color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold,
+                        Text(conn!!.serverName, color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                        Text("Account directory · Registration control", color = Mut, fontSize = AppType.caption)
+                        Text(conn!!.url.removePrefix("https://").removePrefix("http://"), color = Dim, fontSize = AppType.caption, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                     Row(Modifier.clip(RoundedCornerShape(18.dp)).background((if (busy) Amber else Green).copy(alpha = 0.10f))
                         .padding(horizontal = 9.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
