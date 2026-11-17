@@ -837,7 +837,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                                     val payload = registrationValues.entries
                                         .filter { entry -> registrationSections.any { entry.key.startsWith("$it.") } }
                                         .groupBy({ it.key.substringBefore('.') }, { it.key.substringAfter('.') to it.value })
-                                        .associate { it.key to it.value.toMap() }
+                                        .mapValues { (_, entries) -> entries.toMap() }
                                     withContext(Dispatchers.IO) { JfaApi.saveRegistrationConfig(conn!!, payload) }
                                     refresh++
                                     actionMessage = "Registration settings saved to the server."
