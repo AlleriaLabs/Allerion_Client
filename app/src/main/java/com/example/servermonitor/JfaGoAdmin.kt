@@ -247,6 +247,20 @@ private object JfaApi {
         request(c, "/invites/send", "POST", JSONObject().put("invite", code).put("send-to", address.trim()), a.token)
     }
     fun deleteInvite(c: JfaConn, code: String) { val a = login(c); request(c, "/invites", "DELETE", JSONObject().put("code", code), a.token) }
+    fun registrationConfig(c: JfaConn): JSONObject {
+        val a = login(c)
+        return JSONObject(request(c, "/config", bearer = a.token).first)
+    }
+    fun saveRegistrationConfig(c: JfaConn, values: Map<String, Map<String, String>>) {
+        val a = login(c)
+        val body = JSONObject()
+        values.forEach { (section, settings) ->
+            val sectionBody = JSONObject()
+            settings.forEach { (key, value) -> sectionBody.put(key, value) }
+            body.put(section, sectionBody)
+        }
+        request(c, "/config", "POST", body, a.token)
+    }
     fun activity(c: JfaConn): List<JSONObject> {
         var auth = login(c)
         val all = mutableListOf<JSONObject>()
@@ -369,6 +383,11 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     var inviteUserHours by remember { mutableStateOf("0") }; var inviteUserMinutes by remember { mutableStateOf("0") }
     var inviteNotifyCreation by remember { mutableStateOf(true) }; var inviteNotifyExpiry by remember { mutableStateOf(true) }
     var inviteSendAddress by remember { mutableStateOf("") }
+    var registrationConfig by remember { mutableStateOf<JSONObject?>(null) }
+    var registrationValues by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var registrationSaving by remember { mutableStateOf(false) }
+    val registrationSections = listOf("ui", "email", "email_confirmation", "captcha", "password_validation", "invite_emails")
+
     LaunchedEffect(conn, refresh) {
         val c = conn ?: return@LaunchedEffect
         busy = true; error = null
@@ -379,15 +398,34 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 val loadedInvites = runCatching { JfaApi.invites(c) }
                 val loadedProfiles = runCatching { JfaApi.profiles(c) }
                 val loadedExpiryAutomation = runCatching { JfaApi.expiryAutomation(c) }
-                Triple(loadedUsers, loadedActivity, Triple(loadedInvites, loadedProfiles, loadedExpiryAutomation))
+                val loadedRegistrationConfig = runCatching { JfaApi.registrationConfig(c) }
+                listOf(loadedUsers, loadedActivity, Triple(loadedInvites, loadedProfiles, loadedExpiryAutomation), loadedRegistrationConfig)
             }
             users = result.first
             activity = result.second.getOrDefault(emptyList())
-            invites = result.third.first.getOrDefault(emptyList())
-            profileNames = result.third.second.getOrDefault(emptyList())
-            expiryAutoSettings = result.third.third.getOrNull()
-            activityLoadError = result.second.exceptionOrNull()?.message
-            inviteLoadError = result.third.first.exceptionOrNull()?.message
+            invites = result[2].first.getOrDefault(emptyList())
+            profileNames = result[2].second.getOrDefault(emptyList())
+            expiryAutoSettings = result[2].third.getOrNull()
+            registrationConfig = result[3].getOrNull()
+            registrationValues = buildMap {
+                val root = result[3].getOrNull()
+                val sections = root?.optJSONArray("sections") ?: JSONArray()
+                for (i in 0 until sections.length()) {
+                    val section = sections.optJSONObject(i) ?: continue
+                    val sectionName = section.optString("section")
+                    if (sectionName !in registrationSections) continue
+                    val settings = section.optJSONArray("settings") ?: continue
+                    for (j in 0 until settings.length()) {
+                        val item = settings.optJSONObject(j) ?: continue
+                        val key = item.optString("setting")
+                        if (key.isBlank()) continue
+                        val raw = item.opt("value")
+                        put("$sectionName.$key", if (raw == null || raw == JSONObject.NULL) "" else raw.toString())
+                    }
+                }
+            }
+            activityLoadError = result[1].exceptionOrNull()?.message
+            inviteLoadError = result[2].first.exceptionOrNull()?.message
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { error = e.message ?: "Unable to load Allerion users." }
         finally { busy = false }
@@ -464,7 +502,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             }
             Row(Modifier.fillMaxWidth().background(Surf, RoundedCornerShape(13.dp))
                 .border(1.dp, Line, RoundedCornerShape(13.dp)).padding(4.dp)) {
-                listOf("Users", "Invites", "Activity").forEach { item ->
+                listOf("Users", "Invites", "Registration", "Activity").forEach { item ->
                     Box(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(if (tab == item) Surf2 else Color.Transparent)
                         .clickable { tab = item }.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
                         Text(item, color = if (tab == item) Txt else Mut, fontSize = AppType.caption, fontWeight = FontWeight.SemiBold)
@@ -721,6 +759,79 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                         }
                         TextButton(enabled = !actionBusy, onClick = { selected = inv; dialog = "delete_invite" }) { Text("Revoke invitation", color = Color(0xFFFF6878)) }
                     }
+                }
+            } else if (tab == "Registration") {
+                Text("Registration controls", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold)
+                Text("These settings are read from and saved to the connected server. Changes marked as requiring restart may need a server restart before they take effect.", color = Mut, fontSize = AppType.caption)
+                if (registrationConfig == null) {
+                    Panel { Text("Registration settings are unavailable from this server. Check its version and administrator permissions.", color = Amber) }
+                } else {
+                    val sectionNames = registrationSections
+                    sectionNames.forEach { sectionName ->
+                        val section = (registrationConfig?.optJSONArray("sections") ?: JSONArray()).let { arr ->
+                            (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }.firstOrNull { it.optString("section") == sectionName }
+                        }
+                        if (section != null) {
+                            val meta = section.optJSONObject("meta") ?: JSONObject()
+                            val settings = section.optJSONArray("settings") ?: JSONArray()
+                            JfaCompactSurface {
+                                Text(meta.optString("name").ifBlank { sectionName.replace('_', ' ').replaceFirstChar { it.uppercase() } }, color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                                if (meta.optString("description").isNotBlank()) Text(meta.optString("description"), color = Mut, fontSize = AppType.caption)
+                                for (i in 0 until settings.length()) {
+                                    val item = settings.optJSONObject(i) ?: continue
+                                    val key = item.optString("setting")
+                                    val type = item.optString("type")
+                                    if (key.isBlank() || type == "note") continue
+                                    val stateKey = "$sectionName.$key"
+                                    val label = item.optString("name").ifBlank { key }
+                                    val description = item.optString("description")
+                                    val current = registrationValues[stateKey] ?: item.opt("value")?.toString().orEmpty()
+                                    if (type == "bool") {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Checkbox(checked = current.equals("true", true), onCheckedChange = { checked ->
+                                                registrationValues = registrationValues + (stateKey to checked.toString())
+                                            })
+                                            Column(Modifier.weight(1f)) {
+                                                Text(label, color = Txt, fontSize = AppType.small, fontWeight = FontWeight.Medium)
+                                                if (description.isNotBlank()) Text(description, color = Mut, fontSize = AppType.caption)
+                                            }
+                                        }
+                                    } else {
+                                        OutlinedTextField(
+                                            value = current,
+                                            onValueChange = { value -> registrationValues = registrationValues + (stateKey to value) },
+                                            label = { Text(label) },
+                                            supportingText = if (description.isNotBlank()) ({ Text(description) }) else null,
+                                            singleLine = true,
+                                            visualTransformation = if (key.contains("secret", true) || key.contains("password", true)) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                    if (item.optBoolean("requires_restart")) Text("Server restart required", color = Amber, fontSize = AppType.micro)
+                                }
+                            }
+                        }
+                    }
+                    Button(
+                        enabled = !registrationSaving && registrationValues.isNotEmpty(),
+                        onClick = {
+                            registrationSaving = true
+                            scope.launch {
+                                try {
+                                    val payload = registrationValues.entries
+                                        .filter { entry -> registrationSections.any { entry.key.startsWith("$it.") } }
+                                        .groupBy({ it.key.substringBefore('.') }, { it.key.substringAfter('.') to it.value })
+                                        .associate { it.key to it.value.toMap() }
+                                    withContext(Dispatchers.IO) { JfaApi.saveRegistrationConfig(conn!!, payload) }
+                                    refresh++
+                                    actionMessage = "Registration settings saved to the server."
+                                } catch (e: Exception) {
+                                    actionMessage = e.message ?: "Registration settings could not be saved."
+                                } finally { registrationSaving = false }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (registrationSaving) "Saving…" else "Save registration settings") }
                 }
             } else {
                 activityLoadError?.let { StateMessage("Activity could not be loaded: $it", true) }
