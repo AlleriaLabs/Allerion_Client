@@ -102,8 +102,8 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          VERSION_CODE: 482
-          VERSION_NAME: 1.2.17
+          VERSION_CODE: 483
+          VERSION_NAME: 1.2.18
         run: gradle assembleRelease --no-daemon --stacktrace
       - name: Rename APK and generate checksum
         if: steps.readiness.outputs.ready == 'true'
@@ -122,8 +122,8 @@ jobs:
         if: steps.readiness.outputs.ready == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.2.17
-          name: ALLERION v1.2.17
+          tag_name: v1.2.18
+          name: ALLERION v1.2.18
           generate_release_notes: true
           files: |
             Allerion.apk
