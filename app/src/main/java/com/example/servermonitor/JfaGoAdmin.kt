@@ -785,7 +785,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             OutlinedTextField(actionReason, { actionReason = it }, label = { Text("Reason (optional)") }, modifier = Modifier.fillMaxWidth())
         } },
         confirmButton = { TextButton(enabled = !actionBusy, onClick = { actionBusy = true; scope.launch { try {
-            withContext(Dispatchers.IO) { JfaApi.setEnabled(conn!!, selected!!.getString("id"), selected!!.optBoolean("disabled"), actionNotify, actionReason) }
+            withContext(Dispatchers.IO) { JfaApi.setEnabled(conn!!, listOf(selected!!.getString("id")), selected!!.optBoolean("disabled"), actionNotify, actionReason) }
             dialog = ""; refresh++; actionMessage = "Account status updated."
         } catch (e: Exception) { actionMessage = e.message ?: "Account update failed." } finally { actionBusy = false } } }) { Text("Confirm", color = Red) } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
