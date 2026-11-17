@@ -162,7 +162,7 @@ private object JfaApi {
         val a = login(c)
         request(c, "/users/extend", "POST", JSONObject().put("users", JSONArray().put(id))
             .put("months", months).put("days", days).put("hours", hours).put("minutes", minutes)
-            .put("notify", notify).put("reason", reason).put("tryExtendFromPreviousExpiry", true), a.token)
+            .put("notify", notify).put("reason", reason).put("try_extend_from_previous_expiry", true), a.token)
     }
     fun removeExpiry(c: JfaConn, id: String) {
         val a = login(c)
@@ -180,17 +180,17 @@ private object JfaApi {
     fun profiles(c: JfaConn): List<String> {
         val a = login(c); val raw = request(c, "/profiles/names", bearer = a.token).first
         val arr = JSONObject(raw).optJSONArray("profiles") ?: JSONArray()
-        return (0 until arr.length()).mapNotNull { arr.optString(it).takeIf(String::isNotBlank) }
+        return (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { value -> value.isNotBlank() } }
     }
     fun applyProfile(c: JfaConn, id: String, profile: String) {
         require(profile.isNotBlank()) { "Choose a profile." }
         val a = login(c)
         val body = JSONObject().put("from", "profile").put("profile", profile)
-            .put("applyTo", JSONArray().put(id)).put("policy", true)
+            .put("apply_to", JSONArray().put(id)).put("configuration", true)
             .put("homescreen", false).put("ombi", false).put("jellyseerr", false)
         request(c, "/users/settings", "POST", body, a.token)
     }
-    fun createUser(c: JfaConn, name: String, password: String, email: String) { require(name.isNotBlank() && password.isNotBlank()) { "Username and password are required." }; val a = login(c); request(c, "/user", "POST", JSONObject().put("username", name.trim()).put("password", password).put("email", email.trim()), a.token) }
+    fun createUser(c: JfaConn, name: String, password: String, email: String, profile: String = "") { require(name.isNotBlank() && password.isNotBlank()) { "Username and password are required." }; val a = login(c); val body = JSONObject().put("username", name.trim()).put("password", password).put("email", email.trim()); if (profile.isNotBlank()) body.put("profile", profile); request(c, "/user", "POST", body, a.token) }
     fun invites(c: JfaConn): List<JSONObject> { val a = login(c); val raw = request(c, "/invites", bearer = a.token).first; val arr = responseArray(raw, "invites"); return (0 until arr.length()).mapNotNull { arr.optJSONObject(it) } }
     fun createInvite(c: JfaConn, days: Int, uses: Int) { val a = login(c); val body = JSONObject().put("days", days).put("hours", 0).put("minutes", 0).put("multiple-uses", uses > 1).put("no-limit", false).put("remaining-uses", uses); request(c, "/invites", "POST", body, a.token) }
     fun deleteInvite(c: JfaConn, code: String) { val a = login(c); request(c, "/invites", "DELETE", JSONObject().put("code", code), a.token) }
@@ -294,7 +294,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     var activityPage by remember { mutableIntStateOf(0) }
     var detailUser by remember { mutableStateOf<JSONObject?>(null) }
     var resetLink by remember { mutableStateOf<String?>(null) }
-    var newName by remember { mutableStateOf("") }; var newPassword by remember { mutableStateOf("") }; var newEmail by remember { mutableStateOf("") }
+    var newName by remember { mutableStateOf("") }; var newPassword by remember { mutableStateOf("") }; var newEmail by remember { mutableStateOf("") }; var newProfile by remember { mutableStateOf("") }
     var editEmail by remember { mutableStateOf("") }; var editLabel by remember { mutableStateOf("") }
     var editingUser by remember { mutableStateOf<JSONObject?>(null) }
     var editAccountsAdmin by remember { mutableStateOf(false) }; var selectedProfile by remember { mutableStateOf("") }
@@ -403,7 +403,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                         Text("Registered users", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
                         Text(users.size.toString() + " accounts connected", color = Mut, fontSize = AppType.caption)
                     }
-                    Button(onClick = { newName = ""; newPassword = ""; newEmail = ""; dialog = "create" }, enabled = !actionBusy) {
+                    Button(onClick = { newName = ""; newPassword = ""; newEmail = ""; newProfile = ""; dialog = "create" }, enabled = !actionBusy) {
                         Icon24(Ic.Plus, Color.White, 16.dp); Spacer(Modifier.width(6.dp)); Text("Add user")
                     }
                 }
@@ -681,8 +681,20 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     }
 
     if (dialog == "create") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Create JFA-Go user", color = Txt) },
-        text = { Column { OutlinedTextField(newName, { newName = it }, label = { Text("Username") }); OutlinedTextField(newPassword, { newPassword = it }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation()); OutlinedTextField(newEmail, { newEmail = it }, label = { Text("Email (optional)") }) } },
-        confirmButton = { TextButton(enabled = !actionBusy && newName.isNotBlank() && newPassword.isNotBlank(), onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.createUser(conn!!, newName, newPassword, newEmail) }; dialog = ""; refresh++; actionMessage = "User created successfully." } catch (e: Exception) { actionMessage = e.message ?: "User creation failed." } finally { actionBusy = false } } }) { Text("Create", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+        text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedTextField(newName, { newName = it }, label = { Text("Username") })
+            OutlinedTextField(newPassword, { newPassword = it }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation())
+            OutlinedTextField(newEmail, { newEmail = it }, label = { Text("Email (optional)") })
+            Text("Jellyfin permission profile (optional)", color = Mut, fontSize = AppType.caption)
+            Box {
+                OutlinedButton(onClick = { profileMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(if (newProfile.isBlank()) "Use JFA-Go default profile" else newProfile) }
+                DropdownMenu(expanded = profileMenu, onDismissRequest = { profileMenu = false }) {
+                    DropdownMenuItem(text = { Text("JFA-Go default profile") }, onClick = { newProfile = ""; profileMenu = false })
+                    profileNames.forEach { p -> DropdownMenuItem(text = { Text(p) }, onClick = { newProfile = p; profileMenu = false }) }
+                }
+            }
+        } },
+        confirmButton = { TextButton(enabled = !actionBusy && newName.isNotBlank() && newPassword.isNotBlank(), onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.createUser(conn!!, newName, newPassword, newEmail, newProfile) }; dialog = ""; refresh++; actionMessage = "User created successfully." } catch (e: Exception) { actionMessage = e.message ?: "User creation failed." } finally { actionBusy = false } } }) { Text("Create", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (dialog == "expiry") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Account expiry", color = Txt) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("Extend from the current expiry, or create one if the account has none.", color = Mut, fontSize = AppType.caption)
