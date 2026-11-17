@@ -678,7 +678,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 val usedCount = invites.count { (it.optJSONObject("used_by")?.length() ?: 0) > 0 }
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     JfaMetric(activeCount.toString(), "ACTIVE", Ic.Check, Modifier.weight(1f))
-                    JfaMetric(usedCount.toString(), "USED", Ic.Users, Modifier.weight(1f))
+                    JfaMetric(usedCount.toString(), "USED", Ic.Activity, Modifier.weight(1f))
                     JfaMetric((invites.size - activeCount).coerceAtLeast(0).toString(), "INACTIVE", Ic.Clock, Modifier.weight(1f))
                 }
                 Button(onClick = { inviteMonths = "0"; inviteDays = "7"; inviteHours = "0"; inviteMinutes = "0"; inviteUses = "1"; inviteUnlimited = false; inviteLabel = ""; inviteUserLabel = ""; inviteProfile = ""; inviteUserExpiry = false; inviteUserMonths = "0"; inviteUserDays = "30"; inviteUserHours = "0"; inviteUserMinutes = "0"; dialog = "invite" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) { Text("Create invitation") }
