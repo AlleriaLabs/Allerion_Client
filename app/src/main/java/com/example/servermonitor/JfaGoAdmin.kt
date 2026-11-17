@@ -223,7 +223,29 @@ private object JfaApi {
     }
     fun createUser(c: JfaConn, name: String, password: String, email: String, profile: String = "") { require(name.isNotBlank() && password.isNotBlank()) { "Username and password are required." }; val a = login(c); val body = JSONObject().put("username", name.trim()).put("password", password).put("email", email.trim()); if (profile.isNotBlank()) body.put("profile", profile); request(c, "/user", "POST", body, a.token) }
     fun invites(c: JfaConn): List<JSONObject> { val a = login(c); val raw = request(c, "/invites", bearer = a.token).first; val arr = responseArray(raw, "invites"); return (0 until arr.length()).mapNotNull { arr.optJSONObject(it) } }
-    fun createInvite(c: JfaConn, days: Int, uses: Int) { val a = login(c); val body = JSONObject().put("days", days).put("hours", 0).put("minutes", 0).put("multiple-uses", uses > 1).put("no-limit", false).put("remaining-uses", uses); request(c, "/invites", "POST", body, a.token) }
+    fun createInvite(c: JfaConn, days: Int, uses: Int) { createInvite(c, days, 0, 0, 0, uses, false, "", "", "", false, 0, 0, 0, 0) }
+    fun createInvite(c: JfaConn, months: Int, days: Int, hours: Int, minutes: Int, uses: Int, unlimited: Boolean,
+        label: String, userLabel: String, profile: String, userExpiry: Boolean, userMonths: Int, userDays: Int, userHours: Int, userMinutes: Int) {
+        require(months >= 0 && days >= 0 && hours >= 0 && minutes >= 0 && (months + days + hours + minutes) > 0) { "Set a positive invitation validity period." }
+        require(unlimited || uses > 0) { "Set at least one allowed use." }
+        val a = login(c)
+        val body = JSONObject().put("months", months).put("days", days).put("hours", hours).put("minutes", minutes)
+            .put("multiple-uses", unlimited || uses > 1).put("no-limit", unlimited).put("remaining-uses", if (unlimited) 0 else uses)
+            .put("label", label.trim()).put("user_label", userLabel.trim()).put("profile", profile)
+            .put("user-expiry", userExpiry).put("user-months", userMonths).put("user-days", userDays)
+            .put("user-hours", userHours).put("user-minutes", userMinutes)
+        request(c, "/invites", "POST", body, a.token)
+    }
+    fun editInvite(c: JfaConn, code: String, label: String, userLabel: String, profile: String, notifyCreation: Boolean, notifyExpiry: Boolean) {
+        val a = login(c)
+        request(c, "/invites/edit", "PATCH", JSONObject().put("code", code).put("label", label).put("user_label", userLabel)
+            .put("profile", profile).put("notify_creation", notifyCreation).put("notify_expiry", notifyExpiry), a.token)
+    }
+    fun sendInvite(c: JfaConn, code: String, address: String) {
+        require(address.isNotBlank()) { "Enter an email address or supported contact." }
+        val a = login(c)
+        request(c, "/invites/send", "POST", JSONObject().put("invite", code).put("send-to", address.trim()), a.token)
+    }
     fun deleteInvite(c: JfaConn, code: String) { val a = login(c); request(c, "/invites", "DELETE", JSONObject().put("code", code), a.token) }
     fun activity(c: JfaConn): List<JSONObject> {
         var auth = login(c)
@@ -340,6 +362,13 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     var expiryNotify by remember { mutableStateOf(false) }; var expiryReason by remember { mutableStateOf("") }
     var actionNotify by remember { mutableStateOf(false) }; var actionReason by remember { mutableStateOf("") }
     var inviteDays by remember { mutableStateOf("7") }; var inviteUses by remember { mutableStateOf("1") }
+    var inviteMonths by remember { mutableStateOf("0") }; var inviteHours by remember { mutableStateOf("0") }; var inviteMinutes by remember { mutableStateOf("0") }
+    var inviteUnlimited by remember { mutableStateOf(false) }; var inviteLabel by remember { mutableStateOf("") }; var inviteUserLabel by remember { mutableStateOf("") }
+    var inviteProfile by remember { mutableStateOf("") }; var inviteUserExpiry by remember { mutableStateOf(false) }
+    var inviteUserMonths by remember { mutableStateOf("0") }; var inviteUserDays by remember { mutableStateOf("30") }
+    var inviteUserHours by remember { mutableStateOf("0") }; var inviteUserMinutes by remember { mutableStateOf("0") }
+    var inviteNotifyCreation by remember { mutableStateOf(true) }; var inviteNotifyExpiry by remember { mutableStateOf(true) }
+    var inviteSendAddress by remember { mutableStateOf("") }
     LaunchedEffect(conn, refresh) {
         val c = conn ?: return@LaunchedEffect
         busy = true; error = null
@@ -644,7 +673,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                     }
                 }
             } else if (tab == "Invites") {
-                Button(onClick = { inviteDays = "7"; inviteUses = "1"; dialog = "invite" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) { Text("Create invitation") }
+                Button(onClick = { inviteMonths = "0"; inviteDays = "7"; inviteHours = "0"; inviteMinutes = "0"; inviteUses = "1"; inviteUnlimited = false; inviteLabel = ""; inviteUserLabel = ""; inviteProfile = ""; inviteUserExpiry = false; inviteUserMonths = "0"; inviteUserDays = "30"; inviteUserHours = "0"; inviteUserMinutes = "0"; dialog = "invite" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) { Text("Create invitation") }
                 inviteLoadError?.let { StateMessage("Invitations could not be loaded: $it", true) }
                 OutlinedTextField(inviteSearch, { inviteSearch = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search invitation code") })
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -668,14 +697,21 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 if (visibleInvites.isEmpty()) Panel { Text(if (invites.isEmpty()) "No invitations returned." else "No invitations match this filter.", color = Mut) }
                 visibleInvites.forEach { inv ->
                     JfaCompactSurface {
-                        Text(inv.optString("code", "Invitation"), color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
-                        Text(inv.optString("label"), color = Mut, fontSize = AppType.small)
-                        Text("Uses remaining: " + inv.optString("remaining-uses", "—"), color = Dim, fontSize = AppType.caption)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { copyText(ctx, inv.optString("code")) ; actionMessage = "Invitation code copied." }) { Text("Copy code") }
+                        Text(inv.optString("label").ifBlank { "Invitation" }, color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                        Text("Code · " + inv.optString("code", "—"), color = Mut, fontSize = AppType.caption)
+                        val noLimit = inv.optBoolean("no_limit")
+                        val remaining = inv.optInt("remaining_uses", 1)
+                        val used = inv.optJSONObject("used_by")?.length() ?: 0
+                        val validTill = inv.optLong("valid_till")
+                        Text((if (noLimit) "Unlimited uses" else "$remaining uses remaining") + " · $used registrations", color = Dim, fontSize = AppType.caption)
+                        Text("Expires · " + if (validTill > 0) java.text.SimpleDateFormat("d MMM yyyy, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(validTill * 1000L)) else "—", color = Dim, fontSize = AppType.caption)
+                        if (inv.optString("profile").isNotBlank()) Text("Profile · " + inv.optString("profile"), color = Mut, fontSize = AppType.caption)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            TextButton(onClick = { copyText(ctx, inv.optString("code")); actionMessage = "Invitation code copied." }) { Text("Copy") }
                             TextButton(onClick = { shareText(ctx, "Allerion invitation: " + inv.optString("code")) }) { Text("Share") }
+                            TextButton(onClick = { selected = inv; inviteLabel = inv.optString("label"); inviteUserLabel = inv.optString("user_label"); inviteProfile = inv.optString("profile"); inviteNotifyCreation = inv.optBoolean("notify_creation", true); inviteNotifyExpiry = inv.optBoolean("notify_expiry", true); inviteSendAddress = ""; dialog = "edit_invite" }) { Text("Manage") }
                         }
-                        TextButton(enabled = !actionBusy, onClick = { selected = inv; dialog = "delete_invite" }) { Text("Delete invitation", color = Color(0xFFFF6878)) }
+                        TextButton(enabled = !actionBusy, onClick = { selected = inv; dialog = "delete_invite" }) { Text("Revoke invitation", color = Color(0xFFFF6878)) }
                     }
                 }
             } else {
@@ -865,6 +901,75 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             withContext(Dispatchers.IO) { JfaApi.setEnabled(conn!!, listOf(selected!!.getString("id")), selected!!.optBoolean("disabled"), actionNotify, actionReason) }
             dialog = ""; refresh++; actionMessage = "Account status updated."
         } catch (e: Exception) { actionMessage = e.message ?: "Account update failed." } finally { actionBusy = false } } }) { Text("Confirm", color = Red) } },
+        dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    if (dialog == "invite") AlertDialog(
+        onDismissRequest = { if (!actionBusy) dialog = "" },
+        title = { Text("Create invitation", color = Txt) },
+        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("INVITATION VALIDITY", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                OutlinedTextField(inviteMonths, { inviteMonths = it.filter(Char::isDigit) }, label = { Text("Months") }, modifier = Modifier.weight(1f))
+                OutlinedTextField(inviteDays, { inviteDays = it.filter(Char::isDigit) }, label = { Text("Days") }, modifier = Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                OutlinedTextField(inviteHours, { inviteHours = it.filter(Char::isDigit) }, label = { Text("Hours") }, modifier = Modifier.weight(1f))
+                OutlinedTextField(inviteMinutes, { inviteMinutes = it.filter(Char::isDigit) }, label = { Text("Minutes") }, modifier = Modifier.weight(1f))
+            }
+            OutlinedTextField(inviteLabel, { inviteLabel = it }, label = { Text("Internal invitation label") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(inviteUserLabel, { inviteUserLabel = it }, label = { Text("Label applied to new accounts") }, modifier = Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(inviteUnlimited, { inviteUnlimited = it }); Text("Unlimited uses", color = Mut) }
+            if (!inviteUnlimited) OutlinedTextField(inviteUses, { inviteUses = it.filter(Char::isDigit) }, label = { Text("Allowed uses") }, modifier = Modifier.fillMaxWidth())
+            Text("ACCOUNT PROFILE", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+            Box {
+                OutlinedButton(onClick = { profileMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(if (inviteProfile.isBlank()) "Server default profile" else inviteProfile) }
+                DropdownMenu(expanded = profileMenu, onDismissRequest = { profileMenu = false }) {
+                    DropdownMenuItem(text = { Text("Server default profile") }, onClick = { inviteProfile = ""; profileMenu = false })
+                    profileNames.forEach { p -> DropdownMenuItem(text = { Text(p) }, onClick = { inviteProfile = p; profileMenu = false }) }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(inviteUserExpiry, { inviteUserExpiry = it }); Text("Set expiry on created accounts", color = Mut) }
+            if (inviteUserExpiry) {
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    OutlinedTextField(inviteUserMonths, { inviteUserMonths = it.filter(Char::isDigit) }, label = { Text("Months") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(inviteUserDays, { inviteUserDays = it.filter(Char::isDigit) }, label = { Text("Days") }, modifier = Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    OutlinedTextField(inviteUserHours, { inviteUserHours = it.filter(Char::isDigit) }, label = { Text("Hours") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(inviteUserMinutes, { inviteUserMinutes = it.filter(Char::isDigit) }, label = { Text("Minutes") }, modifier = Modifier.weight(1f))
+                }
+            }
+        } },
+        confirmButton = { TextButton(enabled = !actionBusy && ((inviteMonths.toIntOrNull() ?: 0) + (inviteDays.toIntOrNull() ?: 0) + (inviteHours.toIntOrNull() ?: 0) + (inviteMinutes.toIntOrNull() ?: 0) > 0) && (inviteUnlimited || (inviteUses.toIntOrNull() ?: 0) > 0) && (!inviteUserExpiry || ((inviteUserMonths.toIntOrNull() ?: 0) + (inviteUserDays.toIntOrNull() ?: 0) + (inviteUserHours.toIntOrNull() ?: 0) + (inviteUserMinutes.toIntOrNull() ?: 0) > 0)), onClick = {
+            actionBusy = true
+            scope.launch { try {
+                withContext(Dispatchers.IO) { JfaApi.createInvite(conn!!, inviteMonths.toIntOrNull() ?: 0, inviteDays.toIntOrNull() ?: 0, inviteHours.toIntOrNull() ?: 0, inviteMinutes.toIntOrNull() ?: 0, inviteUses.toIntOrNull() ?: 1, inviteUnlimited, inviteLabel, inviteUserLabel, inviteProfile, inviteUserExpiry, inviteUserMonths.toIntOrNull() ?: 0, inviteUserDays.toIntOrNull() ?: 0, inviteUserHours.toIntOrNull() ?: 0, inviteUserMinutes.toIntOrNull() ?: 0) }
+                dialog = ""; refresh++; actionMessage = "Invitation created."
+            } catch (e: Exception) { actionMessage = e.message ?: "Invitation creation failed." } finally { actionBusy = false } }
+        }) { Text("Create", color = Red) } },
+        dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    if (dialog == "edit_invite") AlertDialog(
+        onDismissRequest = { if (!actionBusy) dialog = "" },
+        title = { Text("Manage invitation", color = Txt) },
+        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("Code · " + selected?.optString("code").orEmpty(), color = Dim, fontSize = AppType.caption)
+            OutlinedTextField(inviteLabel, { inviteLabel = it }, label = { Text("Invitation label") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(inviteUserLabel, { inviteUserLabel = it }, label = { Text("New account label") }, modifier = Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(inviteNotifyCreation, { inviteNotifyCreation = it }); Text("Notify me when used", color = Mut) }
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(inviteNotifyExpiry, { inviteNotifyExpiry = it }); Text("Notify me when expired", color = Mut) }
+            Divider(color = Line)
+            OutlinedTextField(inviteSendAddress, { inviteSendAddress = it }, label = { Text("Send to email / Discord") }, modifier = Modifier.fillMaxWidth())
+            Text("Sending requires invitation messaging to be enabled on the server.", color = Dim, fontSize = AppType.caption)
+        } },
+        confirmButton = { Row {
+            TextButton(enabled = !actionBusy, onClick = {
+                actionBusy = true
+                scope.launch { try {
+                    withContext(Dispatchers.IO) { JfaApi.editInvite(conn!!, selected!!.getString("code"), inviteLabel, inviteUserLabel, inviteProfile, inviteNotifyCreation, inviteNotifyExpiry) }
+                    if (inviteSendAddress.isNotBlank()) withContext(Dispatchers.IO) { JfaApi.sendInvite(conn!!, selected!!.getString("code"), inviteSendAddress) }
+                    dialog = ""; refresh++; actionMessage = "Invitation updated."
+                } catch (e: Exception) { actionMessage = e.message ?: "Invitation update failed." } finally { actionBusy = false } }
+            }) { Text("Save & send", color = Red) }
+        } } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (dialog == "delete_invite") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
         title = { Text("Delete invitation?", color = Txt) },
