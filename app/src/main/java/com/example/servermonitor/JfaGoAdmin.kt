@@ -399,16 +399,16 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 val loadedProfiles = runCatching { JfaApi.profiles(c) }
                 val loadedExpiryAutomation = runCatching { JfaApi.expiryAutomation(c) }
                 val loadedRegistrationConfig = runCatching { JfaApi.registrationConfig(c) }
-                listOf(loadedUsers, loadedActivity, Triple(loadedInvites, loadedProfiles, loadedExpiryAutomation), loadedRegistrationConfig)
+                Pair(Triple(loadedUsers, loadedActivity, Triple(loadedInvites, loadedProfiles, loadedExpiryAutomation)), loadedRegistrationConfig)
             }
-            users = result.first
-            activity = result.second.getOrDefault(emptyList())
-            invites = result[2].first.getOrDefault(emptyList())
-            profileNames = result[2].second.getOrDefault(emptyList())
-            expiryAutoSettings = result[2].third.getOrNull()
-            registrationConfig = result[3].getOrNull()
+            users = result.first.first
+            activity = result.first.second.getOrDefault(emptyList())
+            invites = result.first.third.first.getOrDefault(emptyList())
+            profileNames = result.first.third.second.getOrDefault(emptyList())
+            expiryAutoSettings = result.first.third.third.getOrNull()
+            registrationConfig = result.second.getOrNull()
             registrationValues = buildMap {
-                val root = result[3].getOrNull()
+                val root = result.second.getOrNull()
                 val sections = root?.optJSONArray("sections") ?: JSONArray()
                 for (i in 0 until sections.length()) {
                     val section = sections.optJSONObject(i) ?: continue
@@ -424,8 +424,8 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                     }
                 }
             }
-            activityLoadError = result[1].exceptionOrNull()?.message
-            inviteLoadError = result[2].first.exceptionOrNull()?.message
+            activityLoadError = result.first.second.exceptionOrNull()?.message
+            inviteLoadError = result.first.third.first.exceptionOrNull()?.message
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { error = e.message ?: "Unable to load Allerion users." }
         finally { busy = false }
