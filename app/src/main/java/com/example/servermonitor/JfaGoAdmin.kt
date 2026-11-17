@@ -42,7 +42,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-/** Accept either the JFA-Go server root or its visible /accounts page URL. */
+/** Accept either the Allerion server root or its visible /accounts page URL. */
 fun normalizeJfaGoBaseUrl(input: String): String {
     val value = input.trim().trimEnd('/')
     require(value.isNotBlank()) { "Enter your JFA-Go server URL." }
@@ -56,7 +56,7 @@ fun normalizeJfaGoBaseUrl(input: String): String {
     }
     return URI(parsed.scheme, parsed.userInfo, parsed.host, parsed.port, if (path.isBlank()) null else path, null, null).toASCIIString().trimEnd('/')
 }
-private data class JfaConn(val url: String, val username: String, val password: String)
+private data class JfaConn(val url: String, val username: String, val password: String, val serverName: String = "My Server")
 private data class JfaAuth(val token: String, val refresh: String)
 
 private object JfaStore {
@@ -83,10 +83,10 @@ private object JfaStore {
     }
     fun load(ctx: Context): JfaConn? = runCatching {
         val raw = ctx.getSharedPreferences(PREF, 0).getString(KEY, null) ?: return null
-        val j = JSONObject(open(raw)); JfaConn(normalizeJfaGoBaseUrl(j.getString("url")), j.getString("username"), j.getString("password"))
+        val j = JSONObject(open(raw)); JfaConn(normalizeJfaGoBaseUrl(j.getString("url")), j.getString("username"), j.getString("password"), j.optString("server_name").ifBlank { "My Server" })
     }.getOrNull()
     fun save(ctx: Context, c: JfaConn) {
-        val j = JSONObject().put("url", c.url).put("username", c.username).put("password", c.password)
+        val j = JSONObject().put("url", c.url).put("username", c.username).put("password", c.password).put("server_name", c.serverName)
         check(ctx.getSharedPreferences(PREF, 0).edit().putString(KEY, seal(j.toString())).commit())
     }
     fun clear(ctx: Context) { ctx.getSharedPreferences(PREF, 0).edit().remove(KEY).apply() }
@@ -295,6 +295,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     var conn by remember { mutableStateOf(JfaStore.load(ctx)) }
     var edit by remember { mutableStateOf(conn == null) }
     var url by remember { mutableStateOf(conn?.url ?: "https://register.alleriafilmotheque.fyi") }
+    var serverName by remember { mutableStateOf(conn?.serverName ?: "Home Server") }
     var username by remember { mutableStateOf(conn?.username ?: "") }
     var password by remember { mutableStateOf(conn?.password ?: "") }
     var busy by remember { mutableStateOf(false) }
@@ -373,20 +374,21 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             IconBtn(Ic.Refresh, "Refresh", plain = true, onClick = { refresh++ })
         }
         if (edit) Panel {
-            Label("JFA-Go administrator")
-            Text("Your JFA-Go server is the account source. Credentials are encrypted using Android Keystore.", color = Mut, fontSize = AppType.small)
-            OutlinedTextField(url, { url = it; error = null }, label = { Text("JFA-Go server URL") }, placeholder = { Text("https://your-jfa-go-domain") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Text("Enter the server address only. If you paste the /accounts page URL, Allerion will remove that page path automatically.", color = Dim, fontSize = AppType.caption)
+            Text("Connect a server", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold)
+            Text("Choose a display name and connect your account directory. Login details are encrypted on this device.", color = Mut, fontSize = AppType.small)
+            OutlinedTextField(serverName, { serverName = it; error = null }, label = { Text("Server name") }, placeholder = { Text("e.g. Home Server") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(url, { url = it; error = null }, label = { Text("Server address") }, placeholder = { Text("https://your-Allerion-domain") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Text("Enter the full address, including port if required. The friendly name is what Allerion will show in the app.", color = Dim, fontSize = AppType.caption)
             OutlinedTextField(username, { username = it; error = null }, label = { Text("Admin username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(password, { password = it; error = null }, label = { Text("Admin password") }, singleLine = true,
                 visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
             Button(onClick = {
-                val candidate = JfaConn(normalizeJfaGoBaseUrl(url), username.trim(), password)
+                val candidate = JfaConn(normalizeJfaGoBaseUrl(url), username.trim(), password, serverName.trim().ifBlank { "My Server" })
                 busy = true; error = null
                 scope.launch {
                     try {
                         withContext(Dispatchers.IO) { JfaApi.test(candidate) }
-                        JfaStore.save(ctx, candidate); conn = candidate; url = candidate.url; edit = false
+                        JfaStore.save(ctx, candidate); conn = candidate; url = candidate.url; serverName = candidate.serverName; edit = false
                     } catch (e: CancellationException) { throw e }
                     catch (e: Exception) { error = e.message ?: "JFA-Go connection failed." }
                     finally { busy = false }
@@ -734,7 +736,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             Box {
                 OutlinedButton(onClick = { profileMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(if (newProfile.isBlank()) "Use JFA-Go default profile" else newProfile) }
                 DropdownMenu(expanded = profileMenu, onDismissRequest = { profileMenu = false }) {
-                    DropdownMenuItem(text = { Text("JFA-Go default profile") }, onClick = { newProfile = ""; profileMenu = false })
+                    DropdownMenuItem(text = { Text("Server default profile") }, onClick = { newProfile = ""; profileMenu = false })
                     profileNames.forEach { p -> DropdownMenuItem(text = { Text(p) }, onClick = { newProfile = p; profileMenu = false }) }
                 }
             }
@@ -829,7 +831,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     if (dialog == "access") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
         title = { Text("Account access & profile", color = Txt) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(editAccountsAdmin, { editAccountsAdmin = it }); Text("JFA-Go administrator access", color = Mut) }
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(editAccountsAdmin, { editAccountsAdmin = it }); Text("Server administrator access", color = Mut) }
             Text("Apply a saved profile to update Jellyfin policy, including administrator and library permissions.", color = Mut, fontSize = AppType.caption)
             Box {
                 OutlinedButton(onClick = { profileMenu = true }, modifier = Modifier.fillMaxWidth()) {
