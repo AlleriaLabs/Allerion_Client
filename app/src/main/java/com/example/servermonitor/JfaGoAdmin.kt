@@ -133,13 +133,17 @@ private object JfaApi {
     }
     private fun responseArray(raw: String, key: String): JSONArray {
         val text = raw.trim()
+        if (text.isBlank() || text == "null") return JSONArray()
         if (text.startsWith("[")) return JSONArray(text)
         if (!text.startsWith("{")) {
             val kind = if (text.startsWith("<!DOCTYPE", true) || text.startsWith("<html", true)) "HTML page" else "plain-text response"
             throw IllegalStateException("Allerion $key endpoint returned a $kind instead of JSON. Check the server URL and API route.")
         }
         val root = JSONObject(text)
+        if (root.length() == 0) return JSONArray()
         val candidates = listOf(key, "items", "results", "data", "response", "list", "invite")
+        // A server may represent an empty invitation collection as a null value.
+        if (candidates.any { root.has(it) && (root.isNull(it) || root.opt(it) == JSONObject.NULL) }) return JSONArray()
         fun findList(value: JSONObject, depth: Int = 0): JSONArray? {
             if (depth > 4) return null
             for (candidate in candidates) {
@@ -258,16 +262,53 @@ private object JfaApi {
     fun invites(c: JfaConn): List<JSONObject> { val a = login(c); val raw = request(c, "/invites", bearer = a.token).first; val arr = responseArray(raw, "invites"); return (0 until arr.length()).mapNotNull { arr.optJSONObject(it) } }
     fun createInvite(c: JfaConn, days: Int, uses: Int) { createInvite(c, days, 0, 0, 0, uses, false, "", "", "", false, 0, 0, 0, 0) }
     fun createInvite(c: JfaConn, months: Int, days: Int, hours: Int, minutes: Int, uses: Int, unlimited: Boolean,
-        label: String, userLabel: String, profile: String, userExpiry: Boolean, userMonths: Int, userDays: Int, userHours: Int, userMinutes: Int) {
+        label: String, userLabel: String, profile: String, userExpiry: Boolean, userMonths: Int, userDays: Int, userHours: Int, userMinutes: Int,
+        sendTo: String = ""): String? {
         require(months >= 0 && days >= 0 && hours >= 0 && minutes >= 0 && (months + days + hours + minutes) > 0) { "Set a positive invitation validity period." }
         require(unlimited || uses > 0) { "Set at least one allowed use." }
         val a = login(c)
+        // Capture existing codes so we can identify the new invitation even when
+        // this server's POST endpoint returns only a success message.
+        val beforeCodes = runCatching {
+            val before = responseArray(request(c, "/invites", bearer = a.token).first, "invites")
+            (0 until before.length()).mapNotNull { before.optJSONObject(it)?.optString("code")?.takeIf { code -> code.isNotBlank() } }.toSet()
+        }.getOrDefault(emptySet())
         val body = JSONObject().put("months", months).put("days", days).put("hours", hours).put("minutes", minutes)
             .put("multiple-uses", unlimited || uses > 1).put("no-limit", unlimited).put("remaining-uses", if (unlimited) 0 else uses)
             .put("label", label.trim()).put("user_label", userLabel.trim()).put("profile", profile)
             .put("user-expiry", userExpiry).put("user-months", userMonths).put("user-days", userDays)
             .put("user-hours", userHours).put("user-minutes", userMinutes)
-        request(c, "/invites", "POST", body, a.token)
+        val createdRaw = request(c, "/invites", "POST", body, a.token).first
+        fun findCode(value: Any?, depth: Int = 0): String? {
+            if (depth > 5 || value == null || value == JSONObject.NULL) return null
+            if (value is JSONObject) {
+                for (field in listOf("code", "invite_code", "invite-code")) {
+                    value.optString(field).takeIf { it.isNotBlank() }?.let { return it }
+                }
+                for (field in listOf("invite", "invitation", "data", "result")) {
+                    findCode(value.opt(field), depth + 1)?.let { return it }
+                }
+            } else if (value is JSONArray) {
+                for (i in 0 until value.length()) findCode(value.opt(i), depth + 1)?.let { return it }
+            } else if (value is String) {
+                val encoded = value.trim()
+                if (encoded.startsWith("{")) runCatching { findCode(JSONObject(encoded), depth + 1) }.getOrNull()?.let { return it }
+            }
+            return null
+        }
+        var code = runCatching { findCode(JSONObject(createdRaw)) }.getOrNull()
+        if (sendTo.isNotBlank()) {
+            if (code.isNullOrBlank()) {
+                val after = responseArray(request(c, "/invites", bearer = a.token).first, "invites")
+                code = (0 until after.length()).mapNotNull { after.optJSONObject(it) }
+                    .firstOrNull { it.optString("code").isNotBlank() && it.optString("code") !in beforeCodes }
+                    ?.optString("code")
+            }
+            require(!code.isNullOrBlank()) { "Invitation was created, but the server did not return its code. Refresh the invitation list and send it from Manage." }
+            require(sendTo.isNotBlank()) { "Enter an email address or supported contact." }
+            request(c, "/invites/send", "POST", JSONObject().put("invite", code).put("send-to", sendTo.trim()), a.token)
+        }
+        return code
     }
     fun editInvite(c: JfaConn, code: String, label: String, userLabel: String, profile: String, notifyCreation: Boolean, notifyExpiry: Boolean) {
         val a = login(c)
@@ -763,7 +804,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                     JfaMetric(usedCount.toString(), "USED", Ic.Activity, Modifier.weight(1f))
                     JfaMetric((invites.size - activeCount).coerceAtLeast(0).toString(), "INACTIVE", Ic.Clock, Modifier.weight(1f))
                 }
-                Button(onClick = { inviteMonths = "0"; inviteDays = "7"; inviteHours = "0"; inviteMinutes = "0"; inviteUses = "1"; inviteUnlimited = false; inviteLabel = ""; inviteUserLabel = ""; inviteProfile = ""; inviteUserExpiry = false; inviteUserMonths = "0"; inviteUserDays = "30"; inviteUserHours = "0"; inviteUserMinutes = "0"; dialog = "invite" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) { Text("Create invitation") }
+                Button(onClick = { inviteMonths = "0"; inviteDays = "7"; inviteHours = "0"; inviteMinutes = "0"; inviteUses = "1"; inviteUnlimited = false; inviteLabel = ""; inviteUserLabel = ""; inviteProfile = ""; inviteUserExpiry = false; inviteUserMonths = "0"; inviteUserDays = "30"; inviteUserHours = "0"; inviteUserMinutes = "0"; inviteSendAddress = ""; dialog = "invite" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) { Text("Create invitation") }
                 inviteLoadError?.let { StateMessage("Invitations could not be loaded: $it", true) }
                 OutlinedTextField(inviteSearch, { inviteSearch = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search invitation code") })
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -948,7 +989,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 }
             }
         } },
-        confirmButton = { TextButton(enabled = !actionBusy && newName.isNotBlank() && newPassword.isNotBlank(), onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.createUser(conn!!, newName, newPassword, newEmail, newProfile) }; dialog = ""; refresh++; actionMessage = "User created successfully." } catch (e: Exception) { actionMessage = e.message ?: "User creation failed." } finally { actionBusy = false } } }) { Text("Create", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+        confirmButton = { TextButton(enabled = !actionBusy && newName.isNotBlank() && newPassword.isNotBlank(), onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.createUser(conn!!, newName, newPassword, newEmail, newProfile) }; dialog = ""; refresh++; actionMessage = "User created successfully." } catch (e: Exception) { actionMessage = e.message ?: "User creation failed." } finally { actionBusy = false } } }) { Text(if (inviteSendAddress.isBlank()) "Create" else "Create & send", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (dialog == "expiry") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Account expiry", color = Txt) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("Extend from the current expiry, or create one if the account has none.", color = Mut, fontSize = AppType.caption)
@@ -1088,6 +1129,9 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             }
             OutlinedTextField(inviteLabel, { inviteLabel = it }, label = { Text("Internal invitation label") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(inviteUserLabel, { inviteUserLabel = it }, label = { Text("Label applied to new accounts") }, modifier = Modifier.fillMaxWidth())
+            Divider(color = Line)
+            OutlinedTextField(inviteSendAddress, { inviteSendAddress = it }, label = { Text("Send invitation to email / Discord (optional)") }, modifier = Modifier.fillMaxWidth())
+            Text("Enter a recipient to create the invitation and send it in one step. Leave blank to create it without sending.", color = Dim, fontSize = AppType.caption)
             Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(inviteUnlimited, { inviteUnlimited = it }); Text("Unlimited uses", color = Mut) }
             if (!inviteUnlimited) OutlinedTextField(inviteUses, { inviteUses = it.filter(Char::isDigit) }, label = { Text("Allowed uses") }, modifier = Modifier.fillMaxWidth())
             Text("ACCOUNT PROFILE", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
@@ -1113,8 +1157,10 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
         confirmButton = { TextButton(enabled = !actionBusy && ((inviteMonths.toIntOrNull() ?: 0) + (inviteDays.toIntOrNull() ?: 0) + (inviteHours.toIntOrNull() ?: 0) + (inviteMinutes.toIntOrNull() ?: 0) > 0) && (inviteUnlimited || (inviteUses.toIntOrNull() ?: 0) > 0) && (!inviteUserExpiry || ((inviteUserMonths.toIntOrNull() ?: 0) + (inviteUserDays.toIntOrNull() ?: 0) + (inviteUserHours.toIntOrNull() ?: 0) + (inviteUserMinutes.toIntOrNull() ?: 0) > 0)), onClick = {
             actionBusy = true
             scope.launch { try {
-                withContext(Dispatchers.IO) { JfaApi.createInvite(conn!!, inviteMonths.toIntOrNull() ?: 0, inviteDays.toIntOrNull() ?: 0, inviteHours.toIntOrNull() ?: 0, inviteMinutes.toIntOrNull() ?: 0, inviteUses.toIntOrNull() ?: 1, inviteUnlimited, inviteLabel, inviteUserLabel, inviteProfile, inviteUserExpiry, inviteUserMonths.toIntOrNull() ?: 0, inviteUserDays.toIntOrNull() ?: 0, inviteUserHours.toIntOrNull() ?: 0, inviteUserMinutes.toIntOrNull() ?: 0) }
-                dialog = ""; refresh++; actionMessage = "Invitation created."
+                withContext(Dispatchers.IO) { JfaApi.createInvite(conn!!, inviteMonths.toIntOrNull() ?: 0, inviteDays.toIntOrNull() ?: 0, inviteHours.toIntOrNull() ?: 0, inviteMinutes.toIntOrNull() ?: 0, inviteUses.toIntOrNull() ?: 1, inviteUnlimited, inviteLabel, inviteUserLabel, inviteProfile, inviteUserExpiry, inviteUserMonths.toIntOrNull() ?: 0, inviteUserDays.toIntOrNull() ?: 0, inviteUserHours.toIntOrNull() ?: 0, inviteUserMinutes.toIntOrNull() ?: 0, inviteSendAddress) }
+                val sent = inviteSendAddress.isNotBlank()
+                inviteSendAddress = ""
+                dialog = ""; refresh++; actionMessage = if (sent) "Invitation created and sent." else "Invitation created."
             } catch (e: Exception) { actionMessage = e.message ?: "Invitation creation failed." } finally { actionBusy = false } }
         }) { Text("Create", color = Red) } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
