@@ -902,7 +902,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             }) { Text("Edit details", color = Red) }
             TextButton(onClick = {
                 val u = detailUser!!; editingUser = u; editAccountsAdmin = u.optBoolean("accounts_admin")
-                selectedProfile = profileNames.firstOrNull().orEmpty()
+                selectedProfile = ""
                 detailUser = null; dialog = "access"
             }) { Text("Access & profile", color = Red) }
             TextButton(onClick = {
