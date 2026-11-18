@@ -1129,7 +1129,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                             Text("RECIPIENT", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                             Text("Who should receive this invitation?", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
                         }
-                        Icon24(Ic.Mail, Red, 22.dp)
+                        Icon24(Ic.Server, Red, 22.dp)
                     }
                     OutlinedTextField(
                         inviteSendAddress, { inviteSendAddress = it; inviteActionError = null },
