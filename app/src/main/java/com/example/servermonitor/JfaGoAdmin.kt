@@ -295,8 +295,6 @@ private object JfaApi {
         }
         return runCatching { findCode(JSONObject(createdRaw)) }.getOrNull()
     }
-
-    }
     fun editInvite(c: JfaConn, code: String, label: String, userLabel: String, profile: String, notifyCreation: Boolean, notifyExpiry: Boolean) {
         val a = login(c)
         request(c, "/invites/edit", "PATCH", JSONObject().put("code", code).put("label", label).put("user_label", userLabel)
