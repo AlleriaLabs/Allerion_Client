@@ -99,7 +99,7 @@ private object JfaApi {
         require(u.protocol == "https" || u.protocol == "http") { "Use a valid Allerion HTTP or HTTPS URL." }
         val h = u.openConnection() as HttpURLConnection
         try {
-            h.requestMethod = method; h.connectTimeout = 10000; h.readTimeout = 15000
+            h.requestMethod = method; h.connectTimeout = 15000; h.readTimeout = 60000
             h.setRequestProperty("Accept", "application/json")
             if (basic) h.setRequestProperty("Authorization", "Basic " + Base64.encodeToString((c.username + ":" + c.password).toByteArray(), Base64.NO_WRAP))
             bearer?.let { h.setRequestProperty("Authorization", "Bearer " + it) }
@@ -1155,7 +1155,10 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 inviteSendAddress = ""
                 dialog = ""; tab = "Invites"; refresh++; actionMessage = null
                 inviteSuccess = recipient to createdCode
-            } catch (e: Exception) { inviteActionError = e.message ?: "Invitation creation failed." } finally { actionBusy = false } }
+            } catch (e: Exception) {
+                val timedOut = e is java.net.SocketTimeoutException || e.cause is java.net.SocketTimeoutException || (e.message ?: "").contains("timeout", ignoreCase = true)
+                inviteActionError = if (timedOut) "The server timed out while creating this invitation. It may already have been created, but email delivery is unconfirmed. Check the Invites list before trying again to avoid duplicate invitations. If no invitation appears, check the server's invitation-email and SMTP logs." else (e.message ?: "Invitation creation failed.")
+            } finally { actionBusy = false } }
         }) { Text(if (actionBusy) "Please wait…" else if (inviteSendAddress.isBlank()) "Create invitation" else "Create invitation & email", color = Red) } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     inviteSuccess?.let { (recipient, code) ->
