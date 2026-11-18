@@ -92,7 +92,7 @@ private object JfaStore {
     fun clear(ctx: Context) { ctx.getSharedPreferences(PREF, 0).edit().remove(KEY).apply() }
 }
 
-private object JfaApi {
+private data class InviteCreationResult(val recipient: String, val code: String, val emailSent: Boolean?, val failureReason: String)\n\nprivate object JfaApi {
     private fun request(c: JfaConn, path: String, method: String = "GET", body: JSONObject? = null,
                         bearer: String? = null, basic: Boolean = false, cookie: String? = null): Pair<String, String?> {
         val u = URL(normalizeJfaGoBaseUrl(c.url) + path)
@@ -263,12 +263,14 @@ private object JfaApi {
     fun createInvite(c: JfaConn, days: Int, uses: Int) { createInvite(c, days, 0, 0, 0, uses, false, "", "", "", false, 0, 0, 0, 0) }
     fun createInvite(c: JfaConn, months: Int, days: Int, hours: Int, minutes: Int, uses: Int, unlimited: Boolean,
         label: String, userLabel: String, profile: String, userExpiry: Boolean, userMonths: Int, userDays: Int, userHours: Int, userMinutes: Int,
-        sendTo: String = ""): String? {
+        sendTo: String = ""): InviteCreationResult {
         require(months >= 0 && days >= 0 && hours >= 0 && minutes >= 0 && (months + days + hours + minutes) > 0) { "Set a positive invitation validity period." }
         require(unlimited || uses > 0) { "Set at least one allowed use." }
         val a = login(c)
-        // Match the original Allerium flow: include the recipient in the same
-        // POST /invites request so the server creates and sends it together.
+        val startedAt = System.currentTimeMillis()
+        // JFA-Go accepts send-to on this same request, just like Allerium.
+        // Its /invites endpoint can still return HTTP 200 when email delivery fails,
+        // so verify the persisted sent_to result instead of treating HTTP 200 as delivery.
         val body = JSONObject().put("months", months).put("days", days).put("hours", hours).put("minutes", minutes)
             .put("multiple-uses", unlimited || uses > 1).put("no-limit", unlimited).put("remaining-uses", if (unlimited) 0 else uses)
             .put("label", label.trim()).put("user_label", userLabel.trim()).put("profile", profile)
@@ -279,12 +281,8 @@ private object JfaApi {
         fun findCode(value: Any?, depth: Int = 0): String? {
             if (depth > 5 || value == null || value == JSONObject.NULL) return null
             if (value is JSONObject) {
-                for (field in listOf("code", "invite_code", "invite-code")) {
-                    value.optString(field).takeIf { it.isNotBlank() }?.let { return it }
-                }
-                for (field in listOf("invite", "invitation", "data", "result")) {
-                    findCode(value.opt(field), depth + 1)?.let { return it }
-                }
+                for (field in listOf("code", "invite_code", "invite-code")) value.optString(field).takeIf { it.isNotBlank() }?.let { return it }
+                for (field in listOf("invite", "invitation", "data", "result")) findCode(value.opt(field), depth + 1)?.let { return it }
             } else if (value is JSONArray) {
                 for (i in 0 until value.length()) findCode(value.opt(i), depth + 1)?.let { return it }
             } else if (value is String) {
@@ -293,7 +291,30 @@ private object JfaApi {
             }
             return null
         }
-        return runCatching { findCode(JSONObject(createdRaw)) }.getOrNull()
+        val responseCode = runCatching { findCode(JSONObject(createdRaw)) }.getOrNull()
+        val latest = runCatching {
+            val raw = request(c, "/invites", bearer = a.token).first
+            val arr = responseArray(raw, "invites")
+            (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
+                .filter { it.optLong("created", 0L) >= startedAt - 10000L }
+                .filter { label.isBlank() || it.optString("label") == label.trim() }
+                .filter { userLabel.isBlank() || it.optString("user_label") == userLabel.trim() }
+                .maxByOrNull { it.optLong("created", 0L) }
+        }.getOrNull()
+        val code = responseCode ?: latest?.optString("code")?.takeIf { it.isNotBlank() }.orEmpty()
+        if (sendTo.isBlank()) return InviteCreationResult("", code, null, "")
+        val sentTo = latest?.optJSONObject("sent_to")
+        val address = sendTo.trim()
+        val successes = sentTo?.optJSONArray("success") ?: JSONArray()
+        if ((0 until successes.length()).any { successes.optString(it).equals(address, true) })
+            return InviteCreationResult(address, code, true, "")
+        val failures = sentTo?.optJSONArray("failed") ?: JSONArray()
+        for (i in 0 until failures.length()) {
+            val failure = failures.optJSONObject(i) ?: continue
+            if (failure.optString("address").equals(address, true))
+                return InviteCreationResult(address, code, false, failure.optString("reason").ifBlank { "The server reported an email delivery failure." })
+        }
+        return InviteCreationResult(address, code, null, "JFA-Go created the invitation but did not report a delivery result.")
     }
     fun editInvite(c: JfaConn, code: String, label: String, userLabel: String, profile: String, notifyCreation: Boolean, notifyExpiry: Boolean) {
         val a = login(c)
@@ -411,7 +432,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     var dialog by remember { mutableStateOf("") }
     var actionBusy by remember { mutableStateOf(false) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
-    var inviteSuccess by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var inviteSuccess by remember { mutableStateOf<InviteCreationResult?>(null) }
     var inviteActionError by remember { mutableStateOf<String?>(null) }
     var userSearch by remember { mutableStateOf("") }
     var userFilter by remember { mutableStateOf("All") }
@@ -1205,7 +1226,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                         actionBusy = true
                         scope.launch { try {
                             val recipient = inviteSendAddress.trim()
-                            val createdCode = withContext(Dispatchers.IO) {
+                            val creationResult = withContext(Dispatchers.IO) {
                                 JfaApi.createInvite(conn!!, inviteMonths.toIntOrNull() ?: 0, inviteDays.toIntOrNull() ?: 0,
                                     inviteHours.toIntOrNull() ?: 0, inviteMinutes.toIntOrNull() ?: 0,
                                     inviteUses.toIntOrNull() ?: 1, inviteUnlimited, inviteLabel, inviteUserLabel,
@@ -1215,7 +1236,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                             }.orEmpty()
                             inviteSendAddress = ""
                             dialog = ""; tab = "Invites"; refresh++; actionMessage = null
-                            inviteSuccess = recipient to createdCode
+                            inviteSuccess = creationResult
                         } catch (e: Exception) {
                             val timedOut = e is java.net.SocketTimeoutException || e.cause is java.net.SocketTimeoutException || (e.message ?: "").contains("timeout", ignoreCase = true)
                             inviteActionError = if (timedOut) "The server timed out. The invitation may already exist, but email delivery is unconfirmed. Check the Invites list before retrying to avoid duplicates." else (e.message ?: "Invitation creation failed.")
@@ -1234,26 +1255,40 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             }
         }
     }
-    inviteSuccess?.let { (recipient, code) ->
+    inviteSuccess?.let { result ->
         AlertDialog(
             onDismissRequest = { inviteSuccess = null },
-            title = { Text("Invitation created", color = Txt) },
+            title = { Text(if (result.recipient.isBlank()) "Invitation created" else if (result.emailSent == true) "Invitation email submitted" else if (result.emailSent == false) "Invitation created — email failed" else "Invitation created — delivery unconfirmed", color = Txt) },
             text = { Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 Text("✓ Invitation successfully created.", color = Color(0xFF55C98A), fontWeight = FontWeight.SemiBold)
-                if (recipient.isNotBlank()) {
-                    Text("Email request accepted by the server for:", color = Mut, fontWeight = FontWeight.SemiBold)
-                    Text(recipient, color = Txt)
-                    Text("This confirms the server accepted the request, not that the message reached the inbox. Delivery depends on SMTP and server email settings.", color = Dim, fontSize = AppType.caption)
+                if (result.recipient.isNotBlank()) {
+                    when (result.emailSent) {
+                        true -> {
+                            Text("JFA-Go reports that the email was successfully handed to its mail sender for:", color = Color(0xFF55C98A), fontWeight = FontWeight.SemiBold)
+                            Text(result.recipient, color = Txt)
+                            Text("This confirms the server mail operation succeeded; final inbox delivery can still depend on the mail provider.", color = Dim, fontSize = AppType.caption)
+                        }
+                        false -> {
+                            Text("JFA-Go reports that the email was not sent to:", color = Color(0xFFFF6878), fontWeight = FontWeight.SemiBold)
+                            Text(result.recipient, color = Txt)
+                            Text(result.failureReason, color = Color(0xFFFF6878), fontSize = AppType.caption)
+                        }
+                        else -> {
+                            Text("Email delivery could not be verified for:", color = Amber, fontWeight = FontWeight.SemiBold)
+                            Text(result.recipient, color = Txt)
+                            Text(result.failureReason, color = Dim, fontSize = AppType.caption)
+                        }
+                    }
                 }
-                if (code.isNotBlank()) {
+                if (result.code.isNotBlank()) {
                     Text("Invitation code", color = Mut, fontSize = AppType.caption)
-                    Text(code, color = Txt, fontWeight = FontWeight.Bold)
+                    Text(result.code, color = Txt, fontWeight = FontWeight.Bold)
                 } else {
-                    Text("The server created the invitation, but did not return its code. You can find it in the Invites tab.", color = Mut)
+                    Text("The server created the invitation. You can find its code in the Invites tab.", color = Mut)
                 }
             } },
             confirmButton = { Row {
-                if (code.isNotBlank()) TextButton(onClick = { copyText(ctx, code); actionMessage = "Invitation code copied." }) { Text("Copy code", color = Red) }
+                if (result.code.isNotBlank()) TextButton(onClick = { copyText(ctx, result.code); actionMessage = "Invitation code copied." }) { Text("Copy code", color = Red) }
                 TextButton(onClick = { inviteSuccess = null }) { Text("Done", color = Red) }
             } }
         )
