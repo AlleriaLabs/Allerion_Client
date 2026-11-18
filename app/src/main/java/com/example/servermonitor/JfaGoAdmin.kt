@@ -1101,6 +1101,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             dialog = ""; refresh++; actionMessage = "Account status updated."
         } catch (e: Exception) { actionMessage = e.message ?: "Account update failed." } finally { actionBusy = false } } }) { Text("Confirm", color = Red) } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    val inviteEmailEnabled = registrationValues["invite_emails.enabled"]?.toBooleanStrictOrNull()
     if (dialog == "invite") AlertDialog(
         onDismissRequest = { if (!actionBusy) dialog = "" },
         title = { Text("Create invitation", color = Txt) },
@@ -1108,7 +1109,6 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             Text("SEND INVITATION BY EMAIL", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
             OutlinedTextField(inviteSendAddress, { inviteSendAddress = it }, label = { Text("Recipient email address") }, placeholder = { Text("name@example.com") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             Text("The recipient is included in the invitation creation request. Email delivery also requires invitation email to be enabled and SMTP to be working on your server.", color = Mut, fontSize = AppType.caption)
-            val inviteEmailEnabled = registrationValues["invite_emails.enabled"]?.toBooleanStrictOrNull()
             if (inviteSendAddress.isNotBlank() && inviteEmailEnabled == false) Text("Email sending is currently disabled in Registration settings. Enable Invitation emails before creating this invitation.", color = Color(0xFFFFB454), fontSize = AppType.caption)
             inviteActionError?.let { Text(it, color = Color(0xFFFF6878), fontSize = AppType.caption) }
             if (actionBusy) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp); Text("Creating invitation…", color = Mut, fontSize = AppType.caption) }
