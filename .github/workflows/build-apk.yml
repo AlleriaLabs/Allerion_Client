@@ -128,3 +128,5 @@ jobs:
           files: |
             Allerion.apk
             Allerion.apk.sha256
+
+# Release workflow trigger: Allerion v1.2.21.
