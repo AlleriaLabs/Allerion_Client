@@ -92,7 +92,9 @@ private object JfaStore {
     fun clear(ctx: Context) { ctx.getSharedPreferences(PREF, 0).edit().remove(KEY).apply() }
 }
 
-private data class InviteCreationResult(val recipient: String, val code: String, val emailSent: Boolean?, val failureReason: String)\n\nprivate object JfaApi {
+private data class InviteCreationResult(val recipient: String, val code: String, val emailSent: Boolean?, val failureReason: String)
+
+private object JfaApi {
     private fun request(c: JfaConn, path: String, method: String = "GET", body: JSONObject? = null,
                         bearer: String? = null, basic: Boolean = false, cookie: String? = null): Pair<String, String?> {
         val u = URL(normalizeJfaGoBaseUrl(c.url) + path)
