@@ -1233,7 +1233,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                                     inviteProfile, inviteUserExpiry, inviteUserMonths.toIntOrNull() ?: 0,
                                     inviteUserDays.toIntOrNull() ?: 0, inviteUserHours.toIntOrNull() ?: 0,
                                     inviteUserMinutes.toIntOrNull() ?: 0, recipient)
-                            }.orEmpty()
+                            }
                             inviteSendAddress = ""
                             dialog = ""; tab = "Invites"; refresh++; actionMessage = null
                             inviteSuccess = creationResult
