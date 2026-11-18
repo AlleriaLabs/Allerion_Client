@@ -1167,18 +1167,16 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(inviteNotifyCreation, { inviteNotifyCreation = it }); Text("Notify me when used", color = Mut) }
             Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(inviteNotifyExpiry, { inviteNotifyExpiry = it }); Text("Notify me when expired", color = Mut) }
             Divider(color = Line)
-            OutlinedTextField(inviteSendAddress, { inviteSendAddress = it }, label = { Text("Send to email / Discord") }, modifier = Modifier.fillMaxWidth())
-            Text("Sending requires invitation messaging to be enabled on the server.", color = Dim, fontSize = AppType.caption)
+            Text("Email delivery is handled when the invitation is created. Saving changes here will not send another email.", color = Dim, fontSize = AppType.caption)
         } },
         confirmButton = { Row {
             TextButton(enabled = !actionBusy, onClick = {
                 actionBusy = true
                 scope.launch { try {
                     withContext(Dispatchers.IO) { JfaApi.editInvite(conn!!, selected!!.getString("code"), inviteLabel, inviteUserLabel, inviteProfile, inviteNotifyCreation, inviteNotifyExpiry) }
-                    if (inviteSendAddress.isNotBlank()) withContext(Dispatchers.IO) { JfaApi.sendInvite(conn!!, selected!!.getString("code"), inviteSendAddress) }
-                    dialog = ""; refresh++; actionMessage = "Invitation updated."
+                    dialog = ""; refresh++; actionMessage = "Invitation updated. No email was resent."
                 } catch (e: Exception) { actionMessage = e.message ?: "Invitation update failed." } finally { actionBusy = false } }
-            }) { Text("Save & send", color = Red) }
+            }) { Text("Save changes", color = Red) }
         } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (dialog == "delete_invite") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" },
