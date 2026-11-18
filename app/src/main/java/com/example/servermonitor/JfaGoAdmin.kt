@@ -1118,6 +1118,10 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
         onDismissRequest = { if (!actionBusy) dialog = "" },
         title = { Text("Create invitation", color = Txt) },
         text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("SEND INVITATION BY EMAIL", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+            OutlinedTextField(inviteSendAddress, { inviteSendAddress = it }, label = { Text("Recipient email address") }, placeholder = { Text("name@example.com") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            Text("Enter the recipient's email here. Allerion will create the invitation and then send it to this address. Leave blank only if you do not want to email it.", color = Mut, fontSize = AppType.caption)
+            Divider(color = Line)
             Text("INVITATION VALIDITY", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 OutlinedTextField(inviteMonths, { inviteMonths = it.filter(Char::isDigit) }, label = { Text("Months") }, modifier = Modifier.weight(1f))
@@ -1129,9 +1133,6 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             }
             OutlinedTextField(inviteLabel, { inviteLabel = it }, label = { Text("Internal invitation label") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(inviteUserLabel, { inviteUserLabel = it }, label = { Text("Label applied to new accounts") }, modifier = Modifier.fillMaxWidth())
-            Divider(color = Line)
-            OutlinedTextField(inviteSendAddress, { inviteSendAddress = it }, label = { Text("Email address (optional)") }, modifier = Modifier.fillMaxWidth())
-            Text("The invitation is created first, then the generated invite is automatically emailed to this address. Leave blank to create without sending.", color = Dim, fontSize = AppType.caption)
             Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(inviteUnlimited, { inviteUnlimited = it }); Text("Unlimited uses", color = Mut) }
             if (!inviteUnlimited) OutlinedTextField(inviteUses, { inviteUses = it.filter(Char::isDigit) }, label = { Text("Allowed uses") }, modifier = Modifier.fillMaxWidth())
             Text("ACCOUNT PROFILE", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
