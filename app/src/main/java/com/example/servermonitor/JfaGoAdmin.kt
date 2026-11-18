@@ -1102,65 +1102,138 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
         } catch (e: Exception) { actionMessage = e.message ?: "Account update failed." } finally { actionBusy = false } } }) { Text("Confirm", color = Red) } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     val inviteEmailEnabled = registrationValues["invite_emails.enabled"]?.toBooleanStrictOrNull()
-    if (dialog == "invite") AlertDialog(
-        onDismissRequest = { if (!actionBusy) dialog = "" },
-        title = { Text("Create invitation", color = Txt) },
-        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text("SEND INVITATION BY EMAIL", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
-            OutlinedTextField(inviteSendAddress, { inviteSendAddress = it }, label = { Text("Recipient email address") }, placeholder = { Text("name@example.com") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Text("The recipient is included in the invitation creation request. Email delivery also requires invitation email to be enabled and SMTP to be working on your server.", color = Mut, fontSize = AppType.caption)
-            if (inviteSendAddress.isNotBlank() && inviteEmailEnabled == false) Text("Email sending is currently disabled in Registration settings. Enable Invitation emails before creating this invitation.", color = Color(0xFFFFB454), fontSize = AppType.caption)
-            inviteActionError?.let { Text(it, color = Color(0xFFFF6878), fontSize = AppType.caption) }
-            if (actionBusy) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp); Text("Creating invitation…", color = Mut, fontSize = AppType.caption) }
-            Divider(color = Line)
-            Text("INVITATION VALIDITY", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                OutlinedTextField(inviteMonths, { inviteMonths = it.filter(Char::isDigit) }, label = { Text("Months") }, modifier = Modifier.weight(1f))
-                OutlinedTextField(inviteDays, { inviteDays = it.filter(Char::isDigit) }, label = { Text("Days") }, modifier = Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                OutlinedTextField(inviteHours, { inviteHours = it.filter(Char::isDigit) }, label = { Text("Hours") }, modifier = Modifier.weight(1f))
-                OutlinedTextField(inviteMinutes, { inviteMinutes = it.filter(Char::isDigit) }, label = { Text("Minutes") }, modifier = Modifier.weight(1f))
-            }
-            OutlinedTextField(inviteLabel, { inviteLabel = it }, label = { Text("Internal invitation label") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(inviteUserLabel, { inviteUserLabel = it }, label = { Text("Label applied to new accounts") }, modifier = Modifier.fillMaxWidth())
-            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(inviteUnlimited, { inviteUnlimited = it }); Text("Unlimited uses", color = Mut) }
-            if (!inviteUnlimited) OutlinedTextField(inviteUses, { inviteUses = it.filter(Char::isDigit) }, label = { Text("Allowed uses") }, modifier = Modifier.fillMaxWidth())
-            Text("ACCOUNT PROFILE", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
-            Box {
-                OutlinedButton(onClick = { profileMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(if (inviteProfile.isBlank()) "Server default profile" else inviteProfile) }
-                DropdownMenu(expanded = profileMenu, onDismissRequest = { profileMenu = false }) {
-                    DropdownMenuItem(text = { Text("Server default profile") }, onClick = { inviteProfile = ""; profileMenu = false })
-                    profileNames.forEach { p -> DropdownMenuItem(text = { Text(p) }, onClick = { inviteProfile = p; profileMenu = false }) }
+    if (dialog == "invite") {
+        Box(
+            Modifier.fillMaxSize().background(Bg)
+                .padding(horizontal = 18.dp, vertical = 12.dp)
+        ) {
+            Column(
+                Modifier.fillMaxSize().widthIn(max = 760.dp).align(Alignment.TopCenter)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { if (!actionBusy) dialog = "" }, enabled = !actionBusy) {
+                        Text("‹  Back to invitations", color = Red, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text("ALLERION", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                 }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(inviteUserExpiry, { inviteUserExpiry = it }); Text("Set expiry on created accounts", color = Mut) }
-            if (inviteUserExpiry) {
-                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    OutlinedTextField(inviteUserMonths, { inviteUserMonths = it.filter(Char::isDigit) }, label = { Text("Months") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(inviteUserDays, { inviteUserDays = it.filter(Char::isDigit) }, label = { Text("Days") }, modifier = Modifier.weight(1f))
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("New invitation", color = Txt, fontSize = AppType.display, fontWeight = FontWeight.Bold)
+                    Text("Set the invitation details and send it directly to the recipient.", color = Mut, fontSize = AppType.body)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    OutlinedTextField(inviteUserHours, { inviteUserHours = it.filter(Char::isDigit) }, label = { Text("Hours") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(inviteUserMinutes, { inviteUserMinutes = it.filter(Char::isDigit) }, label = { Text("Minutes") }, modifier = Modifier.weight(1f))
+                JfaCompactSurface {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("RECIPIENT", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            Text("Who should receive this invitation?", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                        }
+                        Icon24(Ic.Mail, Red, 22.dp)
+                    }
+                    OutlinedTextField(
+                        inviteSendAddress, { inviteSendAddress = it; inviteActionError = null },
+                        label = { Text("Email address") },
+                        placeholder = { Text("name@example.com") },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        enabled = !actionBusy
+                    )
+                    Text("The invitation is created and the email is requested together in one server operation.", color = Mut, fontSize = AppType.caption)
+                    if (inviteEmailEnabled == false) Text("Invitation emails are disabled in Registration settings. Enable them before sending.", color = Color(0xFFFFB454), fontSize = AppType.caption)
                 }
+                JfaCompactSurface {
+                    Text("INVITATION VALIDITY", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Text("How long this invitation can be used", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(inviteMonths, { inviteMonths = it.filter(Char::isDigit) }, label = { Text("Months") }, modifier = Modifier.weight(1f), enabled = !actionBusy)
+                        OutlinedTextField(inviteDays, { inviteDays = it.filter(Char::isDigit) }, label = { Text("Days") }, modifier = Modifier.weight(1f), enabled = !actionBusy)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(inviteHours, { inviteHours = it.filter(Char::isDigit) }, label = { Text("Hours") }, modifier = Modifier.weight(1f), enabled = !actionBusy)
+                        OutlinedTextField(inviteMinutes, { inviteMinutes = it.filter(Char::isDigit) }, label = { Text("Minutes") }, modifier = Modifier.weight(1f), enabled = !actionBusy)
+                    }
+                    OutlinedTextField(inviteLabel, { inviteLabel = it }, label = { Text("Internal invitation label") }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy)
+                    OutlinedTextField(inviteUserLabel, { inviteUserLabel = it }, label = { Text("Label applied to new accounts") }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(inviteUnlimited, { inviteUnlimited = it }, enabled = !actionBusy)
+                        Text("Unlimited uses", color = Mut)
+                    }
+                    if (!inviteUnlimited) OutlinedTextField(inviteUses, { inviteUses = it.filter(Char::isDigit) }, label = { Text("Allowed uses") }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy)
+                }
+                JfaCompactSurface {
+                    Text("ACCOUNT PROFILE", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Box {
+                        OutlinedButton(onClick = { profileMenu = true }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) {
+                            Text(if (inviteProfile.isBlank()) "Server default profile" else inviteProfile)
+                        }
+                        DropdownMenu(expanded = profileMenu, onDismissRequest = { profileMenu = false }) {
+                            DropdownMenuItem(text = { Text("Server default profile") }, onClick = { inviteProfile = ""; profileMenu = false })
+                            profileNames.forEach { p -> DropdownMenuItem(text = { Text(p) }, onClick = { inviteProfile = p; profileMenu = false }) }
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(inviteUserExpiry, { inviteUserExpiry = it }, enabled = !actionBusy)
+                        Text("Set expiry on created accounts", color = Mut)
+                    }
+                    if (inviteUserExpiry) {
+                        Text("NEW ACCOUNT EXPIRY", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(inviteUserMonths, { inviteUserMonths = it.filter(Char::isDigit) }, label = { Text("Months") }, modifier = Modifier.weight(1f), enabled = !actionBusy)
+                            OutlinedTextField(inviteUserDays, { inviteUserDays = it.filter(Char::isDigit) }, label = { Text("Days") }, modifier = Modifier.weight(1f), enabled = !actionBusy)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(inviteUserHours, { inviteUserHours = it.filter(Char::isDigit) }, label = { Text("Hours") }, modifier = Modifier.weight(1f), enabled = !actionBusy)
+                            OutlinedTextField(inviteUserMinutes, { inviteUserMinutes = it.filter(Char::isDigit) }, label = { Text("Minutes") }, modifier = Modifier.weight(1f), enabled = !actionBusy)
+                        }
+                    }
+                }
+                inviteActionError?.let { StateMessage(it, true) }
+                if (actionBusy) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Red)
+                    Spacer(Modifier.width(9.dp))
+                    Text("Creating invitation and submitting email…", color = Mut, fontSize = AppType.caption)
+                }
+                val canCreateInvite = !actionBusy &&
+                    ((inviteMonths.toIntOrNull() ?: 0) + (inviteDays.toIntOrNull() ?: 0) + (inviteHours.toIntOrNull() ?: 0) + (inviteMinutes.toIntOrNull() ?: 0) > 0) &&
+                    (inviteUnlimited || (inviteUses.toIntOrNull() ?: 0) > 0) &&
+                    (!inviteUserExpiry || ((inviteUserMonths.toIntOrNull() ?: 0) + (inviteUserDays.toIntOrNull() ?: 0) + (inviteUserHours.toIntOrNull() ?: 0) + (inviteUserMinutes.toIntOrNull() ?: 0) > 0)) &&
+                    inviteSendAddress.isNotBlank() && android.util.Patterns.EMAIL_ADDRESS.matcher(inviteSendAddress.trim()).matches() && inviteEmailEnabled != false
+                Button(
+                    enabled = canCreateInvite,
+                    onClick = {
+                        inviteActionError = null
+                        actionBusy = true
+                        scope.launch { try {
+                            val recipient = inviteSendAddress.trim()
+                            val createdCode = withContext(Dispatchers.IO) {
+                                JfaApi.createInvite(conn!!, inviteMonths.toIntOrNull() ?: 0, inviteDays.toIntOrNull() ?: 0,
+                                    inviteHours.toIntOrNull() ?: 0, inviteMinutes.toIntOrNull() ?: 0,
+                                    inviteUses.toIntOrNull() ?: 1, inviteUnlimited, inviteLabel, inviteUserLabel,
+                                    inviteProfile, inviteUserExpiry, inviteUserMonths.toIntOrNull() ?: 0,
+                                    inviteUserDays.toIntOrNull() ?: 0, inviteUserHours.toIntOrNull() ?: 0,
+                                    inviteUserMinutes.toIntOrNull() ?: 0, recipient)
+                            }.orEmpty()
+                            inviteSendAddress = ""
+                            dialog = ""; tab = "Invites"; refresh++; actionMessage = null
+                            inviteSuccess = recipient to createdCode
+                        } catch (e: Exception) {
+                            val timedOut = e is java.net.SocketTimeoutException || e.cause is java.net.SocketTimeoutException || (e.message ?: "").contains("timeout", ignoreCase = true)
+                            inviteActionError = if (timedOut) "The server timed out. The invitation may already exist, but email delivery is unconfirmed. Check the Invites list before retrying to avoid duplicates." else (e.message ?: "Invitation creation failed.")
+                        } finally { actionBusy = false } }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White)
+                ) {
+                    Text(if (actionBusy) "Please wait…" else "Create & Send Invitation", fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = { if (!actionBusy) dialog = "" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) {
+                    Text("Cancel", color = Mut)
+                }
+                Spacer(Modifier.height(20.dp))
             }
-        } },
-        confirmButton = { TextButton(enabled = !actionBusy && ((inviteMonths.toIntOrNull() ?: 0) + (inviteDays.toIntOrNull() ?: 0) + (inviteHours.toIntOrNull() ?: 0) + (inviteMinutes.toIntOrNull() ?: 0) > 0) && (inviteUnlimited || (inviteUses.toIntOrNull() ?: 0) > 0) && (!inviteUserExpiry || ((inviteUserMonths.toIntOrNull() ?: 0) + (inviteUserDays.toIntOrNull() ?: 0) + (inviteUserHours.toIntOrNull() ?: 0) + (inviteUserMinutes.toIntOrNull() ?: 0) > 0)) && (inviteSendAddress.isBlank() || (android.util.Patterns.EMAIL_ADDRESS.matcher(inviteSendAddress.trim()).matches() && inviteEmailEnabled != false)), onClick = {
-            inviteActionError = null
-            actionBusy = true
-            scope.launch { try {
-                val recipient = inviteSendAddress.trim()
-                val createdCode = withContext(Dispatchers.IO) { JfaApi.createInvite(conn!!, inviteMonths.toIntOrNull() ?: 0, inviteDays.toIntOrNull() ?: 0, inviteHours.toIntOrNull() ?: 0, inviteMinutes.toIntOrNull() ?: 0, inviteUses.toIntOrNull() ?: 1, inviteUnlimited, inviteLabel, inviteUserLabel, inviteProfile, inviteUserExpiry, inviteUserMonths.toIntOrNull() ?: 0, inviteUserDays.toIntOrNull() ?: 0, inviteUserHours.toIntOrNull() ?: 0, inviteUserMinutes.toIntOrNull() ?: 0, recipient) }.orEmpty()
-                inviteSendAddress = ""
-                dialog = ""; tab = "Invites"; refresh++; actionMessage = null
-                inviteSuccess = recipient to createdCode
-            } catch (e: Exception) {
-                val timedOut = e is java.net.SocketTimeoutException || e.cause is java.net.SocketTimeoutException || (e.message ?: "").contains("timeout", ignoreCase = true)
-                inviteActionError = if (timedOut) "The server timed out while creating this invitation. It may already have been created, but email delivery is unconfirmed. Check the Invites list before trying again to avoid duplicate invitations. If no invitation appears, check the server's invitation-email and SMTP logs." else (e.message ?: "Invitation creation failed.")
-            } finally { actionBusy = false } }
-        }) { Text(if (actionBusy) "Please wait…" else if (inviteSendAddress.isBlank()) "Create invitation" else "Create invitation & email", color = Red) } },
-        dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+        }
+    }
     inviteSuccess?.let { (recipient, code) ->
         AlertDialog(
             onDismissRequest = { inviteSuccess = null },
