@@ -1130,8 +1130,8 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             OutlinedTextField(inviteLabel, { inviteLabel = it }, label = { Text("Internal invitation label") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(inviteUserLabel, { inviteUserLabel = it }, label = { Text("Label applied to new accounts") }, modifier = Modifier.fillMaxWidth())
             Divider(color = Line)
-            OutlinedTextField(inviteSendAddress, { inviteSendAddress = it }, label = { Text("Send invitation to email / Discord (optional)") }, modifier = Modifier.fillMaxWidth())
-            Text("Enter a recipient to create the invitation and send it in one step. Leave blank to create it without sending.", color = Dim, fontSize = AppType.caption)
+            OutlinedTextField(inviteSendAddress, { inviteSendAddress = it }, label = { Text("Email address (optional)") }, modifier = Modifier.fillMaxWidth())
+            Text("The invitation is created first, then the generated invite is automatically emailed to this address. Leave blank to create without sending.", color = Dim, fontSize = AppType.caption)
             Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(inviteUnlimited, { inviteUnlimited = it }); Text("Unlimited uses", color = Mut) }
             if (!inviteUnlimited) OutlinedTextField(inviteUses, { inviteUses = it.filter(Char::isDigit) }, label = { Text("Allowed uses") }, modifier = Modifier.fillMaxWidth())
             Text("ACCOUNT PROFILE", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
@@ -1154,7 +1154,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 }
             }
         } },
-        confirmButton = { TextButton(enabled = !actionBusy && ((inviteMonths.toIntOrNull() ?: 0) + (inviteDays.toIntOrNull() ?: 0) + (inviteHours.toIntOrNull() ?: 0) + (inviteMinutes.toIntOrNull() ?: 0) > 0) && (inviteUnlimited || (inviteUses.toIntOrNull() ?: 0) > 0) && (!inviteUserExpiry || ((inviteUserMonths.toIntOrNull() ?: 0) + (inviteUserDays.toIntOrNull() ?: 0) + (inviteUserHours.toIntOrNull() ?: 0) + (inviteUserMinutes.toIntOrNull() ?: 0) > 0)), onClick = {
+        confirmButton = { TextButton(enabled = !actionBusy && ((inviteMonths.toIntOrNull() ?: 0) + (inviteDays.toIntOrNull() ?: 0) + (inviteHours.toIntOrNull() ?: 0) + (inviteMinutes.toIntOrNull() ?: 0) > 0) && (inviteUnlimited || (inviteUses.toIntOrNull() ?: 0) > 0) && (!inviteUserExpiry || ((inviteUserMonths.toIntOrNull() ?: 0) + (inviteUserDays.toIntOrNull() ?: 0) + (inviteUserHours.toIntOrNull() ?: 0) + (inviteUserMinutes.toIntOrNull() ?: 0) > 0)) && (inviteSendAddress.isBlank() || android.util.Patterns.EMAIL_ADDRESS.matcher(inviteSendAddress.trim()).matches()), onClick = {
             actionBusy = true
             scope.launch { try {
                 withContext(Dispatchers.IO) { JfaApi.createInvite(conn!!, inviteMonths.toIntOrNull() ?: 0, inviteDays.toIntOrNull() ?: 0, inviteHours.toIntOrNull() ?: 0, inviteMinutes.toIntOrNull() ?: 0, inviteUses.toIntOrNull() ?: 1, inviteUnlimited, inviteLabel, inviteUserLabel, inviteProfile, inviteUserExpiry, inviteUserMonths.toIntOrNull() ?: 0, inviteUserDays.toIntOrNull() ?: 0, inviteUserHours.toIntOrNull() ?: 0, inviteUserMinutes.toIntOrNull() ?: 0, inviteSendAddress) }
@@ -1162,7 +1162,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 inviteSendAddress = ""
                 dialog = ""; refresh++; actionMessage = if (sent) "Invitation created and sent." else "Invitation created."
             } catch (e: Exception) { actionMessage = e.message ?: "Invitation creation failed." } finally { actionBusy = false } }
-        }) { Text("Create", color = Red) } },
+        }) { Text(if (inviteSendAddress.isBlank()) "Create" else "Create & send email", color = Red) } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     if (dialog == "edit_invite") AlertDialog(
         onDismissRequest = { if (!actionBusy) dialog = "" },
