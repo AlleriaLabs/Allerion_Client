@@ -412,6 +412,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     var actionBusy by remember { mutableStateOf(false) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
     var inviteSuccess by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var inviteActionError by remember { mutableStateOf<String?>(null) }
     var userSearch by remember { mutableStateOf("") }
     var userFilter by remember { mutableStateOf("All") }
     var userSort by remember { mutableStateOf("Name") }
@@ -790,7 +791,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                     JfaMetric(usedCount.toString(), "USED", Ic.Activity, Modifier.weight(1f))
                     JfaMetric((invites.size - activeCount).coerceAtLeast(0).toString(), "INACTIVE", Ic.Clock, Modifier.weight(1f))
                 }
-                Button(onClick = { inviteMonths = "0"; inviteDays = "7"; inviteHours = "0"; inviteMinutes = "0"; inviteUses = "1"; inviteUnlimited = false; inviteLabel = ""; inviteUserLabel = ""; inviteProfile = ""; inviteUserExpiry = false; inviteUserMonths = "0"; inviteUserDays = "30"; inviteUserHours = "0"; inviteUserMinutes = "0"; inviteSendAddress = ""; dialog = "invite" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) { Text("Create invitation") }
+                Button(onClick = { inviteMonths = "0"; inviteDays = "7"; inviteHours = "0"; inviteMinutes = "0"; inviteUses = "1"; inviteUnlimited = false; inviteLabel = ""; inviteUserLabel = ""; inviteProfile = ""; inviteUserExpiry = false; inviteUserMonths = "0"; inviteUserDays = "30"; inviteUserHours = "0"; inviteUserMinutes = "0"; inviteSendAddress = ""; inviteActionError = null; dialog = "invite" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) { Text("Create invitation") }
                 inviteLoadError?.let { StateMessage("Invitations could not be loaded: $it", true) }
                 OutlinedTextField(inviteSearch, { inviteSearch = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search invitation code") })
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -1106,7 +1107,11 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
         text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("SEND INVITATION BY EMAIL", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
             OutlinedTextField(inviteSendAddress, { inviteSendAddress = it }, label = { Text("Recipient email address") }, placeholder = { Text("name@example.com") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Text("Enter the recipient's email here. Allerion will create the invitation and send it to this address in one step. Leave blank if you do not want an email sent.", color = Mut, fontSize = AppType.caption)
+            Text("The recipient is included in the invitation creation request. Email delivery also requires invitation email to be enabled and SMTP to be working on your server.", color = Mut, fontSize = AppType.caption)
+            val inviteEmailEnabled = registrationValues["invite_emails.enabled"]?.toBooleanStrictOrNull()
+            if (inviteSendAddress.isNotBlank() && inviteEmailEnabled == false) Text("Email sending is currently disabled in Registration settings. Enable Invitation emails before creating this invitation.", color = Color(0xFFFFB454), fontSize = AppType.caption)
+            inviteActionError?.let { Text(it, color = Color(0xFFFF6878), fontSize = AppType.caption) }
+            if (actionBusy) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp); Text("Creating invitation…", color = Mut, fontSize = AppType.caption) }
             Divider(color = Line)
             Text("INVITATION VALIDITY", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -1141,7 +1146,8 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 }
             }
         } },
-        confirmButton = { TextButton(enabled = !actionBusy && ((inviteMonths.toIntOrNull() ?: 0) + (inviteDays.toIntOrNull() ?: 0) + (inviteHours.toIntOrNull() ?: 0) + (inviteMinutes.toIntOrNull() ?: 0) > 0) && (inviteUnlimited || (inviteUses.toIntOrNull() ?: 0) > 0) && (!inviteUserExpiry || ((inviteUserMonths.toIntOrNull() ?: 0) + (inviteUserDays.toIntOrNull() ?: 0) + (inviteUserHours.toIntOrNull() ?: 0) + (inviteUserMinutes.toIntOrNull() ?: 0) > 0)) && (inviteSendAddress.isBlank() || android.util.Patterns.EMAIL_ADDRESS.matcher(inviteSendAddress.trim()).matches()), onClick = {
+        confirmButton = { TextButton(enabled = !actionBusy && ((inviteMonths.toIntOrNull() ?: 0) + (inviteDays.toIntOrNull() ?: 0) + (inviteHours.toIntOrNull() ?: 0) + (inviteMinutes.toIntOrNull() ?: 0) > 0) && (inviteUnlimited || (inviteUses.toIntOrNull() ?: 0) > 0) && (!inviteUserExpiry || ((inviteUserMonths.toIntOrNull() ?: 0) + (inviteUserDays.toIntOrNull() ?: 0) + (inviteUserHours.toIntOrNull() ?: 0) + (inviteUserMinutes.toIntOrNull() ?: 0) > 0)) && (inviteSendAddress.isBlank() || (android.util.Patterns.EMAIL_ADDRESS.matcher(inviteSendAddress.trim()).matches() && inviteEmailEnabled != false)), onClick = {
+            inviteActionError = null
             actionBusy = true
             scope.launch { try {
                 val recipient = inviteSendAddress.trim()
@@ -1149,18 +1155,19 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                 inviteSendAddress = ""
                 dialog = ""; tab = "Invites"; refresh++; actionMessage = null
                 inviteSuccess = recipient to createdCode
-            } catch (e: Exception) { actionMessage = e.message ?: "Invitation creation failed." } finally { actionBusy = false } }
-        }) { Text(if (inviteSendAddress.isBlank()) "Create" else "Create & send email", color = Red) } },
+            } catch (e: Exception) { inviteActionError = e.message ?: "Invitation creation failed." } finally { actionBusy = false } }
+        }) { Text(if (actionBusy) "Please wait…" else if (inviteSendAddress.isBlank()) "Create invitation" else "Create invitation & email", color = Red) } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
     inviteSuccess?.let { (recipient, code) ->
         AlertDialog(
             onDismissRequest = { inviteSuccess = null },
-            title = { Text(if (recipient.isNotBlank()) "Invitation created & email sent" else "Invitation created", color = Txt) },
+            title = { Text("Invitation created", color = Txt) },
             text = { Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 Text("✓ Invitation successfully created.", color = Color(0xFF55C98A), fontWeight = FontWeight.SemiBold)
                 if (recipient.isNotBlank()) {
-                    Text("✓ Email sent to", color = Color(0xFF55C98A), fontWeight = FontWeight.SemiBold)
+                    Text("Email request accepted by the server for:", color = Mut, fontWeight = FontWeight.SemiBold)
                     Text(recipient, color = Txt)
+                    Text("This confirms the server accepted the request, not that the message reached the inbox. Delivery depends on SMTP and server email settings.", color = Dim, fontSize = AppType.caption)
                 }
                 if (code.isNotBlank()) {
                     Text("Invitation code", color = Mut, fontSize = AppType.caption)
