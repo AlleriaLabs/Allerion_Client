@@ -1197,7 +1197,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                     ((inviteMonths.toIntOrNull() ?: 0) + (inviteDays.toIntOrNull() ?: 0) + (inviteHours.toIntOrNull() ?: 0) + (inviteMinutes.toIntOrNull() ?: 0) > 0) &&
                     (inviteUnlimited || (inviteUses.toIntOrNull() ?: 0) > 0) &&
                     (!inviteUserExpiry || ((inviteUserMonths.toIntOrNull() ?: 0) + (inviteUserDays.toIntOrNull() ?: 0) + (inviteUserHours.toIntOrNull() ?: 0) + (inviteUserMinutes.toIntOrNull() ?: 0) > 0)) &&
-                    inviteSendAddress.isNotBlank() && android.util.Patterns.EMAIL_ADDRESS.matcher(inviteSendAddress.trim()).matches() && inviteEmailEnabled != false
+                    (inviteSendAddress.isBlank() || (android.util.Patterns.EMAIL_ADDRESS.matcher(inviteSendAddress.trim()).matches() && inviteEmailEnabled != false))
                 Button(
                     enabled = canCreateInvite,
                     onClick = {
@@ -1225,7 +1225,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White)
                 ) {
-                    Text(if (actionBusy) "Please wait…" else "Create & Send Invitation", fontWeight = FontWeight.Bold)
+                    Text(if (actionBusy) "Please wait…" else if (inviteSendAddress.isBlank()) "Create Invitation" else "Create & Send Invitation", fontWeight = FontWeight.Bold)
                 }
                 TextButton(onClick = { if (!actionBusy) dialog = "" }, modifier = Modifier.fillMaxWidth(), enabled = !actionBusy) {
                     Text("Cancel", color = Mut)
