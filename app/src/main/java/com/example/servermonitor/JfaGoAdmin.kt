@@ -1105,7 +1105,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
         text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text("SEND INVITATION BY EMAIL", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
             OutlinedTextField(inviteSendAddress, { inviteSendAddress = it }, label = { Text("Recipient email address") }, placeholder = { Text("name@example.com") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Text("Enter the recipient's email here. Allerion will create the invitation and then send it to this address. Leave blank only if you do not want to email it.", color = Mut, fontSize = AppType.caption)
+            Text("Enter the recipient's email here. Allerion will create the invitation and send it to this address in one step. Leave blank if you do not want an email sent.", color = Mut, fontSize = AppType.caption)
             Divider(color = Line)
             Text("INVITATION VALIDITY", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -1311,8 +1311,5 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             } },
             dismissButton = { TextButton(onClick = { resetLink = null }) { Text("Close") } })
     }
-    if (dialog == "invite") AlertDialog(onDismissRequest = { if (!actionBusy) dialog = "" }, title = { Text("Create invitation", color = Txt) },
-        text = { Column { OutlinedTextField(inviteDays, { inviteDays = it.filter(Char::isDigit) }, label = { Text("Validity days") }); OutlinedTextField(inviteUses, { inviteUses = it.filter(Char::isDigit) }, label = { Text("Number of uses") }) } },
-        confirmButton = { TextButton(enabled = !actionBusy && (inviteDays.toIntOrNull() ?: 0) > 0 && (inviteUses.toIntOrNull() ?: 0) > 0, onClick = { actionBusy = true; scope.launch { try { withContext(Dispatchers.IO) { JfaApi.createInvite(conn!!, inviteDays.toInt(), inviteUses.toInt()) }; dialog = ""; refresh++; actionMessage = "Invitation created." } catch (e: Exception) { actionMessage = e.message ?: "Invitation creation failed." } finally { actionBusy = false } } }) { Text("Create", color = Red) } }, dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
 
 }
