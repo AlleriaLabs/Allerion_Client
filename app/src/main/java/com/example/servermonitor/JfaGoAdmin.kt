@@ -267,17 +267,14 @@ private object JfaApi {
         require(months >= 0 && days >= 0 && hours >= 0 && minutes >= 0 && (months + days + hours + minutes) > 0) { "Set a positive invitation validity period." }
         require(unlimited || uses > 0) { "Set at least one allowed use." }
         val a = login(c)
-        // Capture existing codes so we can identify the new invitation even when
-        // this server's POST endpoint returns only a success message.
-        val beforeCodes = runCatching {
-            val before = responseArray(request(c, "/invites", bearer = a.token).first, "invites")
-            (0 until before.length()).mapNotNull { before.optJSONObject(it)?.optString("code")?.takeIf { code -> code.isNotBlank() } }.toSet()
-        }.getOrDefault(emptySet())
+        // Match the original Allerium flow: include the recipient in the same
+        // POST /invites request so the server creates and sends it together.
         val body = JSONObject().put("months", months).put("days", days).put("hours", hours).put("minutes", minutes)
             .put("multiple-uses", unlimited || uses > 1).put("no-limit", unlimited).put("remaining-uses", if (unlimited) 0 else uses)
             .put("label", label.trim()).put("user_label", userLabel.trim()).put("profile", profile)
             .put("user-expiry", userExpiry).put("user-months", userMonths).put("user-days", userDays)
             .put("user-hours", userHours).put("user-minutes", userMinutes)
+        if (sendTo.isNotBlank()) body.put("send-to", sendTo.trim())
         val createdRaw = request(c, "/invites", "POST", body, a.token).first
         fun findCode(value: Any?, depth: Int = 0): String? {
             if (depth > 5 || value == null || value == JSONObject.NULL) return null
@@ -296,19 +293,7 @@ private object JfaApi {
             }
             return null
         }
-        var code = runCatching { findCode(JSONObject(createdRaw)) }.getOrNull()
-        if (sendTo.isNotBlank()) {
-            if (code.isNullOrBlank()) {
-                val after = responseArray(request(c, "/invites", bearer = a.token).first, "invites")
-                code = (0 until after.length()).mapNotNull { after.optJSONObject(it) }
-                    .firstOrNull { it.optString("code").isNotBlank() && it.optString("code") !in beforeCodes }
-                    ?.optString("code")
-            }
-            require(!code.isNullOrBlank()) { "Invitation was created, but the server did not return its code. Refresh the invitation list and send it from Manage." }
-            require(sendTo.isNotBlank()) { "Enter an email address or supported contact." }
-            request(c, "/invites/send", "POST", JSONObject().put("invite", code).put("send-to", sendTo.trim()), a.token)
-        }
-        return code
+        return runCatching { findCode(JSONObject(createdRaw)) }.getOrNull()
     }
     fun editInvite(c: JfaConn, code: String, label: String, userLabel: String, profile: String, notifyCreation: Boolean, notifyExpiry: Boolean) {
         val a = login(c)
@@ -1118,6 +1103,10 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
         onDismissRequest = { if (!actionBusy) dialog = "" },
         title = { Text("Create invitation", color = Txt) },
         text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("SEND INVITATION BY EMAIL", color = Red, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+            OutlinedTextField(inviteSendAddress, { inviteSendAddress = it }, label = { Text("Recipient email address") }, placeholder = { Text("name@example.com") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            Text("Enter the recipient's email here. Allerion will create the invitation and then send it to this address. Leave blank only if you do not want to email it.", color = Mut, fontSize = AppType.caption)
+            Divider(color = Line)
             Text("INVITATION VALIDITY", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 OutlinedTextField(inviteMonths, { inviteMonths = it.filter(Char::isDigit) }, label = { Text("Months") }, modifier = Modifier.weight(1f))
@@ -1129,9 +1118,6 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
             }
             OutlinedTextField(inviteLabel, { inviteLabel = it }, label = { Text("Internal invitation label") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(inviteUserLabel, { inviteUserLabel = it }, label = { Text("Label applied to new accounts") }, modifier = Modifier.fillMaxWidth())
-            Divider(color = Line)
-            OutlinedTextField(inviteSendAddress, { inviteSendAddress = it }, label = { Text("Email address (optional)") }, modifier = Modifier.fillMaxWidth())
-            Text("The invitation is created first, then the generated invite is automatically emailed to this address. Leave blank to create without sending.", color = Dim, fontSize = AppType.caption)
             Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(inviteUnlimited, { inviteUnlimited = it }); Text("Unlimited uses", color = Mut) }
             if (!inviteUnlimited) OutlinedTextField(inviteUses, { inviteUses = it.filter(Char::isDigit) }, label = { Text("Allowed uses") }, modifier = Modifier.fillMaxWidth())
             Text("ACCOUNT PROFILE", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
