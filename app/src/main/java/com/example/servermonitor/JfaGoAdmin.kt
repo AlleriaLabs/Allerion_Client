@@ -411,6 +411,7 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
     var dialog by remember { mutableStateOf("") }
     var actionBusy by remember { mutableStateOf(false) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
+    var inviteSuccess by remember { mutableStateOf<Pair<String, String>?>(null) }
     var userSearch by remember { mutableStateOf("") }
     var userFilter by remember { mutableStateOf("All") }
     var userSort by remember { mutableStateOf("Name") }
@@ -1143,13 +1144,37 @@ fun JfaGoUsersScreen(onBack: () -> Unit, onSettings: () -> Unit = {}) {
         confirmButton = { TextButton(enabled = !actionBusy && ((inviteMonths.toIntOrNull() ?: 0) + (inviteDays.toIntOrNull() ?: 0) + (inviteHours.toIntOrNull() ?: 0) + (inviteMinutes.toIntOrNull() ?: 0) > 0) && (inviteUnlimited || (inviteUses.toIntOrNull() ?: 0) > 0) && (!inviteUserExpiry || ((inviteUserMonths.toIntOrNull() ?: 0) + (inviteUserDays.toIntOrNull() ?: 0) + (inviteUserHours.toIntOrNull() ?: 0) + (inviteUserMinutes.toIntOrNull() ?: 0) > 0)) && (inviteSendAddress.isBlank() || android.util.Patterns.EMAIL_ADDRESS.matcher(inviteSendAddress.trim()).matches()), onClick = {
             actionBusy = true
             scope.launch { try {
-                withContext(Dispatchers.IO) { JfaApi.createInvite(conn!!, inviteMonths.toIntOrNull() ?: 0, inviteDays.toIntOrNull() ?: 0, inviteHours.toIntOrNull() ?: 0, inviteMinutes.toIntOrNull() ?: 0, inviteUses.toIntOrNull() ?: 1, inviteUnlimited, inviteLabel, inviteUserLabel, inviteProfile, inviteUserExpiry, inviteUserMonths.toIntOrNull() ?: 0, inviteUserDays.toIntOrNull() ?: 0, inviteUserHours.toIntOrNull() ?: 0, inviteUserMinutes.toIntOrNull() ?: 0, inviteSendAddress) }
-                val sent = inviteSendAddress.isNotBlank()
+                val recipient = inviteSendAddress.trim()
+                val createdCode = withContext(Dispatchers.IO) { JfaApi.createInvite(conn!!, inviteMonths.toIntOrNull() ?: 0, inviteDays.toIntOrNull() ?: 0, inviteHours.toIntOrNull() ?: 0, inviteMinutes.toIntOrNull() ?: 0, inviteUses.toIntOrNull() ?: 1, inviteUnlimited, inviteLabel, inviteUserLabel, inviteProfile, inviteUserExpiry, inviteUserMonths.toIntOrNull() ?: 0, inviteUserDays.toIntOrNull() ?: 0, inviteUserHours.toIntOrNull() ?: 0, inviteUserMinutes.toIntOrNull() ?: 0, recipient) }.orEmpty()
                 inviteSendAddress = ""
-                dialog = ""; refresh++; actionMessage = if (sent) "Invitation created and sent." else "Invitation created."
+                dialog = ""; tab = "Invites"; refresh++; actionMessage = null
+                inviteSuccess = recipient to createdCode
             } catch (e: Exception) { actionMessage = e.message ?: "Invitation creation failed." } finally { actionBusy = false } }
         }) { Text(if (inviteSendAddress.isBlank()) "Create" else "Create & send email", color = Red) } },
         dismissButton = { TextButton(onClick = { dialog = "" }) { Text("Cancel") } })
+    inviteSuccess?.let { (recipient, code) ->
+        AlertDialog(
+            onDismissRequest = { inviteSuccess = null },
+            title = { Text(if (recipient.isNotBlank()) "Invitation created & email sent" else "Invitation created", color = Txt) },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Text("✓ Invitation successfully created.", color = Color(0xFF55C98A), fontWeight = FontWeight.SemiBold)
+                if (recipient.isNotBlank()) {
+                    Text("✓ Email sent to", color = Color(0xFF55C98A), fontWeight = FontWeight.SemiBold)
+                    Text(recipient, color = Txt)
+                }
+                if (code.isNotBlank()) {
+                    Text("Invitation code", color = Mut, fontSize = AppType.caption)
+                    Text(code, color = Txt, fontWeight = FontWeight.Bold)
+                } else {
+                    Text("The server created the invitation, but did not return its code. You can find it in the Invites tab.", color = Mut)
+                }
+            } },
+            confirmButton = { Row {
+                if (code.isNotBlank()) TextButton(onClick = { copyText(ctx, code); actionMessage = "Invitation code copied." }) { Text("Copy code", color = Red) }
+                TextButton(onClick = { inviteSuccess = null }) { Text("Done", color = Red) }
+            } }
+        )
+    }
     if (dialog == "edit_invite") AlertDialog(
         onDismissRequest = { if (!actionBusy) dialog = "" },
         title = { Text("Manage invitation", color = Txt) },
