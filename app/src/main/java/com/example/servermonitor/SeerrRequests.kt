@@ -79,7 +79,7 @@ private object SeerrRequestsApi {
             val raw = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
             if (code !in 200..299) {
                 val detail = runCatching { JSONObject(raw).optString("message") }.getOrDefault("")
-                throw IllegalStateException("Seerr HTTP " + code + if (detail.isBlank()) "." else ": " + detail)
+                throw IllegalStateException("Allervue Requests HTTP " + code + if (detail.isBlank()) "." else ": " + detail)
             }
             if (raw.trimStart().startsWith("<")) throw IllegalStateException("Seerr returned HTML instead of API data. Check its public URL.")
             val cookies = c.headerFields.entries.filter { it.key.equals("Set-Cookie", true) }.flatMap { it.value ?: emptyList() }
@@ -92,8 +92,8 @@ private object SeerrRequestsApi {
     fun validateSession(cookie: String): SessionUser {
         val me = JSONObject(call("/api/v1/auth/me", cookie = cookie).first)
         val id = me.optInt("id", 0)
-        if (id <= 0) throw IllegalStateException("Seerr did not return the signed-in account ID.")
-        val name = me.optString("displayName").ifBlank { me.optString("username") }.ifBlank { "Seerr user" }
+        if (id <= 0) throw IllegalStateException("Allervue Requests did not return the signed-in account ID.")
+        val name = me.optString("displayName").ifBlank { me.optString("username") }.ifBlank { "Allervue user" }
         return SessionUser(id, name)
     }
 
@@ -192,7 +192,7 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
                 movies = withContext(Dispatchers.IO) { SeerrRequestsApi.movies(cookie, requestUserId) }
                 updated = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault()).format(java.util.Date())
             } catch (e: Exception) {
-                error = e.message ?: "Could not load requests."
+                error = e.message ?: "Could not load Allervue requests."
                 if (error.contains("401") || error.contains("403")) {
                     SeerrSession.clear(ctx)
                     CookieManager.getInstance().removeAllCookies(null)
@@ -212,7 +212,7 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
                     userId = signedInUser.id
                     refresh(signedInUser.id)
                 } catch (e: Exception) {
-                    error = e.message ?: "Could not verify Seerr session."
+                    error = e.message ?: "Could not verify your Allervue Requests session."
                 }
             }
         }
@@ -220,7 +220,7 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
         ModulePageHeader(
-            "MEDIA REQUESTS", "Seerr Requests",
+            "ALLERVUE REQUESTS", "Allervue Requests",
             "Your requested movies and their current status", onBack,
             trailing = {
                 if (cookie.isNotBlank()) {
@@ -236,20 +236,20 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
         ) {
             if (cookie.isBlank()) {
                 Panel {
-                    Text("Sign in to Seerr", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                    Text("Connect to Allervue Requests", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Continue with Seerr's existing sign-in page. Allerion will securely save your session on this device.",
+                        "Continue with the existing secure sign-in page. Allerion will securely save your session on this device.",
                         color = Mut, fontSize = AppType.small
                     )
                     Button(onClick = { showLogin = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Continue to Seerr sign in")
+                        Text("Continue to sign in")
                     }
                     if (error.isNotBlank()) Text(error, color = Err, fontSize = AppType.small)
                     Text("request.alleriafilmotheque.fyi", color = Dim, fontSize = AppType.caption)
                 }
                 if (showLogin) {
                     Panel {
-                        Text("Seerr sign in", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                        Text("Allervue Requests sign in", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
                         AndroidView(
                             modifier = Modifier.fillMaxWidth().height(560.dp),
                             factory = { viewContext ->
@@ -275,7 +275,7 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
                                                         showLogin = false
                                                         error = ""
                                                     } catch (e: Exception) {
-                                                        error = e.message ?: "Could not verify the Seerr session."
+                                                        error = e.message ?: "Could not verify the Allervue Requests session."
                                                     } finally { loading = false }
                                                 }
                                             }
@@ -293,7 +293,7 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
                 Panel {
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("Connected to Seerr", color = Green, fontSize = AppType.caption, fontWeight = FontWeight.Bold)
+                            Text("Allervue Requests connected", color = Green, fontSize = AppType.caption, fontWeight = FontWeight.Bold)
                             Text(
                                 if (account.isBlank()) "Session saved securely" else "Signed in as " + account,
                                 color = Mut, fontSize = AppType.small
@@ -325,8 +325,8 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
                     Panel { Text("Loading your movie requests…", color = Mut, fontSize = AppType.small) }
                 } else if (movies.isEmpty()) {
                     Panel {
-                        Text("No movie requests returned by Seerr", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
-                        Text("Pull to refresh using the Refresh control above. If you know a request exists, the API response needs checking.", color = Mut, fontSize = AppType.small)
+                        Text("No movie requests found", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                        Text("Pull to refresh using the Refresh control above. If you know a request exists, the request service response may need checking.", color = Mut, fontSize = AppType.small)
                     }
                 } else {
                     movies.forEach { movie ->
