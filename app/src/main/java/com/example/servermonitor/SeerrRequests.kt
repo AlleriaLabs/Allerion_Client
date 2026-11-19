@@ -83,15 +83,19 @@ private object SeerrRequestsApi {
         } finally { c.disconnect() }
     }
 
-    fun validateSession(cookie: String): String {
+    data class SessionUser(val id: Int, val name: String)
+
+    fun validateSession(cookie: String): SessionUser {
         val me = JSONObject(call("/api/v1/auth/me", cookie = cookie).first)
-        return me.optString("displayName").ifBlank { me.optString("username") }.ifBlank { "Seerr user" }
+        val id = me.optInt("id", 0)
+        if (id <= 0) throw IllegalStateException("Seerr did not return the signed-in account ID.")
+        val name = me.optString("displayName").ifBlank { me.optString("username") }.ifBlank { "Seerr user" }
+        return SessionUser(id, name)
     }
 
-    fun movies(cookie: String): List<SeerrMovie> {
-        // Ask Seerr to filter server-side: mediaType belongs to the request query,
-        // not reliably to the nested media object in every Seerr response version.
-        val root = JSONObject(call("/api/v1/request?take=100&skip=0&sort=added&sortDirection=desc&mediaType=movie", cookie = cookie).first)
+    fun movies(cookie: String, userId: Int): List<SeerrMovie> {
+        // Match Seerr My Requests using its documented per-user endpoint.
+        val root = JSONObject(call("/api/v1/user/" + userId + "/requests?take=100&skip=0", cookie = cookie).first)
         val list = root.optJSONArray("results") ?: root.optJSONArray("requests") ?: JSONArray()
         val out = mutableListOf<SeerrMovie>()
         for (i in 0 until list.length()) {
@@ -100,7 +104,7 @@ private object SeerrRequestsApi {
             val mediaType = item.optString("type").ifBlank { item.optString("mediaType") }
                 .ifBlank { media.optString("mediaType") }
             // The API query is already constrained to movies; only reject an explicit TV type.
-            if (mediaType.isNotBlank() && !mediaType.equals("movie", true)) continue
+            if (!mediaType.equals("movie", true) && !mediaType.equals("1", true)) continue
             val title = media.optString("title").ifBlank { media.optString("name") }.ifBlank { item.optString("title") }
             if (title.isBlank()) continue
             val date = media.optString("releaseDate")
@@ -120,6 +124,7 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
     var cookie by remember { mutableStateOf(SeerrSession.load(ctx)) }
     var showLogin by remember { mutableStateOf(false) }
     var account by remember { mutableStateOf("") }
+    var userId by remember { mutableIntStateOf(0) }
     var movies by remember { mutableStateOf<List<SeerrMovie>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
@@ -131,7 +136,7 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
             loading = true
             error = ""
             try {
-                movies = withContext(Dispatchers.IO) { SeerrRequestsApi.movies(cookie) }
+                movies = withContext(Dispatchers.IO) { SeerrRequestsApi.movies(cookie, userId) }
                 updated = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault()).format(java.util.Date())
             } catch (e: Exception) {
                 error = e.message ?: "Could not load requests."
@@ -146,7 +151,18 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
     }
 
     LaunchedEffect(cookie) {
-        if (cookie.isNotBlank()) refresh()
+        if (cookie.isNotBlank()) {
+            scope.launch {
+                try {
+                    val signedInUser = withContext(Dispatchers.IO) { SeerrRequestsApi.validateSession(cookie) }
+                    account = signedInUser.name
+                    userId = signedInUser.id
+                    refresh()
+                } catch (e: Exception) {
+                    error = e.message ?: "Could not verify Seerr session."
+                }
+            }
+        }
     }
 
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
@@ -196,11 +212,12 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
                                                 scope.launch {
                                                     loading = true
                                                     try {
-                                                        val name = withContext(Dispatchers.IO) {
+                                                        val signedInUser = withContext(Dispatchers.IO) {
                                                             SeerrRequestsApi.validateSession(session)
                                                         }
                                                         SeerrSession.save(ctx, session)
-                                                        account = name
+                                                        account = signedInUser.name
+                                                        userId = signedInUser.id
                                                         cookie = session
                                                         showLogin = false
                                                         error = ""
@@ -239,6 +256,7 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
                             cookie = ""
                             movies = emptyList()
                             account = ""
+                            userId = 0
                             error = ""
                         }) { Text("Sign out", color = Red) }
                     }
