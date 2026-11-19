@@ -4,6 +4,10 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import android.webkit.CookieManager
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -79,23 +83,24 @@ private object SeerrRequestsApi {
         } finally { c.disconnect() }
     }
 
-    fun login(user: String, pass: String): Pair<String, String> {
-        require(user.isNotBlank() && pass.isNotBlank()) { "Enter your Jellyfin username and password." }
-        val result = call("/api/v1/auth/jellyfin", "POST", JSONObject().put("username", user.trim()).put("password", pass))
-        val cookie = result.second.map { it.substringBefore(';') }.firstOrNull { it.substringBefore('=').equals("connect.sid", true) }
-            ?: throw IllegalStateException("Seerr did not return a session cookie. Check Jellyfin sign-in is enabled in Seerr.")
+    fun validateSession(cookie: String): String {
         val me = JSONObject(call("/api/v1/auth/me", cookie = cookie).first)
-        return cookie to me.optString("displayName").ifBlank { me.optString("username") }.ifBlank { user }
+        return me.optString("displayName").ifBlank { me.optString("username") }.ifBlank { "Seerr user" }
     }
 
     fun movies(cookie: String): List<SeerrMovie> {
-        val root = JSONObject(call("/api/v1/request?take=100&skip=0&sort=added", cookie = cookie).first)
+        // Ask Seerr to filter server-side: mediaType belongs to the request query,
+        // not reliably to the nested media object in every Seerr response version.
+        val root = JSONObject(call("/api/v1/request?take=100&skip=0&sort=added&sortDirection=desc&mediaType=movie", cookie = cookie).first)
         val list = root.optJSONArray("results") ?: root.optJSONArray("requests") ?: JSONArray()
         val out = mutableListOf<SeerrMovie>()
         for (i in 0 until list.length()) {
             val item = list.optJSONObject(i) ?: continue
             val media = item.optJSONObject("media") ?: item
-            if (!media.optString("mediaType").equals("movie", true)) continue
+            val mediaType = item.optString("type").ifBlank { item.optString("mediaType") }
+                .ifBlank { media.optString("mediaType") }
+            // The API query is already constrained to movies; only reject an explicit TV type.
+            if (mediaType.isNotBlank() && !mediaType.equals("movie", true)) continue
             val title = media.optString("title").ifBlank { media.optString("name") }.ifBlank { item.optString("title") }
             if (title.isBlank()) continue
             val date = media.optString("releaseDate")
@@ -113,8 +118,7 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var cookie by remember { mutableStateOf(SeerrSession.load(ctx)) }
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var showLogin by remember { mutableStateOf(false) }
     var account by remember { mutableStateOf("") }
     var movies by remember { mutableStateOf<List<SeerrMovie>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
@@ -143,28 +147,57 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (cookie.isBlank()) {
                 Panel {
-                    Text("Sign in with Jellyfin", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
-                    Text("Use your own Jellyfin account to view the Seerr requests associated with it. Your password is used only for sign-in; the session is stored encrypted on this device.",
+                    Text("Sign in to Seerr", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                    Text("Use Seerr's existing sign-in page. Allerion will keep the session on this device so you don't need to sign in again each time.",
                         color = Mut, fontSize = AppType.small)
-                    OutlinedTextField(username, { username = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Jellyfin username") }, singleLine = true)
-                    OutlinedTextField(password, { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Jellyfin password") },
-                        singleLine = true, visualTransformation = PasswordVisualTransformation())
-                    Button(onClick = {
-                        scope.launch {
-                            loading = true; error = ""
-                            try {
-                                val result = withContext(Dispatchers.IO) { SeerrRequestsApi.login(username, password) }
-                                SeerrSession.save(ctx, result.first); cookie = result.first; account = result.second; password = ""
-                            } catch (e: Exception) { error = e.message ?: "Seerr sign-in failed." }
-                            finally { loading = false }
-                        }
-                    }, enabled = !loading && username.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
-                        Text(if (loading) "Signing in…" else "Sign in to Seerr")
+                    Button(onClick = { showLogin = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Continue to Seerr sign in")
                     }
                     if (error.isNotBlank()) Text(error, color = Err, fontSize = AppType.small)
                     Text("request.alleriafilmotheque.fyi", color = Dim, fontSize = AppType.caption)
                 }
-            } else {
+                if (showLogin) {
+                    Panel {
+                        Text("Seerr sign in", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                        AndroidView(
+                            modifier = Modifier.fillMaxWidth().height(560.dp),
+                            factory = { viewContext ->
+                                WebView(viewContext).apply {
+                                    settings.javaScriptEnabled = true
+                                    settings.domStorageEnabled = true
+                                    CookieManager.getInstance().setAcceptCookie(true)
+                                    webViewClient = object : WebViewClient() {
+                                        override fun onPageFinished(view: WebView, url: String) {
+                                            super.onPageFinished(view, url)
+                                            val session = CookieManager.getInstance().getCookie(SEERR_BASE).orEmpty()
+                                            if (session.contains("connect.sid=") && !loading) {
+                                                scope.launch {
+                                                    loading = true
+                                                    try {
+                                                        val name = withContext(Dispatchers.IO) { SeerrRequestsApi.validateSession(session) }
+                                                        SeerrSession.save(ctx, session)
+                                                        account = name
+                                                        cookie = session
+                                                        showLogin = false
+                                                        error = ""
+                                                    } catch (e: Exception) {
+                                                        error = e.message ?: "Could not verify the Seerr session."
+                                                    } finally { loading = false }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    loadUrl(SEERR_BASE)
+                                }
+                            }
+                        )
+                        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                            TextButton(onClick = { showLogin = false }) { Text("Close", color = Red) }
+                        }
+                        if (error.isNotBlank()) Text(error, color = Err, fontSize = AppType.small)
+                    }
+                }
+
                 Panel {
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
