@@ -190,7 +190,7 @@ fun ExpandedBody(sv: Server, j: JSONObject?, err: String?, onOpen: () -> Unit, o
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Transparent, contentColor = Txt)
             ) {
                 Icon24(Ic.Dash, Mut, 18.dp); Spacer(Modifier.width(8.dp))
-                Text("Open dashboard", fontWeight = FontWeight.SemiBold)
+                Text("Select server", fontWeight = FontWeight.SemiBold)
             }
             ActionIcon(Ic.Pencil, "Edit server", onClick = onEdit)
             ActionIcon(Ic.Trash, "Delete server", Err, onDelete)
@@ -403,11 +403,11 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("INFRASTRUCTURE", fontSize = AppType.micro, fontWeight = FontWeight.Bold, color = Red, letterSpacing = 1.55.sp)
-                                Text("Server Management", fontSize = AppType.title, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = (-0.25).sp)
+                                Text("Servers", fontSize = AppType.title, fontWeight = FontWeight.Bold, color = Txt, letterSpacing = (-0.25).sp)
                             }
                             IconBtn(Ic.Plus, "Add server", plain = true, onClick = onAdd)
                         }
-                        Text("Monitor and manage your connected servers.", fontSize = AppType.small, color = Mut)
+                        Text("Choose a server to open its available modules.", fontSize = AppType.small, color = Mut)
                     } else {
                         Text("ALLERIA LABS · INFRASTRUCTURE", fontSize = AppType.micro, fontWeight = FontWeight.Bold, color = Red, letterSpacing = 1.55.sp)
                         Text("Control Center", fontSize = AppType.displaySmall, fontWeight = FontWeight.ExtraBold, color = Txt, letterSpacing = (-0.5).sp)
