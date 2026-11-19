@@ -388,7 +388,7 @@ fun App(p: SharedPreferences) {
             onAbout = { showAppInfo = true })
         else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true },
-            { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true },
+            { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true }, { showSeerrRequests = true },
             { showServerManagement = true }, onAbout = { showAppInfo = true })
     }
     availableUpdate?.let { update ->
