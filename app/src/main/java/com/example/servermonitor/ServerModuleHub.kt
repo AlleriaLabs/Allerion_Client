@@ -19,11 +19,11 @@ private data class ServerModule(val id: String, val title: String, val descripti
 
 private val serverModules = listOf(
     ServerModule("server", "Server Management", "Health, resources, network and power", Ic.Server),
-    ServerModule("live", "Live Users", "Current Jellyfin playback activity", Ic.Users),
+    ServerModule("live", "Live Users", "Current Jellyfin playback activity", Ic.Activity),
     ServerModule("users", "User Management", "Manage registered media users", Ic.Users),
-    ServerModule("requests", "Allervue Requests", "Browse and track media requests", Ic.Film),
+    ServerModule("requests", "Allervue Requests", "Browse and track media requests", Ic.Chart),
     ServerModule("analytics", "Jellyfin Analysis", "Usage, library and viewing reports", Ic.Chart),
-    ServerModule("adguard", "AdGuard Management", "DNS protection and query activity", Ic.Shield)
+    ServerModule("adguard", "AdGuard Management", "DNS protection and query activity", Ic.Server)
 )
 
 private fun advertisedFeature(caps: JSONObject?, integrations: JSONObject?, id: String): Boolean {
