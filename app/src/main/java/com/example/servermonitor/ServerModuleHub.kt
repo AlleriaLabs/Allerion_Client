@@ -20,10 +20,9 @@ private data class ServerModule(val id: String, val title: String, val descripti
 private val serverModules = listOf(
     ServerModule("server", "Server Management", "Health, resources, network and power", Ic.Server),
     ServerModule("live", "Live Users", "Current Jellyfin playback activity", Ic.Activity),
-    ServerModule("users", "User Management", "Manage registered media users", Ic.Users),
+    ServerModule("users", "User Management", "Manage registered media users", Ic.Activity),
     ServerModule("requests", "Allervue Requests", "Browse and track media requests", Ic.Chart),
     ServerModule("analytics", "Jellyfin Analysis", "Usage, library and viewing reports", Ic.Chart),
-    ServerModule("adguard", "AdGuard Management", "DNS protection and query activity", Ic.Server)
 )
 
 private fun advertisedFeature(caps: JSONObject?, integrations: JSONObject?, id: String): Boolean {
@@ -32,7 +31,6 @@ private fun advertisedFeature(caps: JSONObject?, integrations: JSONObject?, id: 
         "users" -> listOf("user_management", "jellyfin_user_management")
         "requests" -> listOf("allervue_requests", "seerr_requests")
         "analytics" -> listOf("jellyfin_analysis", "jellyfin_analytics")
-        "adguard" -> listOf("adguard", "adguard_management")
         else -> emptyList()
     }
     val features = caps?.optJSONObject("features")
@@ -43,7 +41,6 @@ private fun advertisedFeature(caps: JSONObject?, integrations: JSONObject?, id: 
         "users" -> listOf("user management", "jellyfin users")
         "requests" -> listOf("allervue", "seerr")
         "analytics" -> listOf("jellyfin analysis", "jellyfin analytics")
-        "adguard" -> listOf("adguard")
         else -> emptyList()
     }
     for (i in 0 until items.length()) {
