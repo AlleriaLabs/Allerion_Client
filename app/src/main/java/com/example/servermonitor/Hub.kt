@@ -337,7 +337,7 @@ private fun HomeActivityAlerts(onOpen: () -> Unit, modifier: Modifier = Modifier
 @Composable
 fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen: (Int) -> Unit, onEdit: (Int) -> Unit,
          onDelete: (Int) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit, onIntegrations: () -> Unit, onUsers: () -> Unit,
-         onLiveUsers: () -> Unit, onAnalytics: () -> Unit, onActivity: () -> Unit,
+         onLiveUsers: () -> Unit, onAnalytics: () -> Unit, onActivity: () -> Unit, onSeerrRequests: () -> Unit,
          onServerManagement: () -> Unit, serverManagementPage: Boolean = false, onBack: () -> Unit = {},
          onAbout: () -> Unit = {}) {
     val context = LocalContext.current
@@ -423,7 +423,11 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                     HubModuleCard(Ic.Activity, "Live Users", "Who's online and watching", Color(0xFF62E0B0), Modifier.weight(1f).staggerIn(4), onLiveUsers, live = true)
                 }
                 if (!serverManagementPage) {
-                    HomeActivityAlerts(onOpen = onActivity, modifier = Modifier.padding(top = 5.dp).staggerIn(5))
+                    HubModuleCard(Ic.Download, "Seerr Requests", "Your requested movies and availability", Color(0xFFFF8294),
+                        Modifier.fillMaxWidth().staggerIn(5), onSeerrRequests)
+                }
+                if (!serverManagementPage) {
+                    HomeActivityAlerts(onOpen = onActivity, modifier = Modifier.padding(top = 5.dp).staggerIn(6))
                 }
                 AnimatedVisibility(visible = serverManagementPage, enter = fadeIn(tween(240)) + androidx.compose.animation.expandVertically(tween(260)),
                     exit = fadeOut(tween(150)) + androidx.compose.animation.shrinkVertically(tween(200))) {
