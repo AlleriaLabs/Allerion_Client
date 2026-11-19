@@ -8,6 +8,8 @@ import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.ui.viewinterop.AndroidView
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -15,6 +17,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -34,7 +38,7 @@ import javax.crypto.spec.GCMParameterSpec
 
 private const val SEERR_BASE = "https://request.alleriafilmotheque.fyi"
 
-private data class SeerrMovie(val id: Int, val title: String, val year: String, val status: String, val availability: String, val date: String)
+private data class SeerrMovie(val id: Int, val title: String, val year: String, val status: String, val availability: String, val date: String, val posterUrl: String)
 
 private object SeerrSession {
     private const val PREF = "allerion_seerr"
@@ -128,9 +132,41 @@ private object SeerrRequestsApi {
                 6 -> "Deleted"
                 else -> "Not available yet"
             }
-            out += SeerrMovie(item.optInt("id", i), title, year, status, availability, item.optString("createdAt").take(10))
+            val posterPath = movieDetails?.optString("posterPath").orEmpty().ifBlank { media.optString("posterPath") }
+            val posterUrl = if (posterPath.startsWith("/")) "https://image.tmdb.org/t/p/w342" + posterPath else ""
+            out += SeerrMovie(item.optInt("id", i), title, year, status, availability, item.optString("createdAt").take(10), posterUrl)
         }
         return out
+    }
+}
+
+@Composable
+private fun SeerrMoviePoster(url: String) {
+    var bitmap by remember(url) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    LaunchedEffect(url) {
+        bitmap = if (url.isBlank()) null else withContext(Dispatchers.IO) {
+            runCatching {
+                val connection = URL(url).openConnection()
+                connection.connectTimeout = 10000
+                connection.readTimeout = 15000
+                connection.getInputStream().use { BitmapFactory.decodeStream(it) }
+            }.getOrNull()
+        }
+    }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap!!.asImageBitmap(),
+            contentDescription = "Movie poster",
+            modifier = Modifier.width(68.dp).height(100.dp),
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        Box(
+            modifier = Modifier.width(68.dp).height(100.dp).background(PanelBg),
+            contentAlignment = androidx.compose.ui.Alignment.Center
+        ) {
+            Text("MOVIE", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+        }
     }
 }
 
@@ -295,7 +331,11 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
                 } else {
                     movies.forEach { movie ->
                         Panel {
-                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                SeerrMoviePoster(movie.posterUrl)
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(
                                         movie.title + if (movie.year.isBlank()) "" else " (" + movie.year + ")",
