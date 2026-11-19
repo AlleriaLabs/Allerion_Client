@@ -320,6 +320,7 @@ fun App(p: SharedPreferences) {
     LaunchedEffect(servers) { FcmDeviceRegistration.refresh(appContext) }
     var storageError by remember { mutableStateOf(initialLoad.exceptionOrNull()?.message) }
     var open by remember { mutableStateOf<Int?>(null) }
+    var selectedModule by remember { mutableStateOf<String?>(null) }
     var edit by remember { mutableStateOf<Int?>(null) } // -1 = new server
     var expanded by remember { mutableStateOf<Int?>(null) }   // every server card starts collapsed
     var hubSettings by remember { mutableStateOf(false) }
@@ -354,8 +355,9 @@ fun App(p: SharedPreferences) {
     }
     val e = edit
     val o = open
-    BackHandler(enabled = e != null || o != null || hubSettings || showIntegrations || showUsers || showLiveUsers || showAnalytics || showActivity || showSeerrRequests || showServerManagement || showAppInfo) {
+    BackHandler(enabled = e != null || selectedModule != null || o != null || hubSettings || showIntegrations || showUsers || showLiveUsers || showAnalytics || showActivity || showSeerrRequests || showServerManagement || showAppInfo) {
         if (e != null) edit = null
+        else if (selectedModule != null) selectedModule = null
         else if (o != null) open = null
         else if (showAppInfo) showAppInfo = false
         else if (showServerManagement) showServerManagement = false
@@ -372,7 +374,15 @@ fun App(p: SharedPreferences) {
             onSave = { sv -> commit(if (e < 0) servers + sv else servers.toMutableList().also { it[e] = sv }); edit = null },
             onDelete = { commit(servers.filterIndexed { i, _ -> i != e }); edit = null; open = null; expanded = null },
             onCancel = { edit = null })
-        o != null && o in servers.indices -> Dashboard(servers[o], { open = null }, { edit = o })
+        selectedModule != null && o != null && o in servers.indices -> when (selectedModule) {
+            "server" -> Dashboard(servers[o], { selectedModule = null; open = null }, { edit = o })
+            "live" -> LiveUsersScreen(onBack = { selectedModule = null })
+            "users" -> JfaGoUsersScreen(onBack = { selectedModule = null })
+            "requests" -> SeerrRequestsScreen(onBack = { selectedModule = null })
+            "analytics" -> JellyfinAnalyticsScreen(servers[o], onBack = { selectedModule = null }, onSettings = { edit = o })
+            else -> ServerModuleHub(servers[o], onBack = { selectedModule = null }, onOpenModule = { selectedModule = it }, onEdit = { edit = o })
+        }
+        o != null && o in servers.indices -> ServerModuleHub(servers[o], onBack = { open = null }, onOpenModule = { selectedModule = it }, onEdit = { edit = o })
         hubSettings -> HubSettings(onRestore = { restored -> commit(restored) }, onBack = { hubSettings = false })
         showIntegrations -> IntegrationCenterScreen(servers, onBack = { showIntegrations = false })
         showUsers -> JfaGoUsersScreen(onBack = { showUsers = false })
