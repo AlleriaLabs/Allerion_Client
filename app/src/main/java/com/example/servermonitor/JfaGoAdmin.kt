@@ -270,6 +270,10 @@ private object JfaApi {
         require(unlimited || uses > 0) { "Set at least one allowed use." }
         val a = login(c)
         val startedAtSeconds = System.currentTimeMillis() / 1000L
+        val beforeRaw = request(c, "/invites", bearer = a.token).first
+        val existingCodes = (0 until responseArray(beforeRaw, "invites").length())
+            .mapNotNull { responseArray(beforeRaw, "invites").optJSONObject(it)?.optString("code") }
+            .toSet()
         // Create the invite first. Sending is deliberately performed through JFA-Go's
         // dedicated /invites/send endpoint so mail failures are returned as HTTP errors.
         val body = JSONObject().put("months", months).put("days", days).put("hours", hours).put("minutes", minutes)
@@ -283,6 +287,7 @@ private object JfaApi {
         // JFA-Go serializes Created as Unix seconds (not milliseconds).
         val latest = (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
             .filter { it.optLong("created", 0L) >= startedAtSeconds - 10L }
+            .filter { it.optString("code").isNotBlank() && it.optString("code") !in existingCodes }
             .filter { label.isBlank() || it.optString("label") == label.trim() }
             .filter { userLabel.isBlank() || it.optString("user_label") == userLabel.trim() }
             .maxByOrNull { it.optLong("created", 0L) }
