@@ -130,41 +130,104 @@ fun AdGuardManagementScreen(server: Server, onBack: () -> Unit) {
             OutlinedTextField(password, { password = it }, Modifier.fillMaxWidth(), label = { Text("Administrator password") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
             Button(onClick = {
                 val next = AdGuardConfig(url.trim().trimEnd('/'), username.trim(), password)
-                busy = true; error = null
+                busy = true
+                error = null
                 scope.launch {
                     val result = runCatching { withContext(Dispatchers.IO) { AdGuardApi.snapshot(next) } }
-                        result.onSuccess {
-                            AdGuardConfigStore.save(context, server.url, next); config = next; snapshot = it; editing = false
-                        }.onFailure { error = it.message ?: "Connection failed." }
-                        busy = false
-                    }
+                    result.onSuccess {
+                        AdGuardConfigStore.save(context, server.url, next)
+                        config = next
+                        snapshot = it
+                        editing = false
+                    }.onFailure { error = it.message ?: "Connection failed." }
+                    busy = false
                 }
             }, enabled = !busy && url.isNotBlank() && username.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
                 Text(if (busy) "Connecting…" else "Test and save connection")
             }
         }
-        error?.let { Panel { Text(it, color = Amber, fontSize = AppType.small) } }
-        snapshot?.let { data ->
-            Panel {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) { Text("DNS PROTECTION", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold); Text(if (data.enabled) "Protection active" else "Protection paused", color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold) }
-                    Status(data.enabled)
-                }
                 Button(onClick = {
                     val active = config ?: return@Button
                     busy = true
                     scope.launch {
-                        val result = runCatching { withContext(Dispatchers.IO) { AdGuardApi.protection(active, !data.enabled); AdGuardApi.snapshot(active) } } result.onSuccess { snapshot = it; error = null }.onFailure { error = it.message }; busy = false }
+                        val result = runCatching {
+                            withContext(Dispatchers.IO) {
+                                AdGuardApi.protection(active, !data.enabled)
+                                AdGuardApi.snapshot(active)
+                            }
+                        }
+                        result.onSuccess { snapshot = it; error = null }.onFailure { error = it.message }
+                        busy = false
                     }
-                }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (data.enabled) "Pause protection" else "Enable protection") }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SummaryStat("DNS queries", data.queries.toString(), Txt, Modifier.weight(1f))
-                SummaryStat("Blocked", data.blocked.toString(), Green, Modifier.weight(1f))
-                SummaryStat("Clients", data.clients.toString(), Blue, Modifier.weight(1f))
-            }
-            Panel { Text("AdGuard Home " + data.version, color = Mut, fontSize = AppType.small); Text("Read-only DNS statistics plus protection toggle. Filtering rules and client settings remain managed in AdGuard Home.", color = Dim, fontSize = AppType.caption) }
-            TextButton(onClick = { AdGuardConfigStore.clear(context, server.url); config = null; snapshot = null; url = ""; username = ""; password = ""; editing = true }) { Text("Disconnect this server integration", color = Err) }
-        }
+                }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (data.enabled) "Pause protection" else "Enable protection")
+                }
+            val code = connection.responseCode
+            val body = (if (code in 200..299) connection.inputStream else connection.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (code !in 200..299) throw IllegalStateException("AdGuard Home returned HTTP $code. Check the URL and administrator credentials.")
+            return if (body.isBlank()) JSONObject() else JSONObject(body)
+        } finally { connection.disconnect() }
+    }
+    fun snapshot(config: AdGuardConfig): AdGuardSnapshot {
+        val status = call(config, "/control/status")
+        val stats = runCatching { call(config, "/control/stats") }.getOrDefault(JSONObject())
+        val clients = runCatching { call(config, "/control/clients") }.getOrDefault(JSONObject())
+        val array = clients.optJSONArray("clients")
+        return AdGuardSnapshot(status.optBoolean("protection_enabled", false), status.optString("version", "AdGuard Home"),
+            stats.optLong("num_dns_queries"), stats.optLong("num_blocked_filtering"), array?.length() ?: 0)
+    }
+    fun protection(config: AdGuardConfig, enabled: Boolean) {
+        call(config, if (enabled) "/control/protection/enable" else "/control/protection/disable", "POST")
     }
 }
+
+@Composable
+fun AdGuardManagementScreen(server: Server, onBack: () -> Unit) {
+    val context = LocalContext.current
+    var config by remember(server.url) { mutableStateOf(AdGuardConfigStore.load(context, server.url)) }
+    var url by remember(config) { mutableStateOf(config?.url.orEmpty()) }
+    var username by remember(config) { mutableStateOf(config?.username.orEmpty()) }
+    var password by remember(config) { mutableStateOf(config?.password.orEmpty()) }
+    var snapshot by remember(server.url) { mutableStateOf<AdGuardSnapshot?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(config == null) }
+    val scope = rememberCoroutineScope()
+    var revision by remember { mutableIntStateOf(0) }
+    LaunchedEffect(config, revision) {
+        val active = config ?: return@LaunchedEffect
+        busy = true
+        try { snapshot = withContext(Dispatchers.IO) { AdGuardApi.snapshot(active) }; error = null }
+        catch (e: Exception) { error = e.message ?: "Unable to connect to AdGuard Home." }
+        finally { busy = false }
+    }
+    Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(13.dp)) {
+        ModulePageHeader("DNS PROTECTION", "AdGuard Management", server.name, onBack, { editing = !editing }) {
+            IconBtn(Ic.Refresh, "Refresh", onClick = { revision++ })
+        }
+        if (editing || config == null) Panel {
+            Text("AdGuard Home connection", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+            Text("Credentials are encrypted on this device and stored separately for each Allerion server.", color = Mut, fontSize = AppType.small)
+            OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), label = { Text("AdGuard Home URL") }, singleLine = true)
+            OutlinedTextField(username, { username = it }, Modifier.fillMaxWidth(), label = { Text("Administrator username") }, singleLine = true)
+            OutlinedTextField(password, { password = it }, Modifier.fillMaxWidth(), label = { Text("Administrator password") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+            Button(onClick = {
+                val next = AdGuardConfig(url.trim().trimEnd('/'), username.trim(), password)
+                busy = true
+                error = null
+                scope.launch {
+                    val result = runCatching { withContext(Dispatchers.IO) { AdGuardApi.snapshot(next) } }
+                    result.onSuccess {
+                        AdGuardConfigStore.save(context, server.url, next)
+                        config = next
+                        snapshot = it
+                        editing = false
+                    }.onFailure { error = it.message ?: "Connection failed." }
+                    busy = false
+                }
+            }, enabled = !busy && url.isNotBlank() && username.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                Text(if (busy) "Connecting…" else "Test and save connection")
+            }
+        }
+
