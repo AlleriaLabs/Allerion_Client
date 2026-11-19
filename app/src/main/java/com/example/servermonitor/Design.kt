@@ -37,7 +37,7 @@ import kotlinx.coroutines.*
 import org.json.JSONObject
 
 val Err = Color(0xFFF04452)
-val Blue = Color(0xFF648BFF)
+val Blue = Color(0xFF9A8CFF)
 val GreenLight = Color(0xFF9BE5C4)
 
 // Shared type scale tuned for compact mobile cards and readable supporting text.
