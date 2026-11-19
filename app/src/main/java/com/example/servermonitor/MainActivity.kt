@@ -399,7 +399,7 @@ fun App(p: SharedPreferences) {
         else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true },
             { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true }, { showSeerrRequests = true },
-            { showServerManagement = true }, onAbout = { showAppInfo = true })
+            { showServerManagement = true }, serverManagementPage = true, onAbout = { showAppInfo = true })
     }
     availableUpdate?.let { update ->
         AllerionUpdateDialog(update) {
