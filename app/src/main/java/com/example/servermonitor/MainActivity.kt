@@ -54,16 +54,16 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 // Allerion "Obsidian Signal" design system: cool graphite, soft white, focused crimson.
-val Bg = Color(0xFF090B10)
-val Line = Color(0xFF252A34)
-val Red = Color(0xFFFF3548)
-val DeepRed = Color(0xFF9E1B2A)
-val Txt = Color(0xFFF3F5F8)
-val Mut = Color(0xFFA0A8B5)
-val Track = Color(0xFF252B35)
-val Dim = Color(0xFF727D8D)
+val Bg = Color(0xFF080D14)
+val Line = Color(0xFF1D2B3B)
+val Red = Color(0xFF28D7E5)
+val DeepRed = Color(0xFF6658D3)
+val Txt = Color(0xFFF2F7FC)
+val Mut = Color(0xFFA5B5C7)
+val Track = Color(0xFF243445)
+val Dim = Color(0xFF71869B)
 val Amber = Color(0xFFFFC46B)
-val Green = Color(0xFF43D6A0)
+val Green = Color(0xFF54D6B0)
 
 data class Server(val name: String, val url: String, val token: String, val group: String = "Ungrouped")
 data class StatsResult(val json: JSONObject? = null, val error: String? = null)
