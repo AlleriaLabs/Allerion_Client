@@ -269,54 +269,37 @@ private object JfaApi {
         require(months >= 0 && days >= 0 && hours >= 0 && minutes >= 0 && (months + days + hours + minutes) > 0) { "Set a positive invitation validity period." }
         require(unlimited || uses > 0) { "Set at least one allowed use." }
         val a = login(c)
-        val startedAt = System.currentTimeMillis()
-        // JFA-Go accepts send-to on this same request, just like Allerium.
-        // Its /invites endpoint can still return HTTP 200 when email delivery fails,
-        // so verify the persisted sent_to result instead of treating HTTP 200 as delivery.
+        val startedAtSeconds = System.currentTimeMillis() / 1000L
+        // Create the invite first. Sending is deliberately performed through JFA-Go's
+        // dedicated /invites/send endpoint so mail failures are returned as HTTP errors.
         val body = JSONObject().put("months", months).put("days", days).put("hours", hours).put("minutes", minutes)
             .put("multiple-uses", unlimited || uses > 1).put("no-limit", unlimited).put("remaining-uses", if (unlimited) 0 else uses)
             .put("label", label.trim()).put("user_label", userLabel.trim()).put("profile", profile)
             .put("user-expiry", userExpiry).put("user-months", userMonths).put("user-days", userDays)
             .put("user-hours", userHours).put("user-minutes", userMinutes)
-        if (sendTo.isNotBlank()) body.put("send-to", sendTo.trim())
-        val createdRaw = request(c, "/invites", "POST", body, a.token).first
-        fun findCode(value: Any?, depth: Int = 0): String? {
-            if (depth > 5 || value == null || value == JSONObject.NULL) return null
-            if (value is JSONObject) {
-                for (field in listOf("code", "invite_code", "invite-code")) value.optString(field).takeIf { it.isNotBlank() }?.let { return it }
-                for (field in listOf("invite", "invitation", "data", "result")) findCode(value.opt(field), depth + 1)?.let { return it }
-            } else if (value is JSONArray) {
-                for (i in 0 until value.length()) findCode(value.opt(i), depth + 1)?.let { return it }
-            } else if (value is String) {
-                val encoded = value.trim()
-                if (encoded.startsWith("{")) runCatching { findCode(JSONObject(encoded), depth + 1) }.getOrNull()?.let { return it }
-            }
-            return null
-        }
-        val responseCode = runCatching { findCode(JSONObject(createdRaw)) }.getOrNull()
-        val latest = runCatching {
-            val raw = request(c, "/invites", bearer = a.token).first
-            val arr = responseArray(raw, "invites")
-            (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
-                .filter { it.optLong("created", 0L) >= startedAt - 10000L }
-                .filter { label.isBlank() || it.optString("label") == label.trim() }
-                .filter { userLabel.isBlank() || it.optString("user_label") == userLabel.trim() }
-                .maxByOrNull { it.optLong("created", 0L) }
-        }.getOrNull()
-        val code = responseCode ?: latest?.optString("code")?.takeIf { it.isNotBlank() }.orEmpty()
+        request(c, "/invites", "POST", body, a.token)
+        val raw = request(c, "/invites", bearer = a.token).first
+        val arr = responseArray(raw, "invites")
+        // JFA-Go serializes Created as Unix seconds (not milliseconds).
+        val latest = (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
+            .filter { it.optLong("created", 0L) >= startedAtSeconds - 10L }
+            .filter { label.isBlank() || it.optString("label") == label.trim() }
+            .filter { userLabel.isBlank() || it.optString("user_label") == userLabel.trim() }
+            .maxByOrNull { it.optLong("created", 0L) }
+        val code = latest?.optString("code")?.takeIf { it.isNotBlank() }.orEmpty()
         if (sendTo.isBlank()) return InviteCreationResult("", code, null, "")
-        val sentTo = latest?.optJSONObject("sent_to")
-        val address = sendTo.trim()
-        val successes = sentTo?.optJSONArray("success") ?: JSONArray()
-        if ((0 until successes.length()).any { successes.optString(it).equals(address, true) })
-            return InviteCreationResult(address, code, true, "")
-        val failures = sentTo?.optJSONArray("failed") ?: JSONArray()
-        for (i in 0 until failures.length()) {
-            val failure = failures.optJSONObject(i) ?: continue
-            if (failure.optString("address").equals(address, true))
-                return InviteCreationResult(address, code, false, failure.optString("reason").ifBlank { "The server reported an email delivery failure." })
+        if (code.isBlank()) {
+            return InviteCreationResult(sendTo.trim(), "", false,
+                "The invitation was created, but Allerion could not retrieve its code to submit the email. Check the Invites list.")
         }
-        return InviteCreationResult(address, code, null, "JFA-Go created the invitation but did not report a delivery result.")
+        return try {
+            request(c, "/invites/send", "POST",
+                JSONObject().put("invite", code).put("send-to", sendTo.trim()), a.token)
+            InviteCreationResult(sendTo.trim(), code, true, "")
+        } catch (e: Exception) {
+            InviteCreationResult(sendTo.trim(), code, false,
+                e.message?.takeIf { it.isNotBlank() } ?: "JFA-Go rejected the email send request.")
+        }
     }
     fun editInvite(c: JfaConn, code: String, label: String, userLabel: String, profile: String, notifyCreation: Boolean, notifyExpiry: Boolean) {
         val a = login(c)
