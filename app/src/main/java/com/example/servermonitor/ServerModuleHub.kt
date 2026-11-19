@@ -116,7 +116,7 @@ fun ServerModuleHub(server: Server, onBack: () -> Unit, onOpenModule: (String) -
                                 Text(module.title, color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
                                 Text(module.description, color = Mut, fontSize = AppType.small)
                             }
-                            Icon24(Ic.ChevronR, Dim, 20.dp)
+                            Icon24(Ic.ChevronD, Dim, 20.dp)
                         }
                     }
                 }
