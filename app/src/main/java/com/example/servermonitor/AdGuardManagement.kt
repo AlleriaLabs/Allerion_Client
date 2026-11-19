@@ -31,7 +31,8 @@ import javax.crypto.spec.GCMParameterSpec
 private data class AdGuardConfig(val url: String, val username: String, val password: String)
 private data class AdGuardSnapshot(val enabled: Boolean, val version: String, val queries: Long, val blocked: Long, val clients: Int)
 
-private object AdGuardConfigStore {
+internal object AdGuardConfigStore {
+    fun isConfigured(context: Context, serverUrl: String): Boolean = load(context, serverUrl) != null
     private const val PREF = "allerion_adguard"
     private const val ALIAS = "allerion.adguard.credentials.v1"
     private fun key(): SecretKey {
@@ -107,6 +108,7 @@ fun AdGuardManagementScreen(server: Server, onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(config == null) }
+    val scope = rememberCoroutineScope()
     var revision by remember { mutableIntStateOf(0) }
     LaunchedEffect(config, revision) {
         val active = config ?: return@LaunchedEffect
@@ -129,9 +131,8 @@ fun AdGuardManagementScreen(server: Server, onBack: () -> Unit) {
             Button(onClick = {
                 val next = AdGuardConfig(url.trim().trimEnd('/'), username.trim(), password)
                 busy = true; error = null
-                kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-                    val result = runCatching { AdGuardApi.snapshot(next) }
-                    withContext(Dispatchers.Main) {
+                scope.launch {
+                    val result = runCatching { withContext(Dispatchers.IO) { AdGuardApi.snapshot(next) } }
                         result.onSuccess {
                             AdGuardConfigStore.save(context, server.url, next); config = next; snapshot = it; editing = false
                         }.onFailure { error = it.message ?: "Connection failed." }
@@ -152,9 +153,8 @@ fun AdGuardManagementScreen(server: Server, onBack: () -> Unit) {
                 Button(onClick = {
                     val active = config ?: return@Button
                     busy = true
-                    kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-                        val result = runCatching { AdGuardApi.protection(active, !data.enabled); AdGuardApi.snapshot(active) }
-                        withContext(Dispatchers.Main) { result.onSuccess { snapshot = it; error = null }.onFailure { error = it.message }; busy = false }
+                    scope.launch {
+                        val result = runCatching { withContext(Dispatchers.IO) { AdGuardApi.protection(active, !data.enabled); AdGuardApi.snapshot(active) } } result.onSuccess { snapshot = it; error = null }.onFailure { error = it.message }; busy = false }
                     }
                 }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (data.enabled) "Pause protection" else "Enable protection") }
             }
