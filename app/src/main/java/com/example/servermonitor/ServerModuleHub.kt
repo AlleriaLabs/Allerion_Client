@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -59,11 +60,11 @@ private fun advertisedFeature(caps: JSONObject?, integrations: JSONObject?, id: 
     return false
 }
 
-private fun metricText(json: JSONObject, vararg keys: String): String {
+private fun metricText(json: JSONObject, suffix: String = "%", vararg keys: String): String {
     for (key in keys) {
         if (json.has(key) && !json.isNull(key)) {
             val value = json.opt(key)
-            if (value is Number) return "%.1f".format(value.toDouble()) + "%"
+            if (value is Number) return "%.1f".format(value.toDouble()) + suffix
             if (value is String && value.isNotBlank()) return value
         }
     }
@@ -72,6 +73,7 @@ private fun metricText(json: JSONObject, vararg keys: String): String {
 
 @Composable
 fun ServerModuleHub(server: Server, onBack: () -> Unit, onOpenModule: (String) -> Unit, onEdit: () -> Unit) {
+    val context = LocalContext.current
     var loading by remember(server.url, server.token) { mutableStateOf(true) }
     var error by remember(server.url, server.token) { mutableStateOf<String?>(null) }
     var stats by remember(server.url, server.token) { mutableStateOf<JSONObject?>(null) }
@@ -88,7 +90,7 @@ fun ServerModuleHub(server: Server, onBack: () -> Unit, onOpenModule: (String) -
                 Triple(live, caps, integrations)
             }
             stats = result.first
-            supported = setOf("server") + serverModules.filter { it.id != "server" && advertisedFeature(result.second, result.third, it.id) }.map { it.id }
+            supported = setOf("server") + serverModules.filter { it.id != "server" && it.id != "adguard" && advertisedFeature(result.second, result.third, it.id) }.map { it.id } + if (AdGuardConfigStore.isConfigured(context, server.url)) setOf("adguard") else emptySet()
         } catch (e: Exception) { stats = null; supported = emptySet(); error = friendlyError(e) }
         finally { loading = false }
     }
@@ -112,9 +114,9 @@ fun ServerModuleHub(server: Server, onBack: () -> Unit, onOpenModule: (String) -
             error?.let { Panel { Text("Server connection failed", color = Txt, fontWeight = FontWeight.Bold); Text(it, color = Mut, fontSize = AppType.small); TextButton(onClick = onEdit) { Text("Review connection settings") } } }
             stats?.let { live ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    WorkspaceMetric("CPU", metricText(live, "cpu"), Ic.Cpu, Modifier.weight(1f))
-                    WorkspaceMetric("MEMORY", metricText(live, "ram", "memory"), Ic.Memory, Modifier.weight(1f))
-                    WorkspaceMetric("TEMP", metricText(live, "temp", "temperature"), Ic.Thermo, Modifier.weight(1f))
+                    WorkspaceMetric("CPU", metricText(live, "%", "cpu"), Ic.Cpu, Modifier.weight(1f))
+                    WorkspaceMetric("MEMORY", metricText(live, "%", "ram", "memory"), Ic.Memory, Modifier.weight(1f))
+                    WorkspaceMetric("TEMP", metricText(live, "°C", "temp", "temperature"), Ic.Thermo, Modifier.weight(1f))
                 }
                 Panel {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -137,6 +139,7 @@ fun ServerModuleHub(server: Server, onBack: () -> Unit, onOpenModule: (String) -
                         }
                     }
                 }
+                if ("adguard" !in supported) Panel(Modifier, onClick = { onOpenModule("adguard") }) { Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Set up AdGuard Home", color = Txt, fontWeight = FontWeight.SemiBold); Text("Add this server’s DNS protection connection", color = Mut, fontSize = AppType.small) }; Icon24(Ic.Plug, Blue, 20.dp) } }
                 if (supported.size == 1) Panel { Text("No additional integrations detected", color = Txt, fontWeight = FontWeight.SemiBold); Text("Connect Jellyfin, JFA-Go, Allervue Requests, Allerflux or AdGuard to this server. Modules appear only when the server reports that integration as configured.", color = Mut, fontSize = AppType.small) }
             }
             Spacer(Modifier.height(26.dp))
