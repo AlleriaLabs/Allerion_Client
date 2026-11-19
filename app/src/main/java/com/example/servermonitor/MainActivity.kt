@@ -380,6 +380,7 @@ fun App(p: SharedPreferences) {
             "users" -> JfaGoUsersScreen(onBack = { selectedModule = null })
             "requests" -> SeerrRequestsScreen(onBack = { selectedModule = null })
             "analytics" -> JellyfinAnalyticsScreen(servers[o], onBack = { selectedModule = null }, onSettings = { edit = o })
+            "adguard" -> AdGuardManagementScreen(servers[o], onBack = { selectedModule = null })
             else -> ServerModuleHub(servers[o], onBack = { selectedModule = null }, onOpenModule = { selectedModule = it }, onEdit = { edit = o })
         }
         o != null && o in servers.indices -> ServerModuleHub(servers[o], onBack = { open = null }, onOpenModule = { selectedModule = it }, onEdit = { edit = o })
