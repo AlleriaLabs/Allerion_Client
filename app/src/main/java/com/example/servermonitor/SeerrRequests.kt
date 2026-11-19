@@ -94,26 +94,43 @@ private object SeerrRequestsApi {
     }
 
     fun movies(cookie: String, userId: Int): List<SeerrMovie> {
-        // Match Seerr My Requests using its documented per-user endpoint.
-        val root = JSONObject(call("/api/v1/user/" + userId + "/requests?take=100&skip=0", cookie = cookie).first)
-        val list = root.optJSONArray("results") ?: root.optJSONArray("requests") ?: JSONArray()
+        // Seerr's request endpoint supports an explicit movie filter and requestedBy.
+        // This mirrors My Requests while avoiding assumptions about absent mediaType fields.
+        val root = JSONObject(call(
+            "/api/v1/request?take=100&skip=0&sort=added&sortDirection=desc&mediaType=movie&requestedBy=" + userId,
+            cookie = cookie
+        ).first)
+        val list = root.optJSONArray("results") ?: JSONArray()
         val out = mutableListOf<SeerrMovie>()
         for (i in 0 until list.length()) {
             val item = list.optJSONObject(i) ?: continue
-            val media = item.optJSONObject("media") ?: item
-            val mediaType = item.optString("type").ifBlank { item.optString("mediaType") }
-                .ifBlank { media.optString("mediaType") }
-            // The API query is already constrained to movies; only reject an explicit TV type.
-            if (!mediaType.equals("movie", true) && !mediaType.equals("1", true)) continue
-            val title = media.optString("title").ifBlank { media.optString("name") }.ifBlank { item.optString("title") }
-            if (title.isBlank()) continue
-            val date = media.optString("releaseDate")
+            val media = item.optJSONObject("media") ?: JSONObject()
+            val tmdbId = media.optInt("tmdbId", 0)
+            val movieDetails = if (tmdbId > 0) {
+                runCatching { JSONObject(call("/api/v1/movie/" + tmdbId, cookie = cookie).first) }.getOrNull()
+            } else null
+            val title = movieDetails?.optString("title").orEmpty()
+                .ifBlank { media.optString("title") }
+                .ifBlank { item.optString("title") }
+                .ifBlank { if (tmdbId > 0) "Movie #" + tmdbId else "Movie request #" + item.optInt("id", i) }
+            val date = movieDetails?.optString("releaseDate").orEmpty()
+                .ifBlank { media.optString("releaseDate") }
             val year = date.take(4).takeIf { it.length == 4 && it.all(Char::isDigit) }.orEmpty()
-            val status = when (item.optInt("status")) { 1 -> "Pending"; 2 -> "Approved"; 3 -> "Declined"; 4 -> "Failed"; 5 -> "Completed"; else -> "Requested" }
-            val availability = when (media.optInt("status")) { 4 -> "Partially available"; 5 -> "Available"; 6 -> "Unavailable"; else -> if (media.optBoolean("available")) "Available" else "Not available yet" }
+            val status = when (item.optInt("status")) {
+                1 -> "Pending"
+                2 -> "Approved"
+                3 -> "Declined"
+                else -> "Requested"
+            }
+            val availability = when (media.optInt("status")) {
+                4 -> "Partially available"
+                5 -> "Available"
+                6 -> "Deleted"
+                else -> "Not available yet"
+            }
             out += SeerrMovie(item.optInt("id", i), title, year, status, availability, item.optString("createdAt").take(10))
         }
-        return out.sortedByDescending { it.id }
+        return out
     }
 }
 
