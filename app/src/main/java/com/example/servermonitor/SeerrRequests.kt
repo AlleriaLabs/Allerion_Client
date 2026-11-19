@@ -147,13 +147,13 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
     var error by remember { mutableStateOf("") }
     var updated by remember { mutableStateOf("") }
 
-    fun refresh() {
-        if (cookie.isBlank() || loading) return
+    fun refresh(requestUserId: Int = userId) {
+        if (cookie.isBlank() || requestUserId <= 0 || loading) return
         scope.launch {
             loading = true
             error = ""
             try {
-                movies = withContext(Dispatchers.IO) { SeerrRequestsApi.movies(cookie, userId) }
+                movies = withContext(Dispatchers.IO) { SeerrRequestsApi.movies(cookie, requestUserId) }
                 updated = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault()).format(java.util.Date())
             } catch (e: Exception) {
                 error = e.message ?: "Could not load requests."
@@ -174,7 +174,7 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
                     val signedInUser = withContext(Dispatchers.IO) { SeerrRequestsApi.validateSession(cookie) }
                     account = signedInUser.name
                     userId = signedInUser.id
-                    refresh()
+                    refresh(signedInUser.id)
                 } catch (e: Exception) {
                     error = e.message ?: "Could not verify Seerr session."
                 }
