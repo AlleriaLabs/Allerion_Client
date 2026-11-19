@@ -128,28 +128,50 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
     fun refresh() {
         if (cookie.isBlank() || loading) return
         scope.launch {
-            loading = true; error = ""
+            loading = true
+            error = ""
             try {
                 movies = withContext(Dispatchers.IO) { SeerrRequestsApi.movies(cookie) }
                 updated = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault()).format(java.util.Date())
             } catch (e: Exception) {
                 error = e.message ?: "Could not load requests."
-                if (error.contains("401") || error.contains("403")) { SeerrSession.clear(ctx); cookie = ""; movies = emptyList() }
+                if (error.contains("401") || error.contains("403")) {
+                    SeerrSession.clear(ctx)
+                    CookieManager.getInstance().removeAllCookies(null)
+                    cookie = ""
+                    movies = emptyList()
+                }
             } finally { loading = false }
         }
     }
-    LaunchedEffect(cookie) { if (cookie.isNotBlank()) refresh() }
+
+    LaunchedEffect(cookie) {
+        if (cookie.isNotBlank()) refresh()
+    }
 
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
-        ModulePageHeader("MEDIA REQUESTS", "Seerr Requests", "Your requested movies and their current status", onBack,
-            trailing = { if (cookie.isNotBlank()) TextButton(onClick = { refresh() }, enabled = !loading) { Text("Refresh", color = Red) } })
-        Column(Modifier.fillMaxSize().padding(horizontal = 18.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ModulePageHeader(
+            "MEDIA REQUESTS", "Seerr Requests",
+            "Your requested movies and their current status", onBack,
+            trailing = {
+                if (cookie.isNotBlank()) {
+                    TextButton(onClick = { refresh() }, enabled = !loading) {
+                        Text(if (loading) "Loading…" else "Refresh", color = Red)
+                    }
+                }
+            }
+        )
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 18.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             if (cookie.isBlank()) {
                 Panel {
                     Text("Sign in to Seerr", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
-                    Text("Use Seerr's existing sign-in page. Allerion will keep the session on this device so you don't need to sign in again each time.",
-                        color = Mut, fontSize = AppType.small)
+                    Text(
+                        "Continue with Seerr's existing sign-in page. Allerion will securely save your session on this device.",
+                        color = Mut, fontSize = AppType.small
+                    )
                     Button(onClick = { showLogin = true }, modifier = Modifier.fillMaxWidth()) {
                         Text("Continue to Seerr sign in")
                     }
@@ -174,7 +196,9 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
                                                 scope.launch {
                                                     loading = true
                                                     try {
-                                                        val name = withContext(Dispatchers.IO) { SeerrRequestsApi.validateSession(session) }
+                                                        val name = withContext(Dispatchers.IO) {
+                                                            SeerrRequestsApi.validateSession(session)
+                                                        }
                                                         SeerrSession.save(ctx, session)
                                                         account = name
                                                         cookie = session
@@ -191,23 +215,32 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
                                 }
                             }
                         )
-                        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                            TextButton(onClick = { showLogin = false }) { Text("Close", color = Red) }
-                        }
+                        TextButton(onClick = { showLogin = false }) { Text("Close", color = Red) }
                         if (error.isNotBlank()) Text(error, color = Err, fontSize = AppType.small)
                     }
                 }
-
+            } else {
                 Panel {
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("Connected to Seerr", color = Green, fontSize = AppType.caption, fontWeight = FontWeight.Bold)
-                            Text(if (account.isBlank()) "Session saved securely" else "Signed in as " + account, color = Mut, fontSize = AppType.small)
-                            Text(if (updated.isBlank()) "Loading requests…" else "Updated " + updated, color = Dim, fontSize = AppType.caption)
+                            Text(
+                                if (account.isBlank()) "Session saved securely" else "Signed in as " + account,
+                                color = Mut, fontSize = AppType.small
+                            )
+                            Text(
+                                if (updated.isBlank()) "Loading requests…" else "Updated " + updated,
+                                color = Dim, fontSize = AppType.caption
+                            )
                         }
-                        TextButton(onClick = { SeerrSession.clear(ctx); cookie = ""; movies = emptyList(); account = ""; error = "" }) {
-                            Text("Sign out", color = Red)
-                        }
+                        TextButton(onClick = {
+                            SeerrSession.clear(ctx)
+                            CookieManager.getInstance().removeAllCookies(null)
+                            cookie = ""
+                            movies = emptyList()
+                            account = ""
+                            error = ""
+                        }) { Text("Sign out", color = Red) }
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -215,24 +248,43 @@ fun SeerrRequestsScreen(onBack: () -> Unit) {
                     SummaryStat("Pending", movies.count { it.status == "Pending" }.toString(), Amber, Modifier.weight(1f))
                     SummaryStat("Available", movies.count { it.availability == "Available" }.toString(), Green, Modifier.weight(1f))
                 }
-                if (error.isNotBlank()) Panel { Text(error, color = Amber, fontSize = AppType.small) }
-                if (loading && movies.isEmpty()) Panel { Text("Loading your movie requests…", color = Mut, fontSize = AppType.small) }
-                else if (movies.isEmpty() && error.isBlank()) Panel {
-                    Text("No movie requests yet", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
-                    Text("Movies you request through Seerr will appear here.", color = Mut, fontSize = AppType.small)
-                }
-                else movies.forEach { movie ->
+                if (error.isNotBlank()) {
+                    Panel { Text(error, color = Amber, fontSize = AppType.small) }
+                } else if (loading && movies.isEmpty()) {
+                    Panel { Text("Loading your movie requests…", color = Mut, fontSize = AppType.small) }
+                } else if (movies.isEmpty()) {
                     Panel {
-                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(movie.title + if (movie.year.isBlank()) "" else " (" + movie.year + ")",
-                                    color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
-                                Text("Requested " + movie.date.ifBlank { "date unavailable" }, color = Dim, fontSize = AppType.caption)
-                            }
-                            Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
-                                Text(movie.status, color = when (movie.status) { "Approved", "Completed" -> Green; "Pending" -> Amber; "Declined", "Failed" -> Err; else -> Mut },
-                                    fontSize = AppType.caption, fontWeight = FontWeight.Bold)
-                                Text(movie.availability, color = if (movie.availability == "Available") Green else Dim, fontSize = AppType.micro)
+                        Text("No movie requests returned by Seerr", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
+                        Text("Pull to refresh using the Refresh control above. If you know a request exists, the API response needs checking.", color = Mut, fontSize = AppType.small)
+                    }
+                } else {
+                    movies.forEach { movie ->
+                        Panel {
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        movie.title + if (movie.year.isBlank()) "" else " (" + movie.year + ")",
+                                        color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text("Requested " + movie.date.ifBlank { "date unavailable" }, color = Dim, fontSize = AppType.caption)
+                                }
+                                Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                                    Text(
+                                        movie.status,
+                                        color = when (movie.status) {
+                                            "Approved", "Completed" -> Green
+                                            "Pending" -> Amber
+                                            "Declined", "Failed" -> Err
+                                            else -> Mut
+                                        },
+                                        fontSize = AppType.caption, fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        movie.availability,
+                                        color = if (movie.availability == "Available") Green else Dim,
+                                        fontSize = AppType.micro
+                                    )
+                                }
                             }
                         }
                     }
