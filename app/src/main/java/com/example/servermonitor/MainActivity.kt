@@ -328,6 +328,7 @@ fun App(p: SharedPreferences) {
     var showLiveUsers by remember { mutableStateOf(false) }
     var showAnalytics by remember { mutableStateOf(false) }
     var showActivity by remember { mutableStateOf(false) }
+    var showSeerrRequests by remember { mutableStateOf(false) }
     var showServerManagement by remember { mutableStateOf(false) }
     var showAppInfo by remember { mutableStateOf(false) }
     fun commit(l: List<Server>) {
@@ -353,12 +354,13 @@ fun App(p: SharedPreferences) {
     }
     val e = edit
     val o = open
-    BackHandler(enabled = e != null || o != null || hubSettings || showIntegrations || showUsers || showLiveUsers || showAnalytics || showActivity || showServerManagement || showAppInfo) {
+    BackHandler(enabled = e != null || o != null || hubSettings || showIntegrations || showUsers || showLiveUsers || showAnalytics || showActivity || showSeerrRequests || showServerManagement || showAppInfo) {
         if (e != null) edit = null
         else if (o != null) open = null
         else if (showAppInfo) showAppInfo = false
         else if (showServerManagement) showServerManagement = false
         else if (showActivity) showActivity = false
+        else if (showSeerrRequests) showSeerrRequests = false
         else if (showAnalytics) showAnalytics = false
         else if (showLiveUsers) showLiveUsers = false
         else if (showUsers) showUsers = false
@@ -377,10 +379,11 @@ fun App(p: SharedPreferences) {
         showLiveUsers -> LiveUsersScreen(onBack = { showLiveUsers = false })
         showAnalytics -> if (servers.isNotEmpty()) JellyfinAnalyticsScreen(servers.first(), onBack = { showAnalytics = false }, onSettings = { edit = servers.indexOf(servers.first()) }) else EmptyModuleScreen("Jellyfin Analytics", "No monitoring server is registered yet. Add one in Server Management; the analytics page and Allerion header remain available without a connection.", onBack = { showAnalytics = false }, onSettings = { hubSettings = true })
         showActivity -> ActivityCenterScreen(onBack = { showActivity = false })
+        showSeerrRequests -> SeerrRequestsScreen(onBack = { showSeerrRequests = false })
         showAppInfo -> AppInfoPage(onBack = { showAppInfo = false })
         showServerManagement -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
             { i -> commit(servers.filterIndexed { k, _ -> k != i }); expanded = null }, { edit = -1 }, { hubSettings = true },
-            { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true },
+            { showIntegrations = true }, { showUsers = true }, { showLiveUsers = true }, { showAnalytics = true }, { showActivity = true }, { showSeerrRequests = true },
             { showServerManagement = true }, serverManagementPage = true, onBack = { showServerManagement = false },
             onAbout = { showAppInfo = true })
         else -> Home(servers, expanded, { expanded = it }, { open = it }, { edit = it },
