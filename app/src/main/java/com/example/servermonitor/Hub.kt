@@ -423,7 +423,7 @@ fun Home(servers: List<Server>, expanded: Int?, onExpand: (Int?) -> Unit, onOpen
                     HubModuleCard(Ic.Activity, "Live Users", "Who's online and watching", Color(0xFF62E0B0), Modifier.weight(1f).staggerIn(4), onLiveUsers, live = true)
                 }
                 if (!serverManagementPage) {
-                    HubModuleCard(Ic.Download, "Seerr Requests", "Your requested movies and availability", Color(0xFFFF8294),
+                    HubModuleCard(Ic.Download, "Allervue Requests", "Your movie requests and availability", Color(0xFFFF8294),
                         Modifier.fillMaxWidth().staggerIn(5), onSeerrRequests)
                 }
                 if (!serverManagementPage) {
