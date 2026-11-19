@@ -274,13 +274,14 @@ private object JfaApi {
         val existingCodes = (0 until responseArray(beforeRaw, "invites").length())
             .mapNotNull { responseArray(beforeRaw, "invites").optJSONObject(it)?.optString("code") }
             .toSet()
-        // Create the invite first. Sending is deliberately performed through JFA-Go's
-        // dedicated /invites/send endpoint so mail failures are returned as HTTP errors.
+        // Match Allerium's proven JFA-Go flow: include send-to in the invite
+        // creation request. Some deployed JFA-Go versions do not expose /invites/send.
         val body = JSONObject().put("months", months).put("days", days).put("hours", hours).put("minutes", minutes)
             .put("multiple-uses", unlimited || uses > 1).put("no-limit", unlimited).put("remaining-uses", if (unlimited) 0 else uses)
             .put("label", label.trim()).put("user_label", userLabel.trim()).put("profile", profile)
             .put("user-expiry", userExpiry).put("user-months", userMonths).put("user-days", userDays)
             .put("user-hours", userHours).put("user-minutes", userMinutes)
+        if (sendTo.isNotBlank()) body.put("send-to", sendTo.trim())
         request(c, "/invites", "POST", body, a.token)
         val raw = request(c, "/invites", bearer = a.token).first
         val arr = responseArray(raw, "invites")
@@ -297,13 +298,19 @@ private object JfaApi {
             return InviteCreationResult(sendTo.trim(), "", false,
                 "The invitation was created, but Allerion could not retrieve its code to submit the email. Check the Invites list.")
         }
-        return try {
-            request(c, "/invites/send", "POST",
-                JSONObject().put("invite", code).put("send-to", sendTo.trim()), a.token)
-            InviteCreationResult(sendTo.trim(), code, true, "")
-        } catch (e: Exception) {
-            InviteCreationResult(sendTo.trim(), code, false,
-                e.message?.takeIf { it.isNotBlank() } ?: "JFA-Go rejected the email send request.")
+        val sentTo = latest?.optJSONObject("sent_to") ?: JSONObject()
+        val successful = sentTo.optJSONArray("success") ?: JSONArray()
+        val failed = sentTo.optJSONArray("failed") ?: JSONArray()
+        val address = sendTo.trim()
+        val wasSent = (0 until successful.length()).any { successful.optString(it).equals(address, true) }
+        val failure = (0 until failed.length()).mapNotNull { failed.optJSONObject(it) }
+            .firstOrNull { it.optString("address").equals(address, true) }
+        return when {
+            wasSent -> InviteCreationResult(address, code, true, "")
+            failure != null -> InviteCreationResult(address, code, false,
+                "JFA-Go could not send this invitation (" + failure.optString("reason", "CheckLogs") + "). Check the JFA-Go server logs for the detailed mail error.")
+            else -> InviteCreationResult(address, code, null,
+                "JFA-Go created the invitation but did not return a delivery result. Check the JFA-Go server logs.")
         }
     }
     fun editInvite(c: JfaConn, code: String, label: String, userLabel: String, profile: String, notifyCreation: Boolean, notifyExpiry: Boolean) {
