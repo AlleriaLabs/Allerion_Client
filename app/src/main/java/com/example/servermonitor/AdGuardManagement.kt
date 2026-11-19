@@ -28,7 +28,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-private data class AdGuardConfig(val url: String, val username: String, val password: String)
+internal data class AdGuardConfig(val url: String, val username: String, val password: String)
 private data class AdGuardSnapshot(val enabled: Boolean, val version: String, val queries: Long, val blocked: Long, val clients: Int)
 
 internal object AdGuardConfigStore {
@@ -44,7 +44,7 @@ internal object AdGuardConfigStore {
         return generator.generateKey()
     }
     private fun prefKey(serverUrl: String) = "server_" + serverUrl.trim().trimEnd('/').lowercase().hashCode().toUInt().toString(16)
-    private fun load(context: Context, serverUrl: String): AdGuardConfig? = runCatching {
+    internal fun load(context: Context, serverUrl: String): AdGuardConfig? = runCatching {
         val raw = context.getSharedPreferences(PREF, 0).getString(prefKey(serverUrl), null) ?: return null
         val bytes = Base64.decode(raw, Base64.NO_WRAP)
         val ivSize = bytes[0].toInt() and 255
@@ -53,14 +53,14 @@ internal object AdGuardConfigStore {
         val json = JSONObject(String(cipher.doFinal(bytes.copyOfRange(ivSize + 1, bytes.size)), Charsets.UTF_8))
         AdGuardConfig(json.getString("url"), json.getString("username"), json.getString("password"))
     }.getOrNull()
-    private fun save(context: Context, serverUrl: String, config: AdGuardConfig) {
+    internal fun save(context: Context, serverUrl: String, config: AdGuardConfig) {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, secret())
         val json = JSONObject().put("url", config.url).put("username", config.username).put("password", config.password)
         val bytes = byteArrayOf(cipher.iv.size.toByte()) + cipher.iv + cipher.doFinal(json.toString().toByteArray())
         check(context.getSharedPreferences(PREF, 0).edit().putString(prefKey(serverUrl), Base64.encodeToString(bytes, Base64.NO_WRAP)).commit())
     }
-    private fun clear(context: Context, serverUrl: String) {
+    internal fun clear(context: Context, serverUrl: String) {
         context.getSharedPreferences(PREF, 0).edit().remove(prefKey(serverUrl)).apply()
     }
 }
