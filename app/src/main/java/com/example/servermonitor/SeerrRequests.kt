@@ -162,7 +162,7 @@ private fun SeerrMoviePoster(url: String) {
         )
     } else {
         Box(
-            modifier = Modifier.width(68.dp).height(100.dp).background(PanelBg),
+            modifier = Modifier.width(68.dp).height(100.dp).background(Bg),
             contentAlignment = androidx.compose.ui.Alignment.Center
         ) {
             Text("MOVIE", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
