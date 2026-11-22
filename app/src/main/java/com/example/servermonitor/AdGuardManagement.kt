@@ -74,8 +74,10 @@ private object AdGuardApi {
             connection.requestMethod = method
             connection.connectTimeout = 7000
             connection.readTimeout = 9000
-            val credentials = Base64.encodeToString((config.username + ":" + config.password).toByteArray(), Base64.NO_WRAP)
-            connection.setRequestProperty("Authorization", "Basic $credentials")
+            if (config.username.isNotBlank() || config.password.isNotBlank()) {
+                val credentials = Base64.encodeToString((config.username + ":" + config.password).toByteArray(), Base64.NO_WRAP)
+                connection.setRequestProperty("Authorization", "Basic $credentials")
+            }
             connection.setRequestProperty("Accept", "application/json")
             if (method == "POST") {
                 connection.doOutput = true
