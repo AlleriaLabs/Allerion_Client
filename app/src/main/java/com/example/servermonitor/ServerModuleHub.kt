@@ -140,7 +140,6 @@ fun ServerModuleHub(server: Server, onBack: () -> Unit, onOpenModule: (String) -
                     }
                 }
                 if (supported.size == 1) Panel { Text("No additional integrations detected", color = Txt, fontWeight = FontWeight.SemiBold); Text("Modules appear automatically when supported services are discovered on this server.", color = Mut, fontSize = AppType.small) }
-            }
                 AccountAccessPanel(server)
             }
             Spacer(Modifier.height(26.dp))
