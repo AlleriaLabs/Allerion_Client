@@ -90,7 +90,7 @@ fun ServerModuleHub(server: Server, onBack: () -> Unit, onOpenModule: (String) -
                 Triple(live, caps, integrations)
             }
             stats = result.first
-            supported = setOf("server") + serverModules.filter { it.id != "server" && it.id != "adguard" && advertisedFeature(result.second, result.third, it.id) }.map { it.id } + if (AdGuardConfigStore.isConfigured(context, server.url)) setOf("adguard") else emptySet()
+            supported = setOf("server") + serverModules.filter { it.id != "server" && advertisedFeature(result.second, result.third, it.id) }.map { it.id }
         } catch (e: Exception) { stats = null; supported = emptySet(); error = friendlyError(e) }
         finally { loading = false }
     }
@@ -139,8 +139,7 @@ fun ServerModuleHub(server: Server, onBack: () -> Unit, onOpenModule: (String) -
                         }
                     }
                 }
-                if ("adguard" !in supported) Panel(Modifier, onClick = { onOpenModule("adguard") }) { Row(verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Set up AdGuard Home", color = Txt, fontWeight = FontWeight.SemiBold); Text("Add this server’s DNS protection connection", color = Mut, fontSize = AppType.small) }; Icon24(Ic.Plug, Blue, 20.dp) } }
-                if (supported.size == 1) Panel { Text("No additional integrations detected", color = Txt, fontWeight = FontWeight.SemiBold); Text("Connect Jellyfin, JFA-Go, Allervue Requests, Allerflux or AdGuard to this server. Modules appear only when the server reports that integration as configured.", color = Mut, fontSize = AppType.small) }
+                if (supported.size == 1) Panel { Text("No additional integrations detected", color = Txt, fontWeight = FontWeight.SemiBold); Text("Modules appear automatically when supported services are discovered on this server.", color = Mut, fontSize = AppType.small) }
             }
             Spacer(Modifier.height(26.dp))
         }
