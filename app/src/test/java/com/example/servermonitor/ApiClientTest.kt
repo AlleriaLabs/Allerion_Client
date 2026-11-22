@@ -18,7 +18,7 @@ class ApiClientTest {
         }
 
         assertNotNull(error)
-        assertTrue(error!!.message!!.contains("API token is required"))
+        assertTrue(error!!.message!!.contains("Server sign-in is required"))
     }
 
     @Test
