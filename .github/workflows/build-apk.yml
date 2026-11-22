@@ -134,8 +134,8 @@ jobs:
         if: steps.readiness.outputs.ready == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ inputs.version || github.ref_name }}
-          name: ALLERION v${{ inputs.version || github.ref_name }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
+          name: ALLERION ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
           generate_release_notes: true
           files: |
             Allerion.apk
