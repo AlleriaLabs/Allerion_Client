@@ -78,7 +78,11 @@ object ApiClient {
             readTimeout = readTimeoutMs
             useCaches = false
             setRequestProperty("Accept", "application/json")
-            if (token.startsWith("bearer:")) {\n                setRequestProperty("Authorization", "Bearer " + token.removePrefix("bearer:"))\n            } else if (token.isNotBlank()) {\n                setRequestProperty("X-Token", token)\n            }
+            if (token.startsWith("bearer:")) {
+                setRequestProperty("Authorization", "Bearer " + token.removePrefix("bearer:"))
+            } else if (token.isNotBlank()) {
+                setRequestProperty("X-Token", token)
+            }
             if (body != null) {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
