@@ -21,6 +21,10 @@ Optional:
 
 After the backend and Android changes have been merged and verified:
 
+Or open **Actions → Android CI and Release → Run workflow** on `main`, enter `1.3.3`, and run it. The workflow creates the `v1.3.3` release tag and publishes the signed APK.
+
+Alternatively, push a tag:
+
     git tag v1.3.3
     git push origin v1.3.3
 
