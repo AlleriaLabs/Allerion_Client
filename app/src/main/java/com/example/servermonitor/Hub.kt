@@ -867,6 +867,7 @@ fun EditServer(sv: Server?, onSave: (Server) -> Unit, onDelete: () -> Unit, onCa
                         modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
                 }
                 Text("The long server token is only needed once when creating the first administrator. After that, sign in with your own password.", color = Dim, fontSize = AppType.caption)
+                Text("Security: this server currently uses HTTP. Use password sign-in only on a trusted private network; enable HTTPS before remote access.", color = Amber, fontSize = AppType.caption)
             }
         }
         test?.let { (ok, msg) -> StateMessage(msg, !ok) }
