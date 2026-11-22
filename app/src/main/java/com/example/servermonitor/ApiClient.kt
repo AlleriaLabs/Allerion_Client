@@ -28,6 +28,36 @@ object ApiClient {
     @Volatile var lastRequestDurationMs: Long = 0L
         private set
 
+    fun getPublicJson(base: String, path: String): JSONObject = publicRequest(base, path, null)
+    fun postPublicJson(base: String, path: String, body: JSONObject): JSONObject = publicRequest(base, path, body)
+
+    private fun publicRequest(base: String, path: String, body: JSONObject?): JSONObject {
+        val normalizedPath = if (path.startsWith("/")) path else "/" + path
+        val url = URL(base.trim().trimEnd('/') + normalizedPath)
+        require(url.protocol == "http" || url.protocol == "https") { "Only HTTP and HTTPS server URLs are supported." }
+        val connection = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = if (body == null) "GET" else "POST"
+            connectTimeout = 5_000
+            readTimeout = 10_000
+            useCaches = false
+            setRequestProperty("Accept", "application/json")
+            if (body != null) { doOutput = true; setRequestProperty("Content-Type", "application/json; charset=utf-8") }
+        }
+        try {
+            if (body != null) connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val response = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            if (status !in 200..299) {
+                val detail = runCatching { JSONObject(response).optString("error") }.getOrDefault("")
+                throw ApiException(detail.ifBlank { "Authentication request failed (HTTP $status)." }, status)
+            }
+            return JSONObject(response)
+        } catch (e: SocketTimeoutException) {
+            throw ApiException("Connection timed out. Check the server and network.")
+        } finally { connection.disconnect() }
+    }
+
     fun getJson(
         base: String,
         token: String,
@@ -48,7 +78,7 @@ object ApiClient {
             readTimeout = readTimeoutMs
             useCaches = false
             setRequestProperty("Accept", "application/json")
-            if (token.isNotBlank()) setRequestProperty("X-Token", token)
+            if (token.startsWith("bearer:")) {\n                setRequestProperty("Authorization", "Bearer " + token.removePrefix("bearer:"))\n            } else if (token.isNotBlank()) {\n                setRequestProperty("X-Token", token)\n            }
             if (body != null) {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
