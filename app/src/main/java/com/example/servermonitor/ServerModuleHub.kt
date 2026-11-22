@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -140,6 +141,7 @@ fun ServerModuleHub(server: Server, onBack: () -> Unit, onOpenModule: (String) -
                     }
                 }
                 if (supported.size == 1) Panel { Text("No additional integrations detected", color = Txt, fontWeight = FontWeight.SemiBold); Text("Modules appear automatically when supported services are discovered on this server.", color = Mut, fontSize = AppType.small) }
+                AccountAccessPanel(server)
             }
             Spacer(Modifier.height(26.dp))
         }
@@ -149,4 +151,70 @@ fun ServerModuleHub(server: Server, onBack: () -> Unit, onOpenModule: (String) -
 @Composable
 private fun WorkspaceMetric(label: String, value: String, icon: Ic, modifier: Modifier) {
     Panel(modifier) { Icon24(icon, Red, 18.dp); Spacer(Modifier.height(8.dp)); Text(label, color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.sp); Text(value, color = Txt, fontSize = AppType.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1) }
+}
+
+@Composable
+private fun AccountAccessPanel(server: Server) {
+    val scope = rememberCoroutineScope()
+    var revision by remember(server.url) { mutableIntStateOf(0) }
+    var users by remember(server.url, server.token) { mutableStateOf<List<String>>(emptyList()) }
+    var error by remember(server.url, server.token) { mutableStateOf<String?>(null) }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var creating by remember { mutableStateOf(false) }
+    LaunchedEffect(server.url, server.token, revision) {
+        try {
+            val result = withContext(Dispatchers.IO) {
+                ApiClient.getJson(server.url, server.token, "/api/auth/users", connectTimeoutMs = 4000, readTimeoutMs = 6000)
+            }
+            val list = result.optJSONArray("users") ?: JSONArray()
+            users = (0 until list.length()).mapNotNull { list.optJSONObject(it)?.optString("username") }
+            error = null
+        } catch (e: Exception) {
+            users = emptyList()
+            error = e.message ?: "Administrator access is required to manage accounts."
+        }
+    }
+    Panel {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("SERVER ACCOUNTS", color = Dim, fontSize = AppType.micro, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+            Text("Individual access", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.Bold)
+            Text("Create separate logins for people who need access to this server.", color = Mut, fontSize = AppType.small)
+            if (error != null) {
+                Text(error!!, color = Dim, fontSize = AppType.caption)
+            } else {
+                users.forEach { item ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(item, color = Txt, fontSize = AppType.small, modifier = Modifier.weight(1f))
+                        Text("ACTIVE", color = Green, fontSize = AppType.micro, fontWeight = FontWeight.Bold)
+                    }
+                }
+                OutlinedTextField(username, { username = it }, label = { Text("New username") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+                OutlinedTextField(password, { password = it }, label = { Text("Temporary password · 12+ characters") }, singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+                Button(onClick = {
+                    creating = true
+                    scope.launch {
+                        try {
+                            withContext(Dispatchers.IO) {
+                                ApiClient.getJson(server.url, server.token, "/api/auth/users", body = JSONObject()
+                                    .put("username", username.trim()).put("password", password).put("role", "user"))
+                            }
+                            username = ""
+                            password = ""
+                            revision++
+                        } catch (e: Exception) {
+                            error = e.message ?: "Could not create account."
+                        } finally { creating = false }
+                    }
+                }, enabled = !creating && username.length >= 3 && password.length >= 12,
+                    modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) {
+                    Text(if (creating) "Creating…" else "Create user account")
+                }
+            }
+        }
+    }
 }

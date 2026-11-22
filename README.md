@@ -109,3 +109,10 @@ The app checks the latest public GitHub Release and offers an update when a newe
 ## CI
 
 Pull requests build a debug APK for verification. Pushes to `main` and manual workflow dispatches build and publish a signed release, provided all persistent signing secrets above are configured.
+
+
+## Self-hosted Allerion Server
+
+The companion server runs on your own Docker-capable Linux host. See the [server installation guide](https://github.com/AlleriaLabs/Allerion_Server/blob/main/docs/INSTALLATION.md) for supported platforms, first-admin setup, backups, updates and network security.
+
+For a new server, install the backend first, then add its LAN address in the app. Use the one-time setup token only to create the first administrator; subsequent connections use an individual Allerion username and password. Do not use password sign-in over untrusted plain HTTP.
