@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URI
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -112,7 +113,31 @@ fun AdGuardManagementScreen(server: Server, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var config by remember(server.url) { mutableStateOf(AdGuardConfigStore.load(context, server.url)) }
-    var url by remember(config) { mutableStateOf(config?.url.orEmpty()) }
+    var discoveredUrl by remember(server.url) { mutableStateOf<String?>(null) }
+    LaunchedEffect(server.url, server.token) {
+        discoveredUrl = withContext(Dispatchers.IO) {
+            runCatching {
+                val integrations = ApiClient.getJson(server.url, server.token, "/api/integrations", connectTimeoutMs = 3500, readTimeoutMs = 5000)
+                val items = integrations.optJSONArray("items") ?: integrations.optJSONArray("integrations")
+                var webPort: Int? = null
+                if (items != null) for (i in 0 until items.length()) {
+                    val item = items.optJSONObject(i) ?: continue
+                    if (!(item.optString("name").equals("adguard", true) ||
+                          item.optString("id").equals("adguard", true))) continue
+                    val containers = item.optJSONArray("containers")
+                    val first = containers?.optJSONObject(0)
+                    webPort = first?.optInt("web_port")?.takeIf { it > 0 }
+                    break
+                }
+                val base = URI(server.url)
+                val scheme = if (base.scheme == "https") "https" else "http"
+                val host = base.host ?: return@runCatching null
+                val port = webPort ?: 3000
+                "$scheme://$host:$port"
+            }.getOrNull()
+        }
+    }
+    var url by remember(config, discoveredUrl) { mutableStateOf(config?.url ?: discoveredUrl.orEmpty()) }
     var username by remember(config) { mutableStateOf(config?.username.orEmpty()) }
     var password by remember(config) { mutableStateOf(config?.password.orEmpty()) }
     var snapshot by remember(server.url) { mutableStateOf<AdGuardSnapshot?>(null) }
