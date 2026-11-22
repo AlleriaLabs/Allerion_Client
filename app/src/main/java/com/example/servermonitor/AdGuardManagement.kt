@@ -146,14 +146,16 @@ fun AdGuardManagementScreen(server: Server, onBack: () -> Unit) {
     var editing by remember { mutableStateOf(config == null) }
     var revision by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(config, revision) {
-        val active = config ?: return@LaunchedEffect
+    LaunchedEffect(config, discoveredUrl, revision) {
+        val active = config ?: discoveredUrl?.let { AdGuardConfig(it, "", "") } ?: return@LaunchedEffect
         busy = true
         try {
             snapshot = withContext(Dispatchers.IO) { AdGuardApi.snapshot(active) }
             error = null
+            if (config == null) editing = false
         } catch (e: Exception) {
             error = e.message ?: "Unable to connect to AdGuard Home."
+            if (config == null) editing = true
         } finally {
             busy = false
         }
@@ -164,7 +166,7 @@ fun AdGuardManagementScreen(server: Server, onBack: () -> Unit) {
         ModulePageHeader("DNS PROTECTION", "AdGuard Management", server.name, onBack, { editing = !editing }) {
             IconBtn(Ic.Refresh, "Refresh", onClick = { revision++ })
         }
-        if (editing || config == null) {
+        if (editing || (config == null && snapshot == null)) {
             Panel {
                 Text("AdGuard Home connection", color = Txt, fontSize = AppType.bodyStrong, fontWeight = FontWeight.SemiBold)
                 Text("Credentials are encrypted on this device and stored separately for each Allerion server.", color = Mut, fontSize = AppType.small)
@@ -185,7 +187,7 @@ fun AdGuardManagementScreen(server: Server, onBack: () -> Unit) {
                         }.onFailure { error = it.message ?: "Connection failed." }
                         busy = false
                     }
-                }, enabled = !busy && url.isNotBlank() && username.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                }, enabled = !busy && url.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
                     Text(if (busy) "Connecting…" else "Test and save connection")
                 }
             }
@@ -201,7 +203,7 @@ fun AdGuardManagementScreen(server: Server, onBack: () -> Unit) {
                     Status(data.enabled)
                 }
                 Button(onClick = {
-                    val active = config ?: return@Button
+                    val active = config ?: discoveredUrl?.let { AdGuardConfig(it, "", "") } ?: return@Button
                     busy = true
                     scope.launch {
                         val result = runCatching { withContext(Dispatchers.IO) { AdGuardApi.setProtection(active, !data.enabled) } }
