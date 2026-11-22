@@ -811,46 +811,88 @@ fun EditServer(sv: Server?, onSave: (Server) -> Unit, onDelete: () -> Unit, onCa
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(sv?.name ?: "") }
     var addr by remember { mutableStateOf(sv?.url?.removePrefix("http://") ?: "") }
-    var tok by remember { mutableStateOf(sv?.token ?: "") }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var setupToken by remember { mutableStateOf("") }
+    // Existing legacy credentials are retained privately for one-time account migration.
+    var legacyToken by remember { mutableStateOf(sv?.token?.takeUnless { it.startsWith("bearer:") } ?: "") }
+    var sessionToken by remember { mutableStateOf(sv?.token?.takeIf { it.startsWith("bearer:") } ?: "") }
     var group by remember { mutableStateOf(sv?.group ?: "Ungrouped") }
+    var setupRequired by remember { mutableStateOf<Boolean?>(null) }
     var testing by remember { mutableStateOf(false) }
     var test by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
-    fun clean(): String { var c = addr.trim().trimEnd('/'); if (!c.startsWith("http")) c = "http://$c"; return c }
+    fun clean(): String {
+        var c = addr.trim().trimEnd('/')
+        if (!c.startsWith("http")) c = "http://$c"
+        return c
+    }
     fun valid(): Boolean = try { java.net.URL(clean()).host.isNotEmpty() } catch (e: Exception) { false }
+    fun connectAndAuthenticate(): String {
+        if (username.isNotBlank() && password.isNotBlank()) {
+            val status = ApiClient.getPublicJson(clean(), "/api/auth/status")
+            val response = if (status.optBoolean("setup_required", false)) {
+                val bootstrap = legacyToken.ifBlank { setupToken.trim() }
+                if (bootstrap.isBlank()) throw ApiException("First-time setup needs the existing server setup credential once.")
+                ApiClient.postPublicJson(clean(), "/api/auth/setup", org.json.JSONObject()
+                    .put("username", username.trim()).put("password", password).put("setup_token", bootstrap))
+            } else {
+                ApiClient.postPublicJson(clean(), "/api/auth/login", org.json.JSONObject()
+                    .put("username", username.trim()).put("password", password))
+            }
+            return "bearer:" + response.getString("access_token")
+        }
+        if (sessionToken.isNotBlank()) return sessionToken
+        if (legacyToken.isNotBlank()) return legacyToken
+        throw ApiException("Enter your username and password to sign in.")
+    }
     Column(Modifier.fillMaxSize().background(Bg).systemBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBtn(Ic.ChevronL, "Back", onClick = onCancel)
             Text(if (sv == null) "Add server" else "Edit server", fontSize = AppType.section, fontWeight = FontWeight.Bold, color = Txt)
         }
-        Text("Use the address shown when the monitoring service starts, for example 192.168.1.50:8080.", color = Mut, fontSize = AppType.body)
+        Text("Connect with your Allerion account. Each person can have their own login.", color = Mut, fontSize = AppType.body)
         Panel {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
-                OutlinedTextField(group, { group = it }, label = { Text("Group / location (e.g. Home, NAS, Office)") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+                OutlinedTextField(name, { name = it }, label = { Text("Server name") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+                OutlinedTextField(group, { group = it }, label = { Text("Group / location") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
                 OutlinedTextField(addr, { addr = it; test = null }, label = { Text("Server address") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
-                OutlinedTextField(tok, { tok = it; test = null }, label = { Text("Token") }, singleLine = true,
+                OutlinedTextField(username, { username = it; test = null }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+                OutlinedTextField(password, { password = it; test = null }, label = { Text("Password (12 characters minimum)") }, singleLine = true,
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+                if (sv == null || legacyToken.isBlank()) {
+                    OutlinedTextField(setupToken, { setupToken = it }, label = { Text("One-time setup token (first account only)") }, singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+                }
+                Text("The long server token is only needed once when creating the first administrator. After that, sign in with your own password.", color = Dim, fontSize = AppType.caption)
             }
         }
         test?.let { (ok, msg) -> StateMessage(msg, !ok) }
         OutlinedButton({
             if (!valid()) { test = false to "Invalid server address."; return@OutlinedButton }
-            testing = true; test = null
+            testing = true
+            test = null
             scope.launch {
-                test = try { val j = withContext(Dispatchers.IO) { fetch(clean(), tok.trim()) }; true to "Connected to ${j.str("host").ifEmpty { "server" }}." }
-                       catch (e: CancellationException) { throw e } catch (e: Exception) { false to friendlyError(e) }
-                testing = false
+                try {
+                    val credential = withContext(Dispatchers.IO) { connectAndAuthenticate() }
+                    val j = withContext(Dispatchers.IO) { fetch(clean(), credential) }
+                    sessionToken = credential
+                    test = true to "Connected to ${j.str("host").ifEmpty { "server" }}. Your login is ready to save."
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) { test = false to friendlyError(e) }
+                finally { testing = false }
             }
         }, Modifier.fillMaxWidth().height(50.dp), enabled = addr.isNotBlank() && !testing, shape = RoundedCornerShape(14.dp)) {
-            Text(if (testing) "Testing…" else "Test connection", color = Txt)
+            Text(if (testing) "Signing in…" else "Sign in & test connection", color = Txt)
         }
         Button({
             if (!valid()) test = false to "Invalid server address."
-            else onSave(Server(name.trim().ifEmpty { "My server" }, clean(), tok.trim(), group.trim().ifEmpty { "Ungrouped" }))
-        }, Modifier.fillMaxWidth().height(52.dp), enabled = addr.isNotBlank(), shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) { Text("Save", fontWeight = FontWeight.SemiBold) }
+            else if (sessionToken.isBlank() && legacyToken.isBlank()) test = false to "Sign in and test the connection before saving."
+            else onSave(Server(name.trim().ifEmpty { "My server" }, clean(), sessionToken.ifBlank { legacyToken }, group.trim().ifEmpty { "Ungrouped" }))
+        }, Modifier.fillMaxWidth().height(52.dp), enabled = addr.isNotBlank() && (sessionToken.isNotBlank() || legacyToken.isNotBlank()), shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Txt)) { Text("Save server", fontWeight = FontWeight.SemiBold) }
         if (sv != null) OutlinedButton(onDelete, Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) { Text("Remove server", color = Err) }
         TextButton(onCancel, Modifier.fillMaxWidth()) { Text("Cancel", color = Mut) }
     }
