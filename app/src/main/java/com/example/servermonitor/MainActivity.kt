@@ -203,11 +203,8 @@ class MainActivity : FragmentActivity() {
     }
 
     override fun onStop() {
-        if (!isChangingConfigurations) {
-            isUnlocked = false
-            promptInProgress = false
-            unlockMessage = "Authenticate to access your Allerion dashboard."
-        }
+        // Auto-lock defaults to Never: keep the app unlocked when it moves to the background.
+        // The first app launch still requires device authentication.
         super.onStop()
     }
 
