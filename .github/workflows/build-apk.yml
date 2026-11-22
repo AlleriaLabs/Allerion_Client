@@ -124,7 +124,7 @@ jobs:
             Allerion.apk
             Allerion.apk.sha256
           if-no-files-found: error
-      - name: Publish signed FCM release
+      - name: Publish signed Android release
         if: steps.readiness.outputs.ready == 'true'
         uses: softprops/action-gh-release@v2
         with:
