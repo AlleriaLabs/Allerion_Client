@@ -19,7 +19,7 @@ fun pollDelay(baseMs: Long, failures: Int): Long {
 /** Reject missing credentials locally; the monitoring API requires header-only X-Token auth. */
 fun validateApiToken(token: String) {
     if (token.isBlank()) {
-        throw ApiException("API token is required. Edit this server connection and enter its X-Token.")
+        throw ApiException("Server sign-in is required. Edit this server connection and sign in with your Allerion account.")
     }
 }
 
